@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI家机</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #f3efea;
+            display: flex;
+            height: 100vh;
+            font-family: system-ui, -apple-system, serif;
+            color: #333;
+        }
+        /* 侧边栏 */
+        .sidebar {
+            width: 220px;
+            background: #e9e2dc;
+            padding: 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap:12px;
+        }
+        .new-chat-btn{
+            padding:12px;
+            border:none;
+            background:#c8b6b0;
+            border-radius:10px;
+            cursor:pointer;
+            font-size:15px;
+            transition:0.2s;
+        }
+        .new-chat-btn:hover{
+            background:#b8a39c;
+        }
+        .session-item{
+            padding:10px;
+            border-radius:8px;
+            background:#ddcfc9;
+            cursor:pointer;
+            font-size:14px;
+        }
+        .session-item.active{
+            background:#c8b6b0;
+        }
+        /* 聊天主体 */
+        .chat-main{
+            flex:1;
+            display:flex;
+            flex-direction:column;
+        }
+        .message-box{
+            flex:1;
+            padding:24px;
+            overflow-y:auto;
+        }
+        .msg{
+            max-width:65%;
+            margin-bottom:16px;
+        }
+        .user-msg{
+            margin-left:auto;
+        }
+        .user-msg .text{
+            background:#c8b6b0;
+            color:#111;
+            padding:12px 16px;
+            border-radius:16px 16px 4px 16px;
+        }
+        .bot-msg .text{
+            background:#fff;
+            padding:12px 16px;
+            border-radius:16px 16px 16px 4px;
+        }
+        /* 输入区域 */
+        .input-area{
+            display:flex;
+            gap:10px;
+            padding:16px 24px;
+        }
+        #inputText{
+            flex:1;
+            padding:14px 16px;
+            border-radius:99px;
+            border:1px solid #d9cec7;
+            outline:none;
+            font-size:15px;
+            background:#fff;
+        }
+        #sendBtn{
+            padding:0 24px;
+            border:none;
+            background:#c8b6b0;
+            border-radius:99px;
+            cursor:pointer;
+        }
+        #sendBtn:disabled{
+            opacity:0.6;
+            cursor:not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <button class="new-chat-btn" id="newSessionBtn">新建对话</button>
+        <div id="sessionList"></div>
+    </div>
+    <div class="chat-main">
+        <div class="message-box" id="messageBox"></div>
+        <div class="input-area">
+            <input type="text" id="inputText" placeholder="输入消息，回车发送">
+            <button id="sendBtn">发送</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:3000/api";
+        let currentSessionId = null;
+        const sessionListEl = document.getElementById("sessionList");
+        const messageBoxEl = document.getElementById("messageBox");
+        const inputTextEl = document.getElementById("inputText");
+        const sendBtn = document.getElementById("sendBtn");
+        const newSessionBtn = document.getElementById("newSessionBtn");
+
+        // 加载会话列表
+        async function loadSessions() {
+            const res = await fetch(`${API_BASE}/sessions`);
+            const sessions = await res.json();
+            sessionListEl.innerHTML = "";
+            sessions.forEach(s=>{
+                const div = document.createElement("div");
+                div.className = "session-item";
+                if(s.id === currentSessionId) div.classList.add("active");
+                div.innerText = "对话 " + s.id.slice(0,6);
+                div.onclick = ()=>switchSession(s.id);
+                sessionListEl.appendChild(div);
+            })
+        }
+
+        // 切换会话
+        async function switchSession(sid){
+            currentSessionId = sid;
+            await loadSessions();
+            const res = await fetch(`${API_BASE}/sessions/${sid}/messages`);
+            const msgs = await res.json();
+            renderMessages(msgs);
+        }
+
+        // 渲染消息
+        function renderMessages(messages){
+            messageBoxEl.innerHTML = "";
+            messages.forEach(m=>{
+                const wrap = document.createElement("div");
+                wrap.className = m.role === "user" ? "msg user-msg" : "msg bot-msg";
+                wrap.innerHTML = `<div class="text">${m.content}</div>`;
+                messageBoxEl.appendChild(wrap);
+            })
+            scrollBottom();
+        }
+        function scrollBottom(){
+            messageBoxEl.scrollTop = messageBoxEl.scrollHeight;
+        }
+
+        // 新建会话
+        newSessionBtn.onclick = async ()=>{
+            const res = await fetch(`${API_BASE}/sessions`,{
+                method:"POST"
+            })
+            const session = await res.json();
+            await loadSessions();
+            switchSession(session.id);
+            messageBoxEl.innerHTML = "";
+        }
+
+        // 发送消息
+        async function sendMessage(){
+            const text = inputTextEl.value.trim();
+            if(!text || !currentSessionId) return;
+            inputTextEl.value = "";
+            sendBtn.disabled = true;
+
+            await fetch(`${API_BASE}/chat`,{
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({
+                    sessionId: currentSessionId,
+                    content:text
+                })
+            })
+            await switchSession(currentSessionId);
+            sendBtn.disabled = false;
+        }
+        sendBtn.onclick = sendMessage;
+        // 回车发送
+        inputTextEl.addEventListener("keydown",e=>{
+            if(e.key === "Enter") sendMessage();
+        })
+
+        // 初始化
+        loadSessions();
+    </script>
+</body>
+</html>
