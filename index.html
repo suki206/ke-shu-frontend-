@@ -119,7 +119,8 @@
     </div>
 
     <script>
-        const API_BASE = "http://127.0.0.1:3000/api";
+        // 修复：线上环境使用相对路径，本地开发自动适配
+        const API_BASE = "/api";
         let currentSessionId = null;
         const sessionListEl = document.getElementById("sessionList");
         const messageBoxEl = document.getElementById("messageBox");
@@ -127,28 +128,38 @@
         const sendBtn = document.getElementById("sendBtn");
         const newSessionBtn = document.getElementById("newSessionBtn");
 
-        // 加载会话列表
+        // 加载会话列表（增加异常捕获，防止接口报错页面空白）
         async function loadSessions() {
-            const res = await fetch(`${API_BASE}/sessions`);
-            const sessions = await res.json();
-            sessionListEl.innerHTML = "";
-            sessions.forEach(s=>{
-                const div = document.createElement("div");
-                div.className = "session-item";
-                if(s.id === currentSessionId) div.classList.add("active");
-                div.innerText = "对话 " + s.id.slice(0,6);
-                div.onclick = ()=>switchSession(s.id);
-                sessionListEl.appendChild(div);
-            })
+            try {
+                const res = await fetch(`${API_BASE}/sessions`);
+                if (!res.ok) throw new Error("获取会话失败");
+                const sessions = await res.json();
+                sessionListEl.innerHTML = "";
+                sessions.forEach(s=>{
+                    const div = document.createElement("div");
+                    div.className = "session-item";
+                    if(s.id === currentSessionId) div.classList.add("active");
+                    div.innerText = "对话 " + s.id.slice(0,6);
+                    div.onclick = ()=>switchSession(s.id);
+                    sessionListEl.appendChild(div);
+                })
+            } catch (err) {
+                console.error("加载会话列表异常：", err);
+            }
         }
 
         // 切换会话
         async function switchSession(sid){
-            currentSessionId = sid;
-            await loadSessions();
-            const res = await fetch(`${API_BASE}/sessions/${sid}/messages`);
-            const msgs = await res.json();
-            renderMessages(msgs);
+            try {
+                currentSessionId = sid;
+                await loadSessions();
+                const res = await fetch(`${API_BASE}/sessions/${sid}/messages`);
+                if (!res.ok) throw new Error("获取消息失败");
+                const msgs = await res.json();
+                renderMessages(msgs);
+            } catch (err) {
+                console.error("切换会话异常：", err);
+            }
         }
 
         // 渲染消息
@@ -166,34 +177,49 @@
             messageBoxEl.scrollTop = messageBoxEl.scrollHeight;
         }
 
-        // 新建会话
+        // 新建会话（原有刷新逻辑保留，已修复接口地址）
         newSessionBtn.onclick = async ()=>{
-            const res = await fetch(`${API_BASE}/sessions`,{
-                method:"POST"
-            })
-            const session = await res.json();
-            await loadSessions();
-            switchSession(session.id);
-            messageBoxEl.innerHTML = "";
+            try {
+                const res = await fetch(`${API_BASE}/sessions`,{
+                    method:"POST"
+                })
+                if (!res.ok) throw new Error("创建会话失败");
+                const session = await res.json();
+                await loadSessions();
+                switchSession(session.id);
+                messageBoxEl.innerHTML = "";
+            } catch (err) {
+                console.error("新建对话异常：", err);
+                alert("新建对话失败，请检查后端服务是否正常");
+            }
         }
 
         // 发送消息
         async function sendMessage(){
             const text = inputTextEl.value.trim();
-            if(!text || !currentSessionId) return;
+            if(!text || !currentSessionId) {
+                alert("请先新建对话再发送消息");
+                return;
+            }
             inputTextEl.value = "";
             sendBtn.disabled = true;
 
-            await fetch(`${API_BASE}/chat`,{
-                method:"POST",
-                headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({
-                    sessionId: currentSessionId,
-                    content:text
+            try {
+                await fetch(`${API_BASE}/chat`,{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({
+                        sessionId: currentSessionId,
+                        content:text
+                    })
                 })
-            })
-            await switchSession(currentSessionId);
-            sendBtn.disabled = false;
+                await switchSession(currentSessionId);
+            } catch (err) {
+                console.error("发送消息异常：", err);
+                alert("消息发送失败，后端连接异常");
+            } finally {
+                sendBtn.disabled = false;
+            }
         }
         sendBtn.onclick = sendMessage;
         // 回车发送
@@ -201,8 +227,8 @@
             if(e.key === "Enter") sendMessage();
         })
 
-        // 初始化
-        loadSessions();
+        // 页面初始化加载会话
+        window.addEventListener("load", loadSessions);
     </script>
 </body>
 </html>
