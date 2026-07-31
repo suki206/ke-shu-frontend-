@@ -168,6 +168,10 @@ const ChatPage = () => {
   const [archivedList, setArchivedList] = useState([])
   const [hasOlderArchive, setHasOlderArchive] = useState(false)
   const [archiveCursor, setArchiveCursor] = useState(null)
+  
+  // ===== 自定义删除弹窗状态 =====
+  const [deleteModal, setDeleteModal] = useState({ show: false, sessionId: null, name: '' })
+  
   const messageBoxRef = useRef(null)
 
   const handleSplashEnter = () => {
@@ -231,16 +235,27 @@ const ChatPage = () => {
     fetchSessions()
   }
 
-  const deleteSession = async (sid) => {
-    await axios.delete(`${API_BASE}/session/${sid}`)
-    fetchSessions()
-    if (activeSessionId === sid) {
-      setActiveSessionId(null)
-      setMessages([])
-      setArchivedList([])
-      setHasOlderArchive(false)
-      setArchiveCursor(null)
+  // ===== 删除相关函数 =====
+  const handleDeleteClick = (sid, sname) => {
+    setDeleteModal({ show: true, sessionId: sid, name: sname || '这个会话' })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteModal.sessionId) return
+    try {
+      await axios.delete(`${API_BASE}/session/${deleteModal.sessionId}`)
+      fetchSessions()
+      if (activeSessionId === deleteModal.sessionId) {
+        setActiveSessionId(null)
+        setMessages([])
+        setArchivedList([])
+        setHasOlderArchive(false)
+        setArchiveCursor(null)
+      }
+    } catch (err) {
+      console.error('删除失败:', err)
     }
+    setDeleteModal({ show: false, sessionId: null, name: '' })
   }
 
   const sendMessage = async () => {
@@ -503,7 +518,7 @@ const ChatPage = () => {
                   style={{ background: 'transparent', border: 'none', color: '#c0b0a0', cursor: 'pointer', fontSize: '12px', padding: '2px 4px' }}
                 >✏</button>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); if (window.confirm('确定删除会话？')) deleteSession(item.id) }} 
+                  onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id, item.title) }} 
                   style={{ background: 'transparent', border: 'none', color: '#c0b0a0', cursor: 'pointer', fontSize: '12px', padding: '2px 4px' }}
                 >🗑</button>
               </div>
@@ -677,6 +692,55 @@ const ChatPage = () => {
 
       {/* 小鲸鱼桌宠 */}
       <WhalePet />
+
+      {/* ===== 自定义删除确认弹窗 ===== */}
+      {deleteModal.show && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: 'rgba(255,252,250,0.95)',
+            borderRadius: '24px', padding: '28px 24px 20px',
+            width: '300px', textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+            border: '1px solid rgba(244,216,220,0.5)',
+            animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)'
+          }}>
+            <div style={{ fontSize: '22px', marginBottom: '6px' }}>🗑️</div>
+            <div style={{
+              fontSize: '16px', fontWeight: 600, color: '#4a4a4a', marginBottom: '6px'
+            }}>
+              确定删除会话？
+            </div>
+            <div style={{
+              fontSize: '13px', color: '#999', marginBottom: '24px'
+            }}>
+              "{deleteModal.name}" 将被永久删除
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: '14px', border: 'none',
+                  background: '#f0ebe7', color: '#666', fontSize: '14px', fontWeight: 500,
+                  cursor: 'pointer'
+                }}>
+                取消
+              </button>
+              <button onClick={confirmDelete}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: '14px', border: 'none',
+                  background: '#f4d8dc', color: '#8b5a5a', fontSize: '14px', fontWeight: 600,
+                  cursor: 'pointer'
+                }}>
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 设置弹窗 */}
       {showSetting && (
