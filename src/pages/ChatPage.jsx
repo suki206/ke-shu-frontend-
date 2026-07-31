@@ -174,6 +174,39 @@ const ChatPage = () => {
 
   const messageBoxRef = useRef(null)
 
+  // ===== 终极修复：JS 层面阻止页面级滚动（橡皮筋效果） =====
+  useEffect(() => {
+    const preventPageScroll = (e) => {
+      const target = e.target
+      const messageBox = messageBoxRef.current
+
+      // 如果触摸目标在消息列表内，允许滚动
+      if (messageBox && messageBox.contains(target)) {
+        return
+      }
+
+      // 如果触摸目标是 textarea 或在 textarea 内，允许（输入框内部滚动）
+      if (target.tagName === 'TEXTAREA' || target.closest('textarea')) {
+        return
+      }
+
+      // 如果触摸目标在设置弹窗内，允许弹窗内部滚动
+      const settingModal = document.querySelector('[data-setting-modal]')
+      if (settingModal && settingModal.contains(target)) {
+        return
+      }
+
+      // 其他所有区域：阻止默认滚动行为
+      e.preventDefault()
+    }
+
+    document.addEventListener('touchmove', preventPageScroll, { passive: false })
+
+    return () => {
+      document.removeEventListener('touchmove', preventPageScroll, { passive: false })
+    }
+  }, [])
+
   const handleSplashEnter = () => {
     sessionStorage.setItem('hasVisited', 'true')
     setShowSplash(false)
@@ -399,9 +432,9 @@ const ChatPage = () => {
 
   return (
     <div style={{ 
-      /* ===== 关键修复：用 height: 100% 代替 100vh 或 position: fixed ===== */
+      /* ===== 关键修复1：100dvh 精确匹配视口，无视地址栏变化 ===== */
       width: '100%',
-      height: '100%',
+      height: '100dvh',
       display: 'flex', 
       flexDirection: 'column',
       overflow: 'hidden',
@@ -437,7 +470,7 @@ const ChatPage = () => {
         top: 0,
         left: showSidebar ? 0 : '-320px',
         width: '280px',
-        height: '100vh',
+        height: '100dvh',
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(20px)',
         zIndex: 300,
@@ -577,10 +610,11 @@ const ChatPage = () => {
           ref={messageBoxRef} 
           style={{ 
             flex: 1, 
-            /* ===== 关键修复：minHeight: 0 防止 flex item 撑大溢出 ===== */
             minHeight: 0,
             overflowY: 'auto',
             overflowX: 'hidden',
+            /* ===== 关键修复2：只允许这里垂直滚动，其他地方全部锁死 ===== */
+            touchAction: 'pan-y',
             WebkitOverflowScrolling: 'touch',
             overscrollBehavior: 'contain',
             padding: '16px 0'
@@ -754,19 +788,22 @@ const ChatPage = () => {
 
       {/* 设置弹窗 */}
       {showSetting && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          width: '100vw', 
-          height: '100vh', 
-          background: 'rgba(0,0,0,0.2)', 
-          backdropFilter: 'blur(8px)',
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          zIndex: 400
-        }}>
+        <div 
+          data-setting-modal
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100vw', 
+            height: '100vh', 
+            background: 'rgba(0,0,0,0.2)', 
+            backdropFilter: 'blur(8px)',
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            zIndex: 400
+          }}
+        >
           <div style={{ 
             width: '480px', 
             maxWidth: '90vw',
