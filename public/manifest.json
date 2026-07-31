@@ -1,0 +1,21 @@
+{
+  "name": "ke&shu",
+  "short_name": "ke&shu",
+  "description": "专属AI对话小屋，多会话自动记忆压缩",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f3ef",
+  "theme_color": "#f4d8dc",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
