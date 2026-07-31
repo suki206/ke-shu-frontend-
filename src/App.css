@@ -40,6 +40,17 @@
   animation: wiggle 0.6s ease-in-out;
 }
 
+/* ===== 严格锁定页面滚动 ===== */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
+
 /* 滚动条美化 */
 ::-webkit-scrollbar {
   width: 4px;
@@ -64,11 +75,14 @@
 }
 
 body {
-  margin: 0;
-  padding: 0;
   font-family: "Georgia", "Times New Roman", "PingFang SC", "Microsoft YaHei", serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 /* 输入框 placeholder 颜色 */

@@ -78,8 +78,8 @@ const SplashScreen = ({ onEnter }) => {
         position: 'fixed',
         top: 0,
         left: 0,
-        width: '100vw',
-        height: '100vh',
+        width: '100%',
+        height: '100%',
         background: 'linear-gradient(135deg, #faf8f5 0%, #f5f0eb 50%, #faf8f5 100%)',
         display: 'flex',
         flexDirection: 'column',
@@ -120,7 +120,6 @@ const SplashScreen = ({ onEnter }) => {
           borderRadius: '24px',
           border: '1px solid #d4c4b8',
           background: 'rgba(255,255,255,0.6)',
-          backdropFilter: 'blur(10px)',
           color: '#8a7a72',
           fontSize: '14px',
           cursor: 'pointer',
@@ -378,8 +377,7 @@ const ChatPage = () => {
           wordBreak: 'break-word', 
           background: msg.role === 'user' 
             ? 'linear-gradient(135deg, #f5e6dc, #f0ddd0)' 
-            : 'rgba(255,255,255,0.85)',
-          backdropFilter: 'blur(10px)',
+            : 'rgba(255,255,255,0.9)',
           color: msg.role === 'user' ? '#5a4a42' : '#4a4a4a',
           fontSize: '14px',
           lineHeight: '1.7',
@@ -400,12 +398,14 @@ const ChatPage = () => {
   return (
     <div style={{ 
       display: 'flex', 
-      height: '100vh', 
+      height: '100%',
+      width: '100%',
       background: 'linear-gradient(135deg, #faf8f5 0%, #f5f0eb 50%, #faf8f5 100%)',
       color: '#5a4a42',
       fontFamily: '"Georgia", "Times New Roman", "PingFang SC", "Microsoft YaHei", serif',
       overflow: 'hidden',
-      position: 'relative'
+      position: 'relative',
+      touchAction: 'none'
     }}>
       {/* 开屏页 */}
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
@@ -420,7 +420,6 @@ const ChatPage = () => {
             right: 0,
             bottom: 0,
             background: 'rgba(0,0,0,0.2)',
-            backdropFilter: 'blur(4px)',
             zIndex: 200,
             animation: 'fadeIn 0.3s ease'
           }}
@@ -434,9 +433,8 @@ const ChatPage = () => {
         top: 0,
         left: showSidebar ? 0 : '-320px',
         width: '280px',
-        height: '100vh',
-        background: 'rgba(255,255,255,0.92)',
-        backdropFilter: 'blur(20px)',
+        height: '100%',
+        background: 'rgba(255,255,255,0.95)',
         zIndex: 300,
         transition: 'left 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
         display: 'flex',
@@ -547,14 +545,15 @@ const ChatPage = () => {
       </div>
 
       {/* 主内容区 */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
         {/* 顶部导航 */}
         <div style={{ 
           padding: '12px 20px', 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-between',
-          borderBottom: '1px solid rgba(0,0,0,0.04)'
+          borderBottom: '1px solid rgba(0,0,0,0.04)',
+          flexShrink: 0
         }}>
           <button 
             onClick={() => setShowSidebar(true)}
@@ -574,7 +573,11 @@ const ChatPage = () => {
           style={{ 
             flex: 1, 
             overflowY: 'auto',
-            padding: '16px 0'
+            overflowX: 'hidden',
+            padding: '16px 0',
+            touchAction: 'pan-y',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain'
           }}
         >
           {!activeSessionId ? (
@@ -642,8 +645,8 @@ const ChatPage = () => {
         <div style={{ 
           padding: '12px 20px 20px', 
           borderTop: '1px solid rgba(0,0,0,0.04)',
-          background: 'rgba(255,255,255,0.6)',
-          backdropFilter: 'blur(10px)'
+          background: 'rgba(255,255,255,0.8)',
+          flexShrink: 0
         }}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
             <textarea
@@ -654,7 +657,7 @@ const ChatPage = () => {
               style={{ 
                 flex: 1, 
                 padding: '12px 16px', 
-                background: 'rgba(255,255,255,0.8)', 
+                background: 'rgba(255,255,255,0.9)', 
                 border: '1px solid rgba(212,196,184,0.3)', 
                 borderRadius: '20px', 
                 color: '#5a4a42', 
@@ -697,12 +700,12 @@ const ChatPage = () => {
       {deleteModal.show && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)',
+          background: 'rgba(0,0,0,0.35)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 2000, animation: 'fadeIn 0.2s ease'
         }}>
           <div style={{
-            background: 'rgba(255,252,250,0.95)',
+            background: 'rgba(255,252,250,0.98)',
             borderRadius: '24px', padding: '28px 24px 20px',
             width: '300px', textAlign: 'center',
             boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
@@ -748,10 +751,9 @@ const ChatPage = () => {
           position: 'fixed', 
           top: 0, 
           left: 0, 
-          width: '100vw', 
-          height: '100vh', 
+          width: '100%', 
+          height: '100%', 
           background: 'rgba(0,0,0,0.2)', 
-          backdropFilter: 'blur(8px)',
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center',
@@ -760,10 +762,9 @@ const ChatPage = () => {
           <div style={{ 
             width: '480px', 
             maxWidth: '90vw',
-            background: 'rgba(255,255,255,0.95)', 
+            background: 'rgba(255,255,255,0.98)', 
             padding: '28px', 
             borderRadius: '20px',
-            backdropFilter: 'blur(20px)',
             boxShadow: '0 8px 40px rgba(0,0,0,0.1)',
             border: '1px solid rgba(0,0,0,0.04)'
           }}>
