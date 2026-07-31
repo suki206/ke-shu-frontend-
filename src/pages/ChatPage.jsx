@@ -168,10 +168,10 @@ const ChatPage = () => {
   const [archivedList, setArchivedList] = useState([])
   const [hasOlderArchive, setHasOlderArchive] = useState(false)
   const [archiveCursor, setArchiveCursor] = useState(null)
-  
+
   // ===== 自定义删除弹窗状态 =====
   const [deleteModal, setDeleteModal] = useState({ show: false, sessionId: null, name: '' })
-  
+
   const messageBoxRef = useRef(null)
 
   const handleSplashEnter = () => {
