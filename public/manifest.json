@@ -1,6 +1,6 @@
 {
-  "name": "ke&shu",
-  "short_name": "ke&shu",
+  "name": "ke-shu",
+  "short_name": "ke-shu",
   "description": "专属AI对话小屋，多会话自动记忆压缩",
   "start_url": "/",
   "display": "standalone",
