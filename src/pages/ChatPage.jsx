@@ -397,15 +397,16 @@ const ChatPage = () => {
 
   return (
     <div style={{ 
-      display: 'flex', 
-      height: '100%',
+      position: 'absolute',
+      top: 0,
+      left: 0,
       width: '100%',
+      height: '100%',
+      display: 'flex', 
       background: 'linear-gradient(135deg, #faf8f5 0%, #f5f0eb 50%, #faf8f5 100%)',
       color: '#5a4a42',
       fontFamily: '"Georgia", "Times New Roman", "PingFang SC", "Microsoft YaHei", serif',
-      overflow: 'hidden',
-      position: 'relative',
-      touchAction: 'none'
+      overflow: 'hidden'
     }}>
       {/* 开屏页 */}
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
@@ -576,7 +577,6 @@ const ChatPage = () => {
             overflowX: 'hidden',
             padding: '16px 0',
             touchAction: 'pan-y',
-            WebkitOverflowScrolling: 'touch',
             overscrollBehavior: 'contain'
           }}
         >
