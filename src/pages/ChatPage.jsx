@@ -168,7 +168,6 @@ const ChatPage = () => {
   const [hasOlderArchive, setHasOlderArchive] = useState(false)
   const [archiveCursor, setArchiveCursor] = useState(null)
   
-  // 自定义删除弹窗状态
   const [deleteModal, setDeleteModal] = useState({ show: false, sessionId: null, name: '' })
   
   const messageBoxRef = useRef(null)
@@ -186,12 +185,18 @@ const ChatPage = () => {
     }, 50)
   }
 
-  // ===== 修复：加 try/catch 防止请求失败导致状态丢失 =====
   const fetchSessions = async () => {
     try {
       const res = await axios.get(`${API_BASE}/sessions`)
       console.log('会话列表加载成功:', res.data)
-      setSessionList(res.data || [])
+      const sessions = res.data || []
+      setSessionList(sessions)
+      
+      // 如果有会话且当前没有选中，自动选中第一个
+      if (sessions.length > 0 && !activeSessionId) {
+        console.log('自动恢复会话:', sessions[0].id)
+        switchSession(sessions[0].id)
+      }
     } catch (err) {
       console.error('加载会话列表失败:', err.message)
       setSessionList([])
@@ -259,7 +264,6 @@ const ChatPage = () => {
     }
   }
 
-  // 删除相关函数
   const handleDeleteClick = (sid, sname) => {
     setDeleteModal({ show: true, sessionId: sid, name: sname || '这个会话' })
   }
@@ -328,7 +332,6 @@ const ChatPage = () => {
     }
   }
 
-  // 页面加载时获取会话列表和设置
   useEffect(() => {
     fetchSessions()
     getSettings()
@@ -364,7 +367,6 @@ const ChatPage = () => {
     return `${date.getMonth() + 1}月${date.getDate()}日`
   }
 
-  // 按日期分组消息
   const groupMessagesByDate = (msgs) => {
     const groups = {}
     msgs.forEach(msg => {
@@ -389,7 +391,6 @@ const ChatPage = () => {
         alignItems: 'flex-end',
         gap: '8px'
       }}>
-        {/* 头像 */}
         <div style={{
           width: '32px',
           height: '32px',
@@ -405,7 +406,6 @@ const ChatPage = () => {
           {msg.role === 'user' ? '👤' : '🐳'}
         </div>
 
-        {/* 气泡 */}
         <div style={{ 
           padding: '12px 16px', 
           borderRadius: msg.role === 'user' ? '20px 20px 4px 20px' : '20px 20px 20px 4px', 
@@ -434,19 +434,17 @@ const ChatPage = () => {
 
   return (
     <div style={{ 
-      flex: 1,              // ← 核心修复：从 height: '100%' 改成 flex: 1
+      flex: 1,
       display: 'flex', 
       background: 'linear-gradient(135deg, #faf8f5 0%, #f5f0eb 50%, #faf8f5 100%)',
       color: '#5a4a42',
       fontFamily: '"Georgia", "Times New Roman", "PingFang SC", "Microsoft YaHei", serif',
       overflow: 'hidden',
       position: 'relative',
-      minHeight: 0          // ← 防止 flex 子项撑大
+      minHeight: 0
     }}>
-      {/* 开屏页 */}
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
 
-      {/* 侧边栏遮罩 */}
       {showSidebar && (
         <div 
           style={{
@@ -464,7 +462,6 @@ const ChatPage = () => {
         />
       )}
 
-      {/* 左侧抽屉 */}
       <div style={{
         position: 'fixed',
         top: 0,
@@ -582,9 +579,7 @@ const ChatPage = () => {
         </div>
       </div>
 
-      {/* 主内容区 */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        {/* 顶部导航 */}
         <div style={{ 
           padding: '12px 20px', 
           display: 'flex', 
@@ -605,7 +600,6 @@ const ChatPage = () => {
           <div style={{ width: '24px' }} />
         </div>
 
-        {/* 消息区域 */}
         <div 
           ref={messageBoxRef} 
           style={{ 
@@ -678,7 +672,6 @@ const ChatPage = () => {
           )}
         </div>
 
-        {/* 输入区域 */}
         <div style={{ 
           padding: '12px 20px 20px', 
           borderTop: '1px solid rgba(0,0,0,0.04)',
@@ -704,7 +697,8 @@ const ChatPage = () => {
                 fontSize: '14px',
                 outline: 'none',
                 lineHeight: '1.5',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                minHeight: '48px'
               }}
               rows={2}
             />
@@ -733,10 +727,8 @@ const ChatPage = () => {
         </div>
       </div>
 
-      {/* 小鲸鱼桌宠 */}
       <WhalePet />
 
-      {/* 自定义删除确认弹窗 */}
       {deleteModal.show && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -787,7 +779,6 @@ const ChatPage = () => {
         </div>
       )}
 
-      {/* 设置弹窗 */}
       {showSetting && (
         <div style={{ 
           position: 'fixed', 
