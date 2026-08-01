@@ -188,13 +188,10 @@ const ChatPage = () => {
   const fetchSessions = async () => {
     try {
       const res = await axios.get(`${API_BASE}/sessions`)
-      console.log('会话列表加载成功:', res.data)
       const sessions = res.data || []
       setSessionList(sessions)
       
-      // 如果有会话且当前没有选中，自动选中第一个
       if (sessions.length > 0 && !activeSessionId) {
-        console.log('自动恢复会话:', sessions[0].id)
         switchSession(sessions[0].id)
       }
     } catch (err) {
@@ -287,25 +284,35 @@ const ChatPage = () => {
     setDeleteModal({ show: false, sessionId: null, name: '' })
   }
 
+  // ================= 【核心修复】发送消息函数 =================
   const sendMessage = async () => {
     if (!inputText.trim() || !activeSessionId || loading) return
     const content = inputText.trim()
     setInputText('')
     setLoading(true)
+    
+    // 先添加用户消息到UI
     const tempUserMsg = { role: 'user', content, created_at: new Date() }
     setMessages(prev => [...prev, tempUserMsg])
     scrollBottom()
 
     try {
-      await axios.post(`${API_BASE}/chat`, {
+      const res = await axios.post(`${API_BASE}/chat`, {
         sessionId: activeSessionId,
         content
       })
-      const freshMsgRes = await axios.get(`${API_BASE}/messages/${activeSessionId}`)
-      setMessages(freshMsgRes.data || [])
+      
+      // 【关键修复】直接利用后端返回的消息拼接到当前列表，不再去GET拉取所有消息
+      // 这样彻底杜绝因数据库延迟导致的“吞消息”
+      const aiReply = { role: 'assistant', content: res.data.reply, created_at: new Date() }
+      setMessages(prev => [...prev, aiReply])
+
+      // 异步检查是否还有归档（不影响主消息显示）
       const archiveRes = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?limit=1`)
       setHasOlderArchive((archiveRes.data?.list?.length || 0) > 0)
     } catch (err) {
+      // 请求失败：把上面那条用户消息撤回
+      setMessages(prev => prev.slice(0, -1))
       alert('请求失败：' + err.message)
     }
     setLoading(false)
