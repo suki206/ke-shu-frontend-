@@ -158,7 +158,6 @@ const ChatPage = () => {
   const [loading, setLoading] = useState(false)
   const [showSetting, setShowSetting] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
-  const [activeTab, setActiveTab] = useState('chat')
   const [config, setConfig] = useState({
     system_prompt: '你是温柔贴心的AI伴侣，简短自然回复',
     temperature: 0.7,
@@ -168,10 +167,10 @@ const ChatPage = () => {
   const [archivedList, setArchivedList] = useState([])
   const [hasOlderArchive, setHasOlderArchive] = useState(false)
   const [archiveCursor, setArchiveCursor] = useState(null)
-
-  // ===== 自定义删除弹窗状态 =====
+  
+  // 自定义删除弹窗状态
   const [deleteModal, setDeleteModal] = useState({ show: false, sessionId: null, name: '' })
-
+  
   const messageBoxRef = useRef(null)
 
   const handleSplashEnter = () => {
@@ -187,55 +186,80 @@ const ChatPage = () => {
     }, 50)
   }
 
+  // ===== 修复：加 try/catch 防止请求失败导致状态丢失 =====
   const fetchSessions = async () => {
-    const res = await axios.get(`${API_BASE}/sessions`)
-    setSessionList(res.data)
+    try {
+      const res = await axios.get(`${API_BASE}/sessions`)
+      console.log('会话列表加载成功:', res.data)
+      setSessionList(res.data || [])
+    } catch (err) {
+      console.error('加载会话列表失败:', err.message)
+      setSessionList([])
+    }
   }
 
   const createSession = async () => {
-    const res = await axios.post(`${API_BASE}/session/new`)
-    setSessionList(prev => [res.data, ...prev])
-    setActiveSessionId(res.data.id)
-    setMessages([])
-    setArchivedList([])
-    setHasOlderArchive(false)
-    setArchiveCursor(null)
-    setShowSidebar(false)
+    try {
+      const res = await axios.post(`${API_BASE}/session/new`)
+      setSessionList(prev => [res.data, ...prev])
+      setActiveSessionId(res.data.id)
+      setMessages([])
+      setArchivedList([])
+      setHasOlderArchive(false)
+      setArchiveCursor(null)
+      setShowSidebar(false)
+    } catch (err) {
+      console.error('创建会话失败:', err.message)
+      alert('创建会话失败：' + err.message)
+    }
   }
 
   const switchSession = async (sid) => {
-    setActiveSessionId(sid)
-    const res = await axios.get(`${API_BASE}/messages/${sid}`)
-    setMessages(res.data)
-    setArchivedList([])
-    setHasOlderArchive(false)
-    setArchiveCursor(null)
-    const archiveRes = await axios.get(`${API_BASE}/messages/archived/${sid}?limit=1`)
-    if (archiveRes.data.list.length > 0) {
-      setHasOlderArchive(true)
+    try {
+      setActiveSessionId(sid)
+      const res = await axios.get(`${API_BASE}/messages/${sid}`)
+      setMessages(res.data || [])
+      setArchivedList([])
+      setHasOlderArchive(false)
+      setArchiveCursor(null)
+      
+      const archiveRes = await axios.get(`${API_BASE}/messages/archived/${sid}?limit=1`)
+      if (archiveRes.data?.list?.length > 0) {
+        setHasOlderArchive(true)
+      }
+      setShowSidebar(false)
+    } catch (err) {
+      console.error('切换会话失败:', err.message)
     }
-    setShowSidebar(false)
   }
 
   const loadOlderArchive = async () => {
-    const params = new URLSearchParams()
-    if (archiveCursor) params.append('cursor', archiveCursor)
-    params.append('limit', '6')
-    const res = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?${params.toString()}`)
-    const { list, hasMore } = res.data
-    if (list.length > 0) {
-      setArchivedList([...list, ...archivedList])
-      setArchiveCursor(list[0].id)
+    try {
+      const params = new URLSearchParams()
+      if (archiveCursor) params.append('cursor', archiveCursor)
+      params.append('limit', '6')
+      const res = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?${params.toString()}`)
+      const { list, hasMore } = res.data
+      if (list.length > 0) {
+        setArchivedList([...list, ...archivedList])
+        setArchiveCursor(list[0].id)
+      }
+      setHasOlderArchive(hasMore)
+    } catch (err) {
+      console.error('加载历史失败:', err.message)
     }
-    setHasOlderArchive(hasMore)
   }
 
   const renameSession = async (sid, newTitle) => {
-    await axios.put(`${API_BASE}/session/${sid}`, { title: newTitle })
-    fetchSessions()
+    try {
+      await axios.put(`${API_BASE}/session/${sid}`, { title: newTitle })
+      fetchSessions()
+    } catch (err) {
+      console.error('重命名失败:', err.message)
+    }
   }
 
-  // ===== 删除相关函数 =====
+  // 删除相关函数
   const handleDeleteClick = (sid, sname) => {
     setDeleteModal({ show: true, sessionId: sid, name: sname || '这个会话' })
   }
@@ -253,7 +277,8 @@ const ChatPage = () => {
         setArchiveCursor(null)
       }
     } catch (err) {
-      console.error('删除失败:', err)
+      console.error('删除失败:', err.message)
+      alert('删除失败：' + err.message)
     }
     setDeleteModal({ show: false, sessionId: null, name: '' })
   }
@@ -268,14 +293,14 @@ const ChatPage = () => {
     scrollBottom()
 
     try {
-      const res = await axios.post(`${API_BASE}/chat`, {
+      await axios.post(`${API_BASE}/chat`, {
         sessionId: activeSessionId,
         content
       })
       const freshMsgRes = await axios.get(`${API_BASE}/messages/${activeSessionId}`)
-      setMessages(freshMsgRes.data)
+      setMessages(freshMsgRes.data || [])
       const archiveRes = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?limit=1`)
-      setHasOlderArchive(archiveRes.data.list.length > 0)
+      setHasOlderArchive((archiveRes.data?.list?.length || 0) > 0)
     } catch (err) {
       alert('请求失败：' + err.message)
     }
@@ -284,31 +309,29 @@ const ChatPage = () => {
   }
 
   const getSettings = async () => {
-    const res = await axios.get(`${API_BASE}/settings`)
-    setConfig(res.data)
+    try {
+      const res = await axios.get(`${API_BASE}/settings`)
+      setConfig(res.data)
+    } catch (err) {
+      console.error('加载设置失败:', err.message)
+    }
   }
 
   const saveSettings = async () => {
-    await axios.post(`${API_BASE}/settings`, config)
-    setShowSetting(false)
-    alert('配置已保存')
+    try {
+      await axios.post(`${API_BASE}/settings`, config)
+      setShowSetting(false)
+      alert('配置已保存')
+    } catch (err) {
+      console.error('保存设置失败:', err.message)
+      alert('保存失败：' + err.message)
+    }
   }
 
+  // 页面加载时获取会话列表和设置
   useEffect(() => {
     fetchSessions()
     getSettings()
-  }, [])
-
-  // ===== JS层面拦截：非消息区域禁止滚动 =====
-  useEffect(() => {
-    const preventScroll = (e) => {
-      const msgBox = messageBoxRef.current
-      if (!msgBox || !msgBox.contains(e.target)) {
-        e.preventDefault()
-      }
-    }
-    document.addEventListener('touchmove', preventScroll, { passive: false })
-    return () => document.removeEventListener('touchmove', preventScroll)
   }, [])
 
   const formatTime = (timeStr) => {
@@ -411,13 +434,14 @@ const ChatPage = () => {
 
   return (
     <div style={{ 
-      height: '100%',           // ← 核心修复：继承 #root 的 100%
+      flex: 1,              // ← 核心修复：从 height: '100%' 改成 flex: 1
       display: 'flex', 
       background: 'linear-gradient(135deg, #faf8f5 0%, #f5f0eb 50%, #faf8f5 100%)',
       color: '#5a4a42',
       fontFamily: '"Georgia", "Times New Roman", "PingFang SC", "Microsoft YaHei", serif',
       overflow: 'hidden',
-      position: 'relative'
+      position: 'relative',
+      minHeight: 0          // ← 防止 flex 子项撑大
     }}>
       {/* 开屏页 */}
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
@@ -559,14 +583,15 @@ const ChatPage = () => {
       </div>
 
       {/* 主内容区 */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {/* 顶部导航 */}
         <div style={{ 
           padding: '12px 20px', 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-between',
-          borderBottom: '1px solid rgba(0,0,0,0.04)'
+          borderBottom: '1px solid rgba(0,0,0,0.04)',
+          flexShrink: 0
         }}>
           <button 
             onClick={() => setShowSidebar(true)}
@@ -586,8 +611,10 @@ const ChatPage = () => {
           style={{ 
             flex: 1, 
             overflowY: 'auto',
-            minHeight: 0,           // ← 关键！防止 flex 子项撑大
-            padding: '16px 0'
+            padding: '16px 0',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
+            minHeight: 0
           }}
         >
           {!activeSessionId ? (
@@ -656,7 +683,8 @@ const ChatPage = () => {
           padding: '12px 20px 20px', 
           borderTop: '1px solid rgba(0,0,0,0.04)',
           background: 'rgba(255,255,255,0.6)',
-          backdropFilter: 'blur(10px)'
+          backdropFilter: 'blur(10px)',
+          flexShrink: 0
         }}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
             <textarea
@@ -694,7 +722,9 @@ const ChatPage = () => {
                 fontFamily: 'inherit',
                 opacity: loading || !activeSessionId ? 0.5 : 1,
                 transition: 'all 0.3s ease',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                flexShrink: 0,
+                whiteSpace: 'nowrap'
               }}
             >
               发送
@@ -706,7 +736,7 @@ const ChatPage = () => {
       {/* 小鲸鱼桌宠 */}
       <WhalePet />
 
-      {/* ===== 自定义删除确认弹窗 ===== */}
+      {/* 自定义删除确认弹窗 */}
       {deleteModal.show && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -739,7 +769,8 @@ const ChatPage = () => {
                   flex: 1, padding: '10px 0', borderRadius: '14px', border: 'none',
                   background: '#f0ebe7', color: '#666', fontSize: '14px', fontWeight: 500,
                   cursor: 'pointer'
-                }}>
+                }}
+              >
                 取消
               </button>
               <button onClick={confirmDelete}
@@ -747,7 +778,8 @@ const ChatPage = () => {
                   flex: 1, padding: '10px 0', borderRadius: '14px', border: 'none',
                   background: '#f4d8dc', color: '#8b5a5a', fontSize: '14px', fontWeight: 600,
                   cursor: 'pointer'
-                }}>
+                }}
+              >
                 确定
               </button>
             </div>
