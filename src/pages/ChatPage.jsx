@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import axios from 'axios'
 
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
+
+// 像素鲸鱼素材：放在前端项目的 public/whale-pixel.png
+const WHALE_SRC = '/whale-pixel.png'
 
 // 防止浏览器/Service Worker 缓存 API 响应
 axios.interceptors.request.use(config => {
@@ -109,6 +112,43 @@ const AIAvatar = ({ size = 30 }) => (
   </div>
 )
 
+// ========== 星空层：三套主题都有，浓淡不同；shooting=true 时加流星 ==========
+const StarField = ({ count = 30, shooting = false }) => {
+  const stars = useMemo(() => Array.from({ length: count }).map((_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    top: Math.random() * 100,
+    size: Math.random() * 1.6 + 0.7,
+    delay: Math.random() * 6,
+    duration: 2.8 + Math.random() * 3.2
+  })), [count])
+
+  return (
+    <div className="starfield" aria-hidden="true">
+      {stars.map(s => (
+        <span
+          key={s.id}
+          className="star"
+          style={{
+            left: `${s.left}%`,
+            top: `${s.top}%`,
+            width: `${s.size}px`,
+            height: `${s.size}px`,
+            animationDelay: `${s.delay}s`,
+            animationDuration: `${s.duration}s`
+          }}
+        />
+      ))}
+      {shooting && (
+        <>
+          <span className="shooting-star" style={{ left: '18%', animationDuration: '7s', animationDelay: '0.5s' }} />
+          <span className="shooting-star" style={{ left: '62%', animationDuration: '9s', animationDelay: '3.5s' }} />
+        </>
+      )}
+    </div>
+  )
+}
+
 // ========== 品牌字标 ==========
 const Wordmark = ({ size = 'md' }) => (
   <span className={`wordmark wordmark-${size}`}>
@@ -151,9 +191,20 @@ const SplashScreen = ({ onEnter }) => {
       }}
     >
       <div className="ambient-bg" />
-      <div style={{ position: 'relative', animation: 'gentleFloat 4s ease-in-out infinite', marginBottom: '22px' }}>
-        <AIAvatar size={56} />
-      </div>
+      <StarField count={46} shooting={true} />
+      <img
+        src={WHALE_SRC}
+        alt=""
+        className="pixel-whale"
+        style={{
+          position: 'relative',
+          width: '96px',
+          height: 'auto',
+          animation: 'gentleFloat 4.5s ease-in-out infinite',
+          marginBottom: '22px',
+          filter: 'drop-shadow(0 8px 20px var(--c-shadow))'
+        }}
+      />
       <div style={{ position: 'relative', marginBottom: '10px' }}>
         <Wordmark size="lg" />
       </div>
@@ -164,7 +215,7 @@ const SplashScreen = ({ onEnter }) => {
         fontSize: '15px',
         color: 'var(--c-text-muted)',
         letterSpacing: '0.5px',
-        marginBottom: '44px'
+        marginBottom: '48px'
       }}>
         I'm here, always
       </p>
@@ -172,18 +223,18 @@ const SplashScreen = ({ onEnter }) => {
         onClick={handleClick}
         style={{
           position: 'relative',
-          padding: '12px 40px',
+          padding: '13px 44px',
           borderRadius: '999px',
-          border: '1px solid var(--c-border)',
+          border: '1px solid var(--c-star-bright)',
           background: 'var(--c-surface)',
-          backdropFilter: 'blur(10px)',
+          backdropFilter: 'blur(14px)',
           color: 'var(--c-text)',
-          fontSize: '13px',
+          fontSize: '12.5px',
           cursor: 'pointer',
           fontFamily: 'var(--font-display)',
-          letterSpacing: '2px',
+          letterSpacing: '3px',
           transition: 'all 0.3s ease',
-          boxShadow: '0 2px 14px var(--c-shadow)'
+          boxShadow: '0 4px 20px var(--c-shadow), 0 0 0 1px var(--c-highlight) inset, 0 0 18px var(--c-star)'
         }}
       >
         BEGIN
@@ -220,6 +271,15 @@ const ChatPage = () => {
   const [renameModal, setRenameModal] = useState({ show: false, sessionId: null, value: '' })
 
   const [theme, setTheme] = useState(() => localStorage.getItem('ks_theme') || 'warm')
+  const [toasts, setToasts] = useState([])
+
+  const showToast = (message) => {
+    const id = Date.now() + Math.random()
+    setToasts(prev => [...prev, { id, message }])
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 2500)
+  }
 
   const messageBoxRef = useRef(null)
   const renameInputRef = useRef(null)
@@ -272,7 +332,7 @@ const ChatPage = () => {
       setShowSidebar(false)
     } catch (err) {
       console.error('创建会话失败:', err.message)
-      alert('创建会话失败：' + err.message)
+      showToast('创建会话失败：' + err.message)
     }
   }
 
@@ -330,7 +390,7 @@ const ChatPage = () => {
       await fetchSessions()
     } catch (err) {
       console.error('重命名失败:', err.message)
-      alert('重命名失败：' + err.message)
+      showToast('重命名失败：' + err.message)
       fetchSessions()
     }
   }
@@ -370,7 +430,7 @@ const ChatPage = () => {
       }
     } catch (err) {
       console.error('删除失败:', err.message)
-      alert('删除失败：' + err.message)
+      showToast('删除失败：' + err.message)
       // 出错了重新拉取列表兜底
       fetchSessions()
     }
@@ -400,7 +460,7 @@ const ChatPage = () => {
     } catch (err) {
       // 请求失败：把上面那条用户消息撤回
       setMessages(prev => prev.slice(0, -1))
-      alert('请求失败：' + err.message)
+      showToast('请求失败：' + err.message)
     }
     setLoading(false)
     scrollBottom()
@@ -427,10 +487,10 @@ const ChatPage = () => {
     try {
       await axios.post(`${API_BASE}/settings`, config)
       setShowSetting(false)
-      alert('配置已保存')
+      showToast('配置已保存')
     } catch (err) {
       console.error('保存设置失败:', err.message)
-      alert('保存失败：' + err.message)
+      showToast('保存失败：' + err.message)
     }
   }
 
@@ -546,14 +606,14 @@ const ChatPage = () => {
         maxWidth: '78%',
         display: 'flex',
         flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-        alignItems: 'flex-end',
+        alignItems: 'flex-start',
         gap: '8px'
       }}>
         {msg.role === 'user' ? <UserAvatar /> : <AIAvatar />}
 
         <div style={{
-          padding: '12px 16px',
-          borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+          padding: '12px 17px',
+          borderRadius: msg.role === 'user' ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
           background: msg.role === 'user' ? 'var(--c-bubble-user-bg)' : 'var(--c-bubble-ai-bg)',
@@ -561,7 +621,7 @@ const ChatPage = () => {
           color: msg.role === 'user' ? 'var(--c-bubble-user-text)' : 'var(--c-bubble-ai-text)',
           fontSize: '14.5px',
           lineHeight: '1.7',
-          boxShadow: '0 2px 12px var(--c-shadow)',
+          boxShadow: '0 3px 16px var(--c-shadow), inset 0 1px 0 var(--c-highlight)',
           border: msg.role === 'user' ? '1px solid var(--c-bubble-user-border)' : '1px solid var(--c-bubble-ai-border)'
         }}>
           <div>{msg.content}</div>
@@ -591,6 +651,7 @@ const ChatPage = () => {
       }}
     >
       <div className="ambient-bg" />
+      <StarField count={theme === 'noir' ? 34 : theme === 'mist' ? 16 : 14} shooting={theme === 'noir'} />
 
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
 
@@ -625,7 +686,10 @@ const ChatPage = () => {
       }}>
         <div style={{ padding: '26px 20px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
-            <Wordmark size="md" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <img src={WHALE_SRC} alt="" className="pixel-whale" style={{ width: '26px', height: 'auto' }} />
+              <Wordmark size="md" />
+            </div>
             <button
               className="icon-btn"
               onClick={cycleTheme}
@@ -897,6 +961,13 @@ const ChatPage = () => {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Toast 轻提示（替代原来的浏览器原生 alert） */}
+      <div className="toast-wrap">
+        {toasts.map(t => (
+          <div key={t.id} className="toast-item">{t.message}</div>
+        ))}
       </div>
 
       {/* 重命名弹窗（替代原来的浏览器原生 prompt） */}

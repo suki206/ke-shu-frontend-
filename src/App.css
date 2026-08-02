@@ -31,6 +31,11 @@
   --c-scrollbar: rgba(120, 96, 72, 0.20);
   --c-blob-1: rgba(169, 128, 93, 0.10);
   --c-blob-2: rgba(212, 178, 138, 0.14);
+  --c-highlight: rgba(255, 250, 244, 0.55);
+  --c-star: rgba(150, 112, 78, 0.6);
+  --c-star-bright: rgba(120, 88, 58, 0.85);
+  --c-toast-bg: rgba(62, 51, 42, 0.94);
+  --c-toast-text: #FBF5EC;
 }
 
 [data-theme="mist"] {
@@ -57,6 +62,11 @@
   --c-scrollbar: rgba(58, 74, 90, 0.18);
   --c-blob-1: rgba(93, 122, 147, 0.10);
   --c-blob-2: rgba(140, 165, 185, 0.14);
+  --c-highlight: rgba(255, 255, 255, 0.6);
+  --c-star: rgba(90, 112, 133, 0.55);
+  --c-star-bright: rgba(70, 92, 113, 0.8);
+  --c-toast-bg: rgba(40, 48, 56, 0.94);
+  --c-toast-text: #F5F8FA;
 }
 
 [data-theme="noir"] {
@@ -83,6 +93,11 @@
   --c-scrollbar: rgba(255, 255, 255, 0.14);
   --c-blob-1: rgba(201, 173, 134, 0.07);
   --c-blob-2: rgba(140, 120, 90, 0.10);
+  --c-highlight: rgba(255, 255, 255, 0.07);
+  --c-star: rgba(233, 229, 221, 0.85);
+  --c-star-bright: rgba(255, 255, 255, 0.95);
+  --c-toast-bg: rgba(233, 229, 221, 0.95);
+  --c-toast-text: #1B1712;
 }
 
 /* ---------- 字体 ---------- */
@@ -181,6 +196,93 @@ body {
   bottom: -60px;
   left: -60px;
   background: var(--c-blob-2);
+}
+
+/* ---------- 星空层（三套主题都带，浓淡不同） ---------- */
+
+.starfield {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.star {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--c-star);
+  opacity: 0;
+  animation: starTwinkle ease-in-out infinite;
+}
+
+@keyframes starTwinkle {
+  0%, 100% { opacity: 0; transform: scale(0.6); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.shooting-star {
+  position: absolute;
+  width: 2px;
+  height: 90px;
+  top: -100px;
+  border-radius: 2px;
+  background: linear-gradient(to bottom, var(--c-star-bright), transparent);
+  opacity: 0;
+  animation: shootAcross linear infinite;
+}
+
+@keyframes shootAcross {
+  0% { transform: translate(0, 0) rotate(24deg); opacity: 0; }
+  4% { opacity: 1; }
+  38% { transform: translate(160px, 520px) rotate(24deg); opacity: 0; }
+  100% { transform: translate(160px, 520px) rotate(24deg); opacity: 0; }
+}
+
+/* ---------- Toast 轻提示（替代原生 alert） ---------- */
+
+.toast-wrap {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3000;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.toast-item {
+  background: var(--c-toast-bg);
+  color: var(--c-toast-text);
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  letter-spacing: 0.3px;
+  box-shadow: 0 8px 28px var(--c-shadow);
+  animation: toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1), toastOut 0.3s ease 2.2s forwards;
+  white-space: nowrap;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-12px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastOut {
+  to { opacity: 0; transform: translateY(-8px) scale(0.96); }
+}
+
+/* ---------- 像素鲸鱼素材：保持像素锐利 ---------- */
+
+.pixel-whale {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  user-select: none;
+  pointer-events: none;
 }
 
 /* ---------- 品牌字标 ---------- */
