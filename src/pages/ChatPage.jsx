@@ -3,6 +3,14 @@ import axios from 'axios'
 
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
 
+// 防止浏览器/Service Worker 缓存 API 响应
+axios.interceptors.request.use(config => {
+  if (config.method === 'get') {
+    config.params = { ...config.params, _t: Date.now() }
+  }
+  return config
+})
+
 // ========== 小鲸鱼桌宠组件 ==========
 const WhalePet = () => {
   const [bubbles, setBubbles] = useState([])
@@ -483,12 +491,13 @@ useEffect(() => {
     <div style={{ 
       flex: 1,
       display: 'flex', 
+      height: '100%',
+      maxHeight: '100vh',
       background: 'linear-gradient(135deg, #faf8f5 0%, #f5f0eb 50%, #faf8f5 100%)',
       color: '#5a4a42',
       fontFamily: '"Georgia", "Times New Roman", "PingFang SC", "Microsoft YaHei", serif',
       overflow: 'hidden',
-      position: 'relative',
-      minHeight: 0
+      position: 'relative'
     }}>
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
 
@@ -626,7 +635,7 @@ useEffect(() => {
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <div style={{ 
           padding: '12px 20px', 
           display: 'flex', 
