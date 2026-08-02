@@ -233,42 +233,50 @@ const ChatPage = () => {
   }
 
   const switchSession = async (sid) => {
-  try {
-    sessionStorage.setItem('activeSessionId', sid)
-    setActiveSessionId(sid)
+    try {
+      sessionStorage.setItem('activeSessionId', sid)
+      setActiveSessionId(sid)
       const res = await axios.get(`${API_BASE}/messages/${sid}`)
       setMessages(res.data || [])
       setArchivedList([])
       setHasOlderArchive(false)
       setArchiveCursor(null)
-      
+      setShowSidebar(false)
+    } catch (err) {
+      console.error('切换会话失败:', err.message)
+      return
+    }
+
+    // 单独检测归档，失败不影响会话切换
+    try {
       const archiveRes = await axios.get(`${API_BASE}/messages/archived/${sid}?limit=1`)
       if (archiveRes.data?.list?.length > 0) {
         setHasOlderArchive(true)
       }
-      setShowSidebar(false)
-    } catch (err) {
-      console.error('切换会话失败:', err.message)
+    } catch (e) {
+      console.error('归档检测失败:', e.message)
     }
   }
 
-  const loadOlderArchive = async () => {
-    try {
-      const params = new URLSearchParams()
-      if (archiveCursor) params.append('cursor', archiveCursor)
-      params.append('limit', '6')
-      const res = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?${params.toString()}`)
-      const { list, hasMore } = res.data
-      if (list.length > 0) {
-        setArchivedList([...list, ...archivedList])
-        setArchiveCursor(list[0].id)
-      }
-      setHasOlderArchive(hasMore)
-    } catch (err) {
-      console.error('加载历史失败:', err.message)
-    }
-  }
 
+const loadOlderArchive = async () => {
+  if (!activeSessionId) return
+  try {
+    const params = new URLSearchParams()
+    if (archiveCursor) params.append('cursor', archiveCursor)
+    params.append('limit', '6')
+    const res = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?${params.toString()}`)
+    const { list, hasMore } = res.data
+
+    if (list.length > 0) {
+      setArchivedList(prev => [...list, ...prev])
+      setArchiveCursor(list[0].id)
+    }
+    setHasOlderArchive(hasMore)
+  } catch (err) {
+    console.error('加载归档消息失败:', err.message)
+  }
+}  
 const renameSession = async (sid, newTitle) => {
   try {
     await axios.put(`${API_BASE}/session/${sid}`, { title: newTitle })
@@ -330,14 +338,8 @@ const renameSession = async (sid, newTitle) => {
         content
       })
       
-      // 【关键修复】直接利用后端返回的消息拼接到当前列表，不再去GET拉取所有消息
-      // 这样彻底杜绝因数据库延迟导致的“吞消息”
       const aiReply = { role: 'assistant', content: res.data.reply, created_at: new Date() }
       setMessages(prev => [...prev, aiReply])
-
-      // 异步检查是否还有归档（不影响主消息显示）
-      const archiveRes = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?limit=1`)
-      setHasOlderArchive((archiveRes.data?.list?.length || 0) > 0)
     } catch (err) {
       // 请求失败：把上面那条用户消息撤回
       setMessages(prev => prev.slice(0, -1))
@@ -345,6 +347,14 @@ const renameSession = async (sid, newTitle) => {
     }
     setLoading(false)
     scrollBottom()
+
+    // 单独检测归档，失败不影响主流程
+    try {
+      const archiveRes = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?limit=1`)
+      setHasOlderArchive((archiveRes.data?.list?.length || 0) > 0)
+    } catch (e) {
+      console.error('归档检测失败:', e.message)
+    }
   }
 
   const getSettings = async () => {
