@@ -1,4 +1,128 @@
-/* 全局动画 */
+/* ============================================================
+   ke&shu — 全局样式
+   三套主题：warm（暖）/ mist（雾）/ noir（夜）
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap');
+
+/* ---------- 主题变量 ---------- */
+
+[data-theme="warm"] {
+  --c-bg-solid: #F6EDE0;
+  --c-bg-gradient: radial-gradient(ellipse 120% 70% at 50% -8%, #FBF5EC 0%, #F6EDE0 48%, #F0E1CE 100%);
+  --c-surface: rgba(255, 252, 248, 0.86);
+  --c-surface-solid: #FFFCF8;
+  --c-border: rgba(120, 96, 72, 0.13);
+  --c-text: #3E332A;
+  --c-text-muted: #9A8672;
+  --c-text-faint: #C6B6A4;
+  --c-accent: #A9805D;
+  --c-accent-soft: #E9D9C6;
+  --c-accent-text: #FFFBF6;
+  --c-bubble-user-bg: linear-gradient(135deg, #F1E2D0, #E9D3BA);
+  --c-bubble-user-text: #493A2B;
+  --c-bubble-user-border: rgba(169, 128, 93, 0.28);
+  --c-bubble-ai-bg: rgba(255, 253, 250, 0.92);
+  --c-bubble-ai-text: #40352C;
+  --c-bubble-ai-border: rgba(120, 96, 72, 0.08);
+  --c-input-bg: rgba(255, 253, 250, 0.78);
+  --c-shadow: rgba(90, 70, 50, 0.11);
+  --c-overlay: rgba(45, 32, 20, 0.30);
+  --c-scrollbar: rgba(120, 96, 72, 0.20);
+  --c-blob-1: rgba(169, 128, 93, 0.10);
+  --c-blob-2: rgba(212, 178, 138, 0.14);
+}
+
+[data-theme="mist"] {
+  --c-bg-solid: #EFF2F4;
+  --c-bg-gradient: radial-gradient(ellipse 120% 70% at 50% -8%, #F8FAFB 0%, #EFF2F4 48%, #E5EAEE 100%);
+  --c-surface: rgba(255, 255, 255, 0.86);
+  --c-surface-solid: #FCFDFD;
+  --c-border: rgba(58, 74, 90, 0.11);
+  --c-text: #333B44;
+  --c-text-muted: #8B98A3;
+  --c-text-faint: #C2CBD2;
+  --c-accent: #5D7A93;
+  --c-accent-soft: #DAE3E9;
+  --c-accent-text: #FBFCFD;
+  --c-bubble-user-bg: linear-gradient(135deg, #E4EAEF, #D6DFE6);
+  --c-bubble-user-text: #33404A;
+  --c-bubble-user-border: rgba(93, 122, 147, 0.24);
+  --c-bubble-ai-bg: rgba(255, 255, 255, 0.92);
+  --c-bubble-ai-text: #313A42;
+  --c-bubble-ai-border: rgba(58, 74, 90, 0.08);
+  --c-input-bg: rgba(255, 255, 255, 0.78);
+  --c-shadow: rgba(50, 65, 80, 0.09);
+  --c-overlay: rgba(18, 26, 34, 0.30);
+  --c-scrollbar: rgba(58, 74, 90, 0.18);
+  --c-blob-1: rgba(93, 122, 147, 0.10);
+  --c-blob-2: rgba(140, 165, 185, 0.14);
+}
+
+[data-theme="noir"] {
+  --c-bg-solid: #16181C;
+  --c-bg-gradient: radial-gradient(ellipse 120% 70% at 50% -8%, #1C1F24 0%, #16181C 50%, #101216 100%);
+  --c-surface: rgba(28, 30, 35, 0.88);
+  --c-surface-solid: #1E2025;
+  --c-border: rgba(255, 255, 255, 0.08);
+  --c-text: #E9E5DD;
+  --c-text-muted: #8B8983;
+  --c-text-faint: #55534E;
+  --c-accent: #C9AD86;
+  --c-accent-soft: rgba(201, 173, 134, 0.18);
+  --c-accent-text: #1B1712;
+  --c-bubble-user-bg: linear-gradient(135deg, #2E2A22, #24211A);
+  --c-bubble-user-text: #EDE6D8;
+  --c-bubble-user-border: rgba(201, 173, 134, 0.28);
+  --c-bubble-ai-bg: rgba(255, 255, 255, 0.045);
+  --c-bubble-ai-text: #E4E1DA;
+  --c-bubble-ai-border: rgba(255, 255, 255, 0.07);
+  --c-input-bg: rgba(255, 255, 255, 0.05);
+  --c-shadow: rgba(0, 0, 0, 0.4);
+  --c-overlay: rgba(0, 0, 0, 0.55);
+  --c-scrollbar: rgba(255, 255, 255, 0.14);
+  --c-blob-1: rgba(201, 173, 134, 0.07);
+  --c-blob-2: rgba(140, 120, 90, 0.10);
+}
+
+/* ---------- 字体 ---------- */
+
+:root {
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body: "Songti SC", "STSongti-SC", "SimSun", Georgia, "Noto Serif SC", serif;
+}
+
+/* ---------- 基础重置 ---------- */
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  height: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ---------- 动效 ---------- */
+
 @keyframes gentleFloat {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
@@ -10,57 +134,120 @@
 }
 
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.85); }
+  from { opacity: 0; transform: scale(0.92); }
   to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes bubbleFloat {
-  0% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-60px) scale(1.5); }
-}
-
 @keyframes dotPulse {
-  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-  30% { opacity: 1; transform: translateY(-4px); }
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
 }
 
-@keyframes wiggle {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-10deg); }
-  75% { transform: rotate(10deg); }
+@keyframes slideInLeft {
+  from { transform: translateX(-16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
-.whale-container.wiggle {
-  animation: wiggle 0.6s ease-in-out;
-}
+/* ---------- 氛围背景（雾感光斑，纯 CSS，不用图片） ---------- */
 
-/* ===== 强制撑满全屏（核心修复） ===== */
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
   overflow: hidden;
 }
 
-body {
-  display: flex;
-  flex-direction: column;
-  overscroll-behavior: none;
+.ambient-bg::before,
+.ambient-bg::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  transition: background 0.6s ease;
 }
 
-/* 强制覆盖 Vite 默认的 #root 样式 */
-#root {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  margin: 0 !important;
-  padding: 0 !important;
-  max-width: none !important;
-  width: 100%;
-  min-height: 0;
+.ambient-bg::before {
+  width: 340px;
+  height: 340px;
+  top: -80px;
+  right: -60px;
+  background: var(--c-blob-1);
 }
 
-/* 滚动条美化 */
+.ambient-bg::after {
+  width: 280px;
+  height: 280px;
+  bottom: -60px;
+  left: -60px;
+  background: var(--c-blob-2);
+}
+
+/* ---------- 品牌字标 ---------- */
+
+.wordmark {
+  font-family: var(--font-display);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: var(--c-text);
+  user-select: none;
+}
+
+.wordmark-part {
+  font-weight: 500;
+}
+
+.wordmark-amp {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--c-accent);
+  opacity: 0.85;
+}
+
+.wordmark-lg { font-size: 46px; letter-spacing: 0.5px; }
+.wordmark-lg .wordmark-amp { font-size: 40px; margin: 0 1px; }
+
+.wordmark-md { font-size: 22px; letter-spacing: 0.3px; }
+.wordmark-md .wordmark-amp { font-size: 20px; }
+
+/* ---------- 会话列表交互 ---------- */
+
+.session-item .session-actions {
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+
+.session-item:hover .session-actions {
+  opacity: 1;
+}
+
+.session-item {
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+/* ---------- 主题选择 pill ---------- */
+
+.theme-pill {
+  transition: all 0.25s ease;
+}
+
+/* ---------- 图标按钮通用 hover ---------- */
+
+.icon-btn {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.icon-btn:hover {
+  opacity: 0.7;
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
+}
+
+/* ---------- 滚动条 ---------- */
+
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -70,38 +257,24 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--c-scrollbar);
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
-}
+/* ---------- 输入框 placeholder ---------- */
 
-/* 全局样式 */
-* {
-  box-sizing: border-box;
-}
-
-body {
-  font-family: "Georgia", "Times New Roman", "PingFang SC", "Microsoft YaHei", serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* 输入框 placeholder 颜色 */
 textarea::placeholder {
-  color: #c0b0a0;
+  color: var(--c-text-faint);
   font-style: italic;
 }
 
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .splash-screen h1 {
-    font-size: 22px !important;
-  }
+input::placeholder {
+  color: var(--c-text-faint);
+}
 
-  .splash-screen {
-    padding: 20px !important;
-  }
+/* ---------- 移动端适配 ---------- */
+
+@media (max-width: 480px) {
+  .wordmark-lg { font-size: 36px; }
+  .wordmark-lg .wordmark-amp { font-size: 32px; }
 }

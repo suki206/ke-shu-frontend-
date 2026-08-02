@@ -11,56 +11,112 @@ axios.interceptors.request.use(config => {
   return config
 })
 
-// ========== 小鲸鱼桌宠组件 ==========
-const WhalePet = () => {
-  const [bubbles, setBubbles] = useState([])
-  const [isWiggling, setIsWiggling] = useState(false)
+// ========== 主题配置 ==========
+const THEMES = ['warm', 'mist', 'noir']
+const THEME_LABELS = { warm: 'Warm', mist: 'Mist', noir: 'Noir' }
+const THEME_META_COLOR = { warm: '#F6EDE0', mist: '#EFF2F4', noir: '#16181C' }
 
-  const handleClick = () => {
-    setIsWiggling(true)
-    const id = Date.now()
-    setBubbles(prev => [...prev, { id, x: Math.random() * 40 - 20 }])
-    setTimeout(() => setIsWiggling(false), 600)
-    setTimeout(() => {
-      setBubbles(prev => prev.filter(b => b.id !== id))
-    }, 2000)
-  }
-
-  return (
-    <div 
-      className={`whale-container ${isWiggling ? 'wiggle' : ''}`}
-      onClick={handleClick}
-      style={{
-        position: 'fixed',
-        bottom: '100px',
-        right: '20px',
-        zIndex: 100,
-        cursor: 'pointer',
-        fontSize: '48px',
-        userSelect: 'none',
-        filter: 'drop-shadow(0 4px 12px rgba(59, 130, 246, 0.3))',
-        transition: 'transform 0.3s ease'
-      }}
-    >
-      <span role="img" aria-label="whale">🐳</span>
-      {bubbles.map(b => (
-        <span
-          key={b.id}
-          style={{
-            position: 'absolute',
-            bottom: '40px',
-            left: `calc(50% + ${b.x}px)`,
-            fontSize: '16px',
-            animation: 'bubbleFloat 2s ease-out forwards',
-            pointerEvents: 'none'
-          }}
-        >
-          🫧
-        </span>
-      ))}
-    </div>
+// ========== 图标（线条风格，替换 emoji） ==========
+const Icon = {
+  Menu: (p) => (
+    <svg width={p.size || 20} height={p.size || 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="17" x2="14" y2="17" />
+    </svg>
+  ),
+  Edit: (p) => (
+    <svg width={p.size || 14} height={p.size || 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  ),
+  Trash: (p) => (
+    <svg width={p.size || 14} height={p.size || 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h16" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      <path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+    </svg>
+  ),
+  Plus: (p) => (
+    <svg width={p.size || 14} height={p.size || 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  ),
+  Close: (p) => (
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <line x1="5" y1="5" x2="19" y2="19" />
+      <line x1="19" y1="5" x2="5" y2="19" />
+    </svg>
+  ),
+  ArrowUp: (p) => (
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="6 11 12 5 18 11" />
+    </svg>
+  ),
+  Moon: (p) => (
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" />
+    </svg>
   )
 }
+
+// 精简齿轮图标（上面那个占位有个 opacity:0 的坏路径，这里单独给个能用的）
+const SettingsIcon = (p) => (
+  <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
+  </svg>
+)
+
+// ========== 头像：极简，随主题自适应，无表情符号 ==========
+const UserAvatar = ({ size = 30 }) => (
+  <div style={{
+    width: size,
+    height: size,
+    borderRadius: '50%',
+    flexShrink: 0,
+    background: 'var(--c-bubble-user-bg)',
+    border: '1px solid var(--c-bubble-user-border)',
+    boxShadow: '0 2px 8px var(--c-shadow)'
+  }} />
+)
+
+// 神秘感头像：CSS 实现的"蚀相/月牙"标记，无需图片，随主题自动换色
+const AIAvatar = ({ size = 30 }) => (
+  <div style={{
+    position: 'relative',
+    width: size,
+    height: size,
+    borderRadius: '50%',
+    flexShrink: 0,
+    overflow: 'hidden',
+    background: 'radial-gradient(circle at 32% 28%, var(--c-accent-soft), var(--c-accent) 68%, var(--c-text) 150%)',
+    boxShadow: '0 2px 10px var(--c-shadow), inset 0 0 0 1px var(--c-border)'
+  }}>
+    <div style={{
+      position: 'absolute',
+      width: size * 0.86,
+      height: size * 0.86,
+      borderRadius: '50%',
+      background: 'var(--c-bg-solid)',
+      top: '-8%',
+      left: '32%',
+      opacity: 0.94
+    }} />
+  </div>
+)
+
+// ========== 品牌字标 ==========
+const Wordmark = ({ size = 'md' }) => (
+  <span className={`wordmark wordmark-${size}`}>
+    <span className="wordmark-part">ke</span>
+    <span className="wordmark-amp">&amp;</span>
+    <span className="wordmark-part">shu</span>
+  </span>
+)
 
 // ========== 开屏页 ==========
 const SplashScreen = ({ onEnter }) => {
@@ -72,81 +128,65 @@ const SplashScreen = ({ onEnter }) => {
     setTimeout(() => {
       setVisible(false)
       onEnter()
-    }, 800)
+    }, 700)
   }
 
   if (!visible) return null
 
   return (
-    <div 
-      className={`splash-screen ${fadeOut ? 'fade-out' : ''}`}
+    <div
+      className="splash-screen"
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'linear-gradient(135deg, #faf8f5 0%, #f5f0eb 50%, #faf8f5 100%)',
+        inset: 0,
+        background: 'var(--c-bg-gradient)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        transition: 'opacity 0.8s ease, transform 0.8s ease',
+        transition: 'opacity 0.7s ease, transform 0.7s ease',
         opacity: fadeOut ? 0 : 1,
-        transform: fadeOut ? 'scale(1.05)' : 'scale(1)'
+        transform: fadeOut ? 'scale(1.04)' : 'scale(1)'
       }}
     >
-      <div style={{ fontSize: '64px', marginBottom: '24px', animation: 'gentleFloat 3s ease-in-out infinite' }}>
-        🐳
+      <div className="ambient-bg" />
+      <div style={{ position: 'relative', animation: 'gentleFloat 4s ease-in-out infinite', marginBottom: '22px' }}>
+        <AIAvatar size={56} />
       </div>
-      <h1 style={{
-        fontFamily: '"Georgia", "Times New Roman", serif',
-        fontSize: '28px',
-        fontWeight: 400,
-        color: '#5a4a42',
-        letterSpacing: '2px',
-        marginBottom: '8px'
-      }}>
-        Tell me everything
-      </h1>
+      <div style={{ position: 'relative', marginBottom: '10px' }}>
+        <Wordmark size="lg" />
+      </div>
       <p style={{
-        fontFamily: '"Georgia", serif',
-        fontSize: '14px',
-        color: '#a09088',
+        position: 'relative',
+        fontFamily: 'var(--font-display)',
         fontStyle: 'italic',
-        marginBottom: '40px'
+        fontSize: '15px',
+        color: 'var(--c-text-muted)',
+        letterSpacing: '0.5px',
+        marginBottom: '44px'
       }}>
         I'm here, always
       </p>
       <button
         onClick={handleClick}
         style={{
-          padding: '12px 36px',
-          borderRadius: '24px',
-          border: '1px solid #d4c4b8',
-          background: 'rgba(255,255,255,0.6)',
+          position: 'relative',
+          padding: '12px 40px',
+          borderRadius: '999px',
+          border: '1px solid var(--c-border)',
+          background: 'var(--c-surface)',
           backdropFilter: 'blur(10px)',
-          color: '#8a7a72',
-          fontSize: '14px',
+          color: 'var(--c-text)',
+          fontSize: '13px',
           cursor: 'pointer',
-          fontFamily: '"Georgia", serif',
-          letterSpacing: '1px',
+          fontFamily: 'var(--font-display)',
+          letterSpacing: '2px',
           transition: 'all 0.3s ease',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.06)'
-        }}
-        onMouseEnter={e => {
-          e.target.style.background = 'rgba(255,255,255,0.9)'
-          e.target.style.transform = 'translateY(-2px)'
-          e.target.style.boxShadow = '0 4px 20px rgba(0,0,0,0.1)'
-        }}
-        onMouseLeave={e => {
-          e.target.style.background = 'rgba(255,255,255,0.6)'
-          e.target.style.transform = 'translateY(0)'
-          e.target.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'
+          boxShadow: '0 2px 14px var(--c-shadow)'
         }}
       >
-        Begin
+        BEGIN
       </button>
     </div>
   )
@@ -159,8 +199,8 @@ const ChatPage = () => {
   })
   const [sessionList, setSessionList] = useState([])
   const [activeSessionId, setActiveSessionId] = useState(() => {
-  return sessionStorage.getItem('activeSessionId') || null
-})
+    return sessionStorage.getItem('activeSessionId') || null
+  })
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -175,10 +215,14 @@ const ChatPage = () => {
   const [archivedList, setArchivedList] = useState([])
   const [hasOlderArchive, setHasOlderArchive] = useState(false)
   const [archiveCursor, setArchiveCursor] = useState(null)
-  
+
   const [deleteModal, setDeleteModal] = useState({ show: false, sessionId: null, name: '' })
-  
+  const [renameModal, setRenameModal] = useState({ show: false, sessionId: null, value: '' })
+
+  const [theme, setTheme] = useState(() => localStorage.getItem('ks_theme') || 'warm')
+
   const messageBoxRef = useRef(null)
+  const renameInputRef = useRef(null)
 
   const handleSplashEnter = () => {
     sessionStorage.setItem('hasVisited', 'true')
@@ -193,34 +237,34 @@ const ChatPage = () => {
     }, 50)
   }
 
- const fetchSessions = async () => {
-  try {
-    const res = await axios.get(`${API_BASE}/sessions`)
-    const sessions = res.data || []
-    setSessionList(sessions)
-    
-    // 如果当前活跃的会话已不存在（被删了），清理状态
-    if (activeSessionId && !sessions.find(s => s.id === activeSessionId)) {
-      sessionStorage.removeItem('activeSessionId')
-      setActiveSessionId(null)
-      setMessages([])
-      setArchivedList([])
-      setHasOlderArchive(false)
-      setArchiveCursor(null)
-    }
-  } catch (err) {
-    console.error('加载会话列表失败:', err.message)
-    setSessionList([])
-  }
-}
+  const fetchSessions = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/sessions`)
+      const sessions = res.data || []
+      setSessionList(sessions)
 
- const createSession = async () => {
-  try {
-    const res = await axios.post(`${API_BASE}/session/new`)
-    const newSession = res.data
-    setSessionList(prev => [newSession, ...prev])
-    sessionStorage.setItem('activeSessionId', newSession.id)
-    setActiveSessionId(newSession.id)
+      // 如果当前活跃的会话已不存在（被删了），清理状态
+      if (activeSessionId && !sessions.find(s => s.id === activeSessionId)) {
+        sessionStorage.removeItem('activeSessionId')
+        setActiveSessionId(null)
+        setMessages([])
+        setArchivedList([])
+        setHasOlderArchive(false)
+        setArchiveCursor(null)
+      }
+    } catch (err) {
+      console.error('加载会话列表失败:', err.message)
+      setSessionList([])
+    }
+  }
+
+  const createSession = async () => {
+    try {
+      const res = await axios.post(`${API_BASE}/session/new`)
+      const newSession = res.data
+      setSessionList(prev => [newSession, ...prev])
+      sessionStorage.setItem('activeSessionId', newSession.id)
+      setActiveSessionId(newSession.id)
       setMessages([])
       setArchivedList([])
       setHasOlderArchive(false)
@@ -258,75 +302,88 @@ const ChatPage = () => {
     }
   }
 
+  const loadOlderArchive = async () => {
+    if (!activeSessionId) return
+    try {
+      const params = new URLSearchParams()
+      if (archiveCursor) params.append('cursor', archiveCursor)
+      params.append('limit', '6')
+      const res = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?${params.toString()}`)
+      const { list, hasMore } = res.data
 
-const loadOlderArchive = async () => {
-  if (!activeSessionId) return
-  try {
-    const params = new URLSearchParams()
-    if (archiveCursor) params.append('cursor', archiveCursor)
-    params.append('limit', '6')
-    const res = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?${params.toString()}`)
-    const { list, hasMore } = res.data
-
-    if (list.length > 0) {
-      setArchivedList(prev => [...list, ...prev])
-      setArchiveCursor(list[0].id)
+      if (list.length > 0) {
+        setArchivedList(prev => [...list, ...prev])
+        setArchiveCursor(list[0].id)
+      }
+      setHasOlderArchive(hasMore)
+    } catch (err) {
+      console.error('加载归档消息失败:', err.message)
     }
-    setHasOlderArchive(hasMore)
-  } catch (err) {
-    console.error('加载归档消息失败:', err.message)
   }
-}  
-const renameSession = async (sid, newTitle) => {
-  try {
-    await axios.put(`${API_BASE}/session/${sid}`, { title: newTitle })
-    // 乐观更新：立即改本地状态，不用等服务器返回
-    setSessionList(prev => prev.map(s => s.id === sid ? { ...s, title: newTitle } : s))
-    // 后台同步一次，确保数据一致
-    await fetchSessions()
-  } catch (err) {
-    console.error('重命名失败:', err.message)
-    alert('重命名失败：' + err.message)
-    fetchSessions()
+
+  const renameSession = async (sid, newTitle) => {
+    try {
+      await axios.put(`${API_BASE}/session/${sid}`, { title: newTitle })
+      // 乐观更新：立即改本地状态，不用等服务器返回
+      setSessionList(prev => prev.map(s => s.id === sid ? { ...s, title: newTitle } : s))
+      // 后台同步一次，确保数据一致
+      await fetchSessions()
+    } catch (err) {
+      console.error('重命名失败:', err.message)
+      alert('重命名失败：' + err.message)
+      fetchSessions()
+    }
   }
-}
+
+  const handleRenameClick = (sid, currentTitle) => {
+    setRenameModal({ show: true, sessionId: sid, value: currentTitle || '' })
+    setTimeout(() => renameInputRef.current?.focus(), 50)
+  }
+
+  const confirmRename = () => {
+    const val = renameModal.value.trim()
+    if (val && renameModal.sessionId) {
+      renameSession(renameModal.sessionId, val)
+    }
+    setRenameModal({ show: false, sessionId: null, value: '' })
+  }
 
   const handleDeleteClick = (sid, sname) => {
     setDeleteModal({ show: true, sessionId: sid, name: sname || '这个会话' })
   }
 
   const confirmDelete = async () => {
-  if (!deleteModal.sessionId) return
-  try {
-    await axios.delete(`${API_BASE}/session/${deleteModal.sessionId}`)
-    // 乐观更新：直接从本地列表移除
-    setSessionList(prev => prev.filter(s => s.id !== deleteModal.sessionId))
-    
-    // 如果删的是当前正在聊的会话，清空当前对话
-    if (activeSessionId === deleteModal.sessionId) {
-      sessionStorage.removeItem('activeSessionId')
-      setActiveSessionId(null)
-      setMessages([])
-      setArchivedList([])
-      setHasOlderArchive(false)
-      setArchiveCursor(null)
-    }
-  } catch (err) {
-    console.error('删除失败:', err.message)
-    alert('删除失败：' + err.message)
-    // 出错了重新拉取列表兜底
-    fetchSessions()
-  }
-  setDeleteModal({ show: false, sessionId: null, name: '' })
-}
+    if (!deleteModal.sessionId) return
+    try {
+      await axios.delete(`${API_BASE}/session/${deleteModal.sessionId}`)
+      // 乐观更新：直接从本地列表移除
+      setSessionList(prev => prev.filter(s => s.id !== deleteModal.sessionId))
 
-  // ================= 【核心修复】发送消息函数 =================
+      // 如果删的是当前正在聊的会话，清空当前对话
+      if (activeSessionId === deleteModal.sessionId) {
+        sessionStorage.removeItem('activeSessionId')
+        setActiveSessionId(null)
+        setMessages([])
+        setArchivedList([])
+        setHasOlderArchive(false)
+        setArchiveCursor(null)
+      }
+    } catch (err) {
+      console.error('删除失败:', err.message)
+      alert('删除失败：' + err.message)
+      // 出错了重新拉取列表兜底
+      fetchSessions()
+    }
+    setDeleteModal({ show: false, sessionId: null, name: '' })
+  }
+
+  // ================= 发送消息函数 =================
   const sendMessage = async () => {
     if (!inputText.trim() || !activeSessionId || loading) return
     const content = inputText.trim()
     setInputText('')
     setLoading(true)
-    
+
     // 先添加用户消息到UI
     const tempUserMsg = { role: 'user', content, created_at: new Date() }
     setMessages(prev => [...prev, tempUserMsg])
@@ -337,7 +394,7 @@ const renameSession = async (sid, newTitle) => {
         sessionId: activeSessionId,
         content
       })
-      
+
       const aiReply = { role: 'assistant', content: res.data.reply, created_at: new Date() }
       setMessages(prev => [...prev, aiReply])
     } catch (err) {
@@ -377,30 +434,66 @@ const renameSession = async (sid, newTitle) => {
     }
   }
 
-useEffect(() => {
-  const init = async () => {
-    try {
-      // 先获取会话列表
-      const res = await axios.get(`${API_BASE}/sessions`)
-      const sessions = res.data || []
-      setSessionList(sessions)
-      
-      // 获取设置
-      getSettings()
-      
-      // 恢复上次活跃的会话（刷新后自动回到原来的对话）
-      const savedId = sessionStorage.getItem('activeSessionId')
-      if (savedId && sessions.find(s => s.id === savedId)) {
-        await switchSession(savedId)
-      } else if (sessions.length > 0) {
-        await switchSession(sessions[0].id)
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // 先获取会话列表
+        const res = await axios.get(`${API_BASE}/sessions`)
+        const sessions = res.data || []
+        setSessionList(sessions)
+
+        // 获取设置
+        getSettings()
+
+        // 恢复上次活跃的会话（刷新后自动回到原来的对话）
+        const savedId = sessionStorage.getItem('activeSessionId')
+        if (savedId && sessions.find(s => s.id === savedId)) {
+          await switchSession(savedId)
+        } else if (sessions.length > 0) {
+          await switchSession(sessions[0].id)
+        }
+      } catch (err) {
+        console.error('初始化失败:', err.message)
       }
-    } catch (err) {
-      console.error('初始化失败:', err.message)
     }
+    init()
+  }, [])
+
+  // ================= 主题：应用 / 持久化 / 状态栏色同步 =================
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('ks_theme', theme)
+    let meta = document.querySelector('meta[name="theme-color"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.name = 'theme-color'
+      document.head.appendChild(meta)
+    }
+    meta.setAttribute('content', THEME_META_COLOR[theme] || '#F6EDE0')
+  }, [theme])
+
+  const cycleTheme = () => {
+    const idx = THEMES.indexOf(theme)
+    setTheme(THEMES[(idx + 1) % THEMES.length])
   }
-  init()
-}, [])
+
+  // ================= 视口修复：解决输入框被键盘遮挡的问题 =================
+  // 原因：移动端 100vh 不会随虚拟键盘弹出而收缩，导致底部输入区被键盘盖住。
+  // 这里用 visualViewport 的实际高度写入 CSS 变量，容器高度跟着实时视口走。
+  useEffect(() => {
+    const root = document.documentElement
+    const updateHeight = () => {
+      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight
+      root.style.setProperty('--app-height', `${h}px`)
+    }
+    updateHeight()
+    window.visualViewport?.addEventListener('resize', updateHeight)
+    window.addEventListener('resize', updateHeight)
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateHeight)
+      window.removeEventListener('resize', updateHeight)
+    }
+  }, [])
 
   const formatTime = (timeStr) => {
     if (!timeStr) return ''
@@ -443,51 +536,36 @@ useEffect(() => {
   }
 
   const renderMsgItem = (msg, key) => (
-    <div key={key} style={{ 
-      display: 'flex', 
+    <div key={key} style={{
+      display: 'flex',
       justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
       marginBottom: '16px',
       padding: '0 16px'
     }}>
-      <div style={{ 
-        maxWidth: '75%', 
+      <div style={{
+        maxWidth: '78%',
         display: 'flex',
         flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
         alignItems: 'flex-end',
         gap: '8px'
       }}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '50%',
-          background: msg.role === 'user' ? 'linear-gradient(135deg, #e8ddd5, #d4c4b8)' : 'linear-gradient(135deg, #a8c8ec, #7eb8da)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '14px',
-          flexShrink: 0,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-        }}>
-          {msg.role === 'user' ? '👤' : '🐳'}
-        </div>
+        {msg.role === 'user' ? <UserAvatar /> : <AIAvatar />}
 
-        <div style={{ 
-          padding: '12px 16px', 
-          borderRadius: msg.role === 'user' ? '20px 20px 4px 20px' : '20px 20px 20px 4px', 
-          whiteSpace: 'pre-wrap', 
-          wordBreak: 'break-word', 
-          background: msg.role === 'user' 
-            ? 'linear-gradient(135deg, #f5e6dc, #f0ddd0)' 
-            : 'rgba(255,255,255,0.85)',
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          background: msg.role === 'user' ? 'var(--c-bubble-user-bg)' : 'var(--c-bubble-ai-bg)',
           backdropFilter: 'blur(10px)',
-          color: msg.role === 'user' ? '#5a4a42' : '#4a4a4a',
-          fontSize: '14px',
+          color: msg.role === 'user' ? 'var(--c-bubble-user-text)' : 'var(--c-bubble-ai-text)',
+          fontSize: '14.5px',
           lineHeight: '1.7',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-          border: msg.role === 'user' ? '1px solid rgba(212,196,184,0.3)' : '1px solid rgba(0,0,0,0.04)'
+          boxShadow: '0 2px 12px var(--c-shadow)',
+          border: msg.role === 'user' ? '1px solid var(--c-bubble-user-border)' : '1px solid var(--c-bubble-ai-border)'
         }}>
           <div>{msg.content}</div>
-          <div style={{ fontSize: '11px', marginTop: '6px', color: '#b0a090', textAlign: 'right' }}>
+          <div style={{ fontSize: '11px', marginTop: '6px', color: 'var(--c-text-faint)', textAlign: 'right' }}>
             {formatTime(msg.created_at)}
           </div>
         </div>
@@ -498,28 +576,30 @@ useEffect(() => {
   const groupedMessages = groupMessagesByDate(messages)
 
   return (
-    <div style={{ 
-      flex: 1,
-      display: 'flex', 
-      height: '100%',
-      maxHeight: '100vh',
-      background: 'linear-gradient(135deg, #faf8f5 0%, #f5f0eb 50%, #faf8f5 100%)',
-      color: '#5a4a42',
-      fontFamily: '"Georgia", "Times New Roman", "PingFang SC", "Microsoft YaHei", serif',
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
+    <div
+      data-theme={theme}
+      style={{
+        flex: 1,
+        display: 'flex',
+        height: 'var(--app-height, 100dvh)',
+        maxHeight: 'var(--app-height, 100dvh)',
+        background: 'var(--c-bg-gradient)',
+        color: 'var(--c-text)',
+        fontFamily: 'var(--font-body)',
+        overflow: 'hidden',
+        position: 'relative'
+      }}
+    >
+      <div className="ambient-bg" />
+
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
 
       {showSidebar && (
-        <div 
+        <div
           style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.2)',
+            inset: 0,
+            background: 'var(--c-overlay)',
             backdropFilter: 'blur(4px)',
             zIndex: 200,
             animation: 'fadeIn 0.3s ease'
@@ -533,143 +613,160 @@ useEffect(() => {
         top: 0,
         left: showSidebar ? 0 : '-320px',
         width: '280px',
-        height: '100vh',
-        background: 'rgba(255,255,255,0.92)',
+        height: 'var(--app-height, 100dvh)',
+        background: 'var(--c-surface)',
         backdropFilter: 'blur(20px)',
         zIndex: 300,
         transition: 'left 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: showSidebar ? '4px 0 24px rgba(0,0,0,0.1)' : 'none',
-        borderRight: '1px solid rgba(0,0,0,0.04)'
+        boxShadow: showSidebar ? '4px 0 24px var(--c-shadow)' : 'none',
+        borderRight: '1px solid var(--c-border)'
       }}>
-        <div style={{ padding: '24px 20px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-            <span style={{ fontSize: '28px' }}>🐳</span>
-            <span style={{ fontSize: '18px', fontWeight: 400, letterSpacing: '1px' }}>可树</span>
+        <div style={{ padding: '26px 20px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+            <Wordmark size="md" />
+            <button
+              className="icon-btn"
+              onClick={cycleTheme}
+              title={`当前主题：${THEME_LABELS[theme]}`}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--c-border)',
+                borderRadius: '999px',
+                width: '30px',
+                height: '30px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: 'var(--c-text-muted)'
+              }}
+            >
+              <Icon.Moon size={13} />
+            </button>
           </div>
 
-          <button 
+          <button
             onClick={createSession}
-            style={{ 
+            style={{
               width: '100%',
-              padding: '12px', 
-              background: 'linear-gradient(135deg, #f5e6dc, #f0ddd0)', 
-              border: '1px solid rgba(212,196,184,0.4)', 
-              borderRadius: '16px', 
-              color: '#5a4a42', 
-              cursor: 'pointer', 
-              marginBottom: '16px',
-              fontSize: '14px',
-              fontFamily: 'inherit',
+              padding: '12px',
+              background: 'var(--c-accent)',
+              border: '1px solid var(--c-accent)',
+              borderRadius: '16px',
+              color: 'var(--c-accent-text)',
+              cursor: 'pointer',
+              marginBottom: '4px',
+              fontSize: '13.5px',
+              fontFamily: 'var(--font-body)',
               letterSpacing: '1px',
               transition: 'all 0.3s ease',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-            }}
-            onMouseEnter={e => {
-              e.target.style.transform = 'translateY(-1px)'
-              e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'
-            }}
-            onMouseLeave={e => {
-              e.target.style.transform = 'translateY(0)'
-              e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'
+              boxShadow: '0 2px 10px var(--c-shadow)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
             }}
           >
-            + 新建对话
+            <Icon.Plus size={12} /> 新建对话
           </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px' }}>
-          <div style={{ fontSize: '11px', color: '#b0a090', marginBottom: '8px', paddingLeft: '4px', letterSpacing: '1px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--c-text-faint)', marginBottom: '8px', paddingLeft: '4px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             最近对话
           </div>
           {sessionList.map(item => (
             <div
               key={item.id}
-              style={{ 
-                padding: '12px 14px', 
-                borderRadius: '14px', 
-                background: activeSessionId === item.id ? 'rgba(245,230,220,0.6)' : 'transparent', 
-                cursor: 'pointer', 
-                marginBottom: '6px',
+              className="session-item"
+              style={{
+                padding: '12px 14px',
+                borderRadius: '14px',
+                background: activeSessionId === item.id ? 'var(--c-accent-soft)' : 'transparent',
+                cursor: 'pointer',
+                marginBottom: '4px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                transition: 'all 0.2s ease',
-                border: activeSessionId === item.id ? '1px solid rgba(212,196,184,0.3)' : '1px solid transparent'
+                border: activeSessionId === item.id ? '1px solid var(--c-border)' : '1px solid transparent'
               }}
               onClick={() => switchSession(item.id)}
-              onMouseEnter={e => {
-                if (activeSessionId !== item.id) {
-                  e.target.style.background = 'rgba(0,0,0,0.02)'
-                }
-              }}
-              onMouseLeave={e => {
-                if (activeSessionId !== item.id) {
-                  e.target.style.background = 'transparent'
-                }
-              }}
             >
-              <span style={{ fontSize: '13px', color: '#5a4a42' }}>{item.title}</span>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); const name = prompt('输入新名称', item.title); if (name) renameSession(item.id, name) }} 
-                  style={{ background: 'transparent', border: 'none', color: '#c0b0a0', cursor: 'pointer', fontSize: '12px', padding: '2px 4px' }}
-                >✏</button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id, item.title) }} 
-                  style={{ background: 'transparent', border: 'none', color: '#c0b0a0', cursor: 'pointer', fontSize: '12px', padding: '2px 4px' }}
-                >🗑</button>
+              <span style={{
+                fontSize: '13.5px',
+                color: 'var(--c-text)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>{item.title}</span>
+              <div className="session-actions" style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                <button
+                  className="icon-btn"
+                  onClick={(e) => { e.stopPropagation(); handleRenameClick(item.id, item.title) }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}
+                ><Icon.Edit /></button>
+                <button
+                  className="icon-btn"
+                  onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id, item.title) }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}
+                ><Icon.Trash /></button>
               </div>
             </div>
           ))}
         </div>
 
-        <div style={{ padding: '16px', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-          <button 
+        <div style={{ padding: '16px', borderTop: '1px solid var(--c-border)' }}>
+          <button
             onClick={() => { setShowSidebar(false); setShowSetting(true) }}
-            style={{ 
+            style={{
               width: '100%',
-              padding: '10px', 
-              background: 'transparent', 
-              border: '1px solid rgba(0,0,0,0.08)', 
-              borderRadius: '12px', 
-              color: '#8a7a72', 
+              padding: '10px',
+              background: 'transparent',
+              border: '1px solid var(--c-border)',
+              borderRadius: '12px',
+              color: 'var(--c-text-muted)',
               cursor: 'pointer',
               fontSize: '13px',
-              fontFamily: 'inherit'
+              fontFamily: 'var(--font-body)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
             }}
           >
-            ⚙ 全局设置
+            <SettingsIcon size={14} /> 全局设置
           </button>
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-        <div style={{ 
-          padding: '12px 20px', 
-          display: 'flex', 
-          alignItems: 'center', 
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative' }}>
+        <div style={{
+          padding: '14px 20px',
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: '1px solid rgba(0,0,0,0.04)',
+          borderBottom: '1px solid var(--c-border)',
           flexShrink: 0
         }}>
-          <button 
+          <button
+            className="icon-btn"
             onClick={() => setShowSidebar(true)}
-            style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#8a7a72' }}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-text-muted)', display: 'flex' }}
           >
-            ☰
+            <Icon.Menu />
           </button>
-          <div style={{ fontSize: '15px', color: '#8a7a72', letterSpacing: '1px' }}>
-            {activeSessionId ? '对话中' : '可树'}
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontStyle: 'italic', color: 'var(--c-text-muted)', letterSpacing: '0.5px' }}>
+            {activeSessionId ? (sessionList.find(s => s.id === activeSessionId)?.title || '对话中') : 'ke&shu'}
           </div>
-          <div style={{ width: '24px' }} />
+          <div style={{ width: '20px' }} />
         </div>
 
-        <div 
-          ref={messageBoxRef} 
-          style={{ 
-            flex: 1, 
+        <div
+          ref={messageBoxRef}
+          style={{
+            flex: 1,
             overflowY: 'auto',
             padding: '16px 0',
             overscrollBehavior: 'contain',
@@ -678,26 +775,36 @@ useEffect(() => {
           }}
         >
           {!activeSessionId ? (
-            <div style={{ 
-              display: 'flex', 
+            <div style={{
+              display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center', 
+              alignItems: 'center',
               justifyContent: 'center',
               height: '100%',
-              color: '#c0b0a0'
+              color: 'var(--c-text-faint)',
+              gap: '14px'
             }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.6 }}>🐳</div>
-              <div style={{ fontSize: '16px', fontStyle: 'italic' }}>选择或新建一个对话</div>
+              <AIAvatar size={44} />
+              <div style={{ fontSize: '14px', fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>选择或新建一个对话</div>
             </div>
           ) : (
             <>
               {hasOlderArchive && (
-                <div style={{ textAlign: 'center', padding: '16px 0', color: '#c0b0a0', fontSize: '12px' }}>
-                  <span 
-                    onClick={loadOlderArchive} 
-                    style={{ cursor: 'pointer', padding: '8px 16px', borderRadius: '12px', background: 'rgba(0,0,0,0.02)' }}
+                <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--c-text-faint)', fontSize: '12px' }}>
+                  <span
+                    onClick={loadOlderArchive}
+                    style={{
+                      cursor: 'pointer',
+                      padding: '7px 16px',
+                      borderRadius: '999px',
+                      background: 'var(--c-surface)',
+                      border: '1px solid var(--c-border)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
                   >
-                    ↑ 加载更早的历史
+                    <Icon.ArrowUp size={11} /> 加载更早的历史
                   </span>
                 </div>
               )}
@@ -707,12 +814,12 @@ useEffect(() => {
               {Object.entries(groupedMessages).map(([date, msgs]) => (
                 <div key={date}>
                   <div style={{ textAlign: 'center', margin: '20px 0 12px' }}>
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#c0b0a0', 
-                      background: 'rgba(0,0,0,0.03)', 
-                      padding: '4px 14px', 
-                      borderRadius: '10px',
+                    <span style={{
+                      fontSize: '11px',
+                      color: 'var(--c-text-faint)',
+                      background: 'var(--c-surface)',
+                      padding: '4px 14px',
+                      borderRadius: '999px',
                       letterSpacing: '1px'
                     }}>
                       {date}
@@ -723,14 +830,12 @@ useEffect(() => {
               ))}
 
               {loading && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 20px', color: '#b0a090', fontSize: '13px' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #a8c8ec, #7eb8da)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>
-                    🐳
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 20px', color: 'var(--c-text-muted)', fontSize: '13px' }}>
+                  <AIAvatar />
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0s' }}>.</span>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.2s' }}>.</span>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.4s' }}>.</span>
+                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0s' }}>·</span>
+                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.2s' }}>·</span>
+                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.4s' }}>·</span>
                   </div>
                 </div>
               )}
@@ -738,10 +843,10 @@ useEffect(() => {
           )}
         </div>
 
-        <div style={{ 
-          padding: '12px 20px 20px', 
-          borderTop: '1px solid rgba(0,0,0,0.04)',
-          background: 'rgba(255,255,255,0.6)',
+        <div style={{
+          padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)',
+          borderTop: '1px solid var(--c-border)',
+          background: 'var(--c-surface)',
           backdropFilter: 'blur(10px)',
           flexShrink: 0
         }}>
@@ -751,91 +856,153 @@ useEffect(() => {
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.ctrlKey && e.key === 'Enter' && sendMessage()}
               placeholder="Tell me everything..."
-              style={{ 
-                flex: 1, 
-                padding: '12px 16px', 
-                background: 'rgba(255,255,255,0.8)', 
-                border: '1px solid rgba(212,196,184,0.3)', 
-                borderRadius: '20px', 
-                color: '#5a4a42', 
+              style={{
+                flex: 1,
+                padding: '12px 16px',
+                background: 'var(--c-input-bg)',
+                border: '1px solid var(--c-border)',
+                borderRadius: '18px',
+                color: 'var(--c-text)',
                 resize: 'none',
                 fontFamily: 'inherit',
                 fontSize: '14px',
                 outline: 'none',
                 lineHeight: '1.5',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-                minHeight: '48px'
+                boxShadow: '0 2px 8px var(--c-shadow)',
+                minHeight: '46px'
               }}
-              rows={2}
+              rows={1}
             />
-            <button 
-              onClick={sendMessage} 
+            <button
+              onClick={sendMessage}
               disabled={loading || !activeSessionId}
-              style={{ 
-                padding: '12px 20px', 
-                background: 'linear-gradient(135deg, #f5e6dc, #f0ddd0)', 
-                border: '1px solid rgba(212,196,184,0.4)', 
-                borderRadius: '20px', 
-                color: '#5a4a42', 
+              style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '50%',
+                background: 'var(--c-accent)',
+                border: '1px solid var(--c-accent)',
+                color: 'var(--c-accent-text)',
                 cursor: loading || !activeSessionId ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontFamily: 'inherit',
-                opacity: loading || !activeSessionId ? 0.5 : 1,
+                opacity: loading || !activeSessionId ? 0.45 : 1,
                 transition: 'all 0.3s ease',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                boxShadow: '0 2px 10px var(--c-shadow)',
                 flexShrink: 0,
-                whiteSpace: 'nowrap'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
             >
-              发送
+              <Icon.ArrowUp size={18} />
             </button>
           </div>
         </div>
       </div>
 
-      <WhalePet />
+      {/* 重命名弹窗（替代原来的浏览器原生 prompt） */}
+      {renameModal.show && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'var(--c-overlay)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2100, animation: 'fadeIn 0.2s ease'
+        }}
+        onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}
+        >
+          <div
+            style={{
+              background: 'var(--c-surface-solid)',
+              borderRadius: '22px', padding: '26px 24px 20px',
+              width: '300px', maxWidth: '86vw',
+              boxShadow: '0 20px 60px var(--c-shadow)',
+              border: '1px solid var(--c-border)',
+              animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: '15px', fontFamily: 'var(--font-display)', fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '14px' }}>
+              重命名对话
+            </div>
+            <input
+              ref={renameInputRef}
+              value={renameModal.value}
+              onChange={(e) => setRenameModal(p => ({ ...p, value: e.target.value }))}
+              onKeyDown={(e) => e.key === 'Enter' && confirmRename()}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                background: 'var(--c-input-bg)',
+                border: '1px solid var(--c-border)',
+                borderRadius: '12px',
+                color: 'var(--c-text)',
+                fontFamily: 'inherit',
+                fontSize: '14px',
+                outline: 'none',
+                marginBottom: '18px'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)',
+                  background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px',
+                  cursor: 'pointer', fontFamily: 'inherit'
+                }}
+              >取消</button>
+              <button
+                onClick={confirmRename}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)',
+                  background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500,
+                  cursor: 'pointer', fontFamily: 'inherit'
+                }}
+              >确定</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deleteModal.show && (
         <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)',
+          position: 'fixed', inset: 0,
+          background: 'var(--c-overlay)', backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 2000, animation: 'fadeIn 0.2s ease'
         }}>
           <div style={{
-            background: 'rgba(255,252,250,0.95)',
-            borderRadius: '24px', padding: '28px 24px 20px',
-            width: '300px', textAlign: 'center',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
-            border: '1px solid rgba(244,216,220,0.5)',
+            background: 'var(--c-surface-solid)',
+            borderRadius: '22px', padding: '28px 24px 20px',
+            width: '300px', maxWidth: '86vw', textAlign: 'center',
+            boxShadow: '0 20px 60px var(--c-shadow)',
+            border: '1px solid var(--c-border)',
             animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)'
           }}>
-            <div style={{ fontSize: '22px', marginBottom: '6px' }}>🗑️</div>
             <div style={{
-              fontSize: '16px', fontWeight: 600, color: '#4a4a4a', marginBottom: '6px'
+              fontSize: '15px', fontFamily: 'var(--font-display)', fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '6px'
             }}>
-              确定删除会话？
+              确定删除这段对话？
             </div>
             <div style={{
-              fontSize: '13px', color: '#999', marginBottom: '24px'
+              fontSize: '12.5px', color: 'var(--c-text-muted)', marginBottom: '22px'
             }}>
               "{deleteModal.name}" 将被永久删除
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })}
                 style={{
-                  flex: 1, padding: '10px 0', borderRadius: '14px', border: 'none',
-                  background: '#f0ebe7', color: '#666', fontSize: '14px', fontWeight: 500,
-                  cursor: 'pointer'
+                  flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)',
+                  background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px',
+                  cursor: 'pointer', fontFamily: 'inherit'
                 }}
               >
                 取消
               </button>
               <button onClick={confirmDelete}
                 style={{
-                  flex: 1, padding: '10px 0', borderRadius: '14px', border: 'none',
-                  background: '#f4d8dc', color: '#8b5a5a', fontSize: '14px', fontWeight: 600,
-                  cursor: 'pointer'
+                  flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)',
+                  background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500,
+                  cursor: 'pointer', fontFamily: 'inherit'
                 }}
               >
                 确定
@@ -846,44 +1013,71 @@ useEffect(() => {
       )}
 
       {showSetting && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          width: '100vw', 
-          height: '100vh', 
-          background: 'rgba(0,0,0,0.2)', 
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'var(--c-overlay)',
           backdropFilter: 'blur(8px)',
-          display: 'flex', 
-          alignItems: 'center', 
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 400
+          zIndex: 400,
+          padding: '20px'
         }}>
-          <div style={{ 
-            width: '480px', 
-            maxWidth: '90vw',
-            background: 'rgba(255,255,255,0.95)', 
-            padding: '28px', 
-            borderRadius: '20px',
-            backdropFilter: 'blur(20px)',
-            boxShadow: '0 8px 40px rgba(0,0,0,0.1)',
-            border: '1px solid rgba(0,0,0,0.04)'
+          <div style={{
+            width: '480px',
+            maxWidth: '100%',
+            maxHeight: '86vh',
+            overflowY: 'auto',
+            background: 'var(--c-surface-solid)',
+            padding: '28px',
+            borderRadius: '22px',
+            boxShadow: '0 8px 40px var(--c-shadow)',
+            border: '1px solid var(--c-border)'
           }}>
-            <h3 style={{ marginTop: 0, fontWeight: 400, fontSize: '18px', color: '#5a4a42', marginBottom: '20px' }}>
-              全局AI配置
+            <h3 style={{ marginTop: 0, fontWeight: 400, fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: '20px', color: 'var(--c-text)', marginBottom: '22px' }}>
+              全局设置
             </h3>
+
+            <div style={{ marginBottom: '22px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--c-text-faint)', display: 'block', marginBottom: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>外观</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {THEMES.map(t => (
+                  <button
+                    key={t}
+                    className="theme-pill"
+                    onClick={() => setTheme(t)}
+                    style={{
+                      flex: 1,
+                      padding: '9px 0',
+                      borderRadius: '999px',
+                      border: `1px solid ${theme === t ? 'var(--c-accent)' : 'var(--c-border)'}`,
+                      background: theme === t ? 'var(--c-accent)' : 'transparent',
+                      color: theme === t ? 'var(--c-accent-text)' : 'var(--c-text-muted)',
+                      fontSize: '12.5px',
+                      letterSpacing: '1px',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-display)'
+                    }}
+                  >
+                    {THEME_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '13px', color: '#8a7a72', display: 'block', marginBottom: '6px' }}>系统人设提示词</label>
+              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>系统人设提示词</label>
               <textarea
                 value={config.system_prompt}
                 onChange={(e) => setConfig(p => ({ ...p, system_prompt: e.target.value }))}
-                style={{ 
-                  width: '100%', 
-                  padding: '10px 14px', 
-                  background: 'rgba(0,0,0,0.02)', 
-                  border: '1px solid rgba(0,0,0,0.06)', 
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: 'var(--c-input-bg)',
+                  border: '1px solid var(--c-border)',
                   borderRadius: '12px',
-                  color: '#5a4a42',
+                  color: 'var(--c-text)',
                   fontFamily: 'inherit',
                   fontSize: '13px',
                   outline: 'none'
@@ -892,18 +1086,18 @@ useEffect(() => {
               />
             </div>
             <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '13px', color: '#8a7a72', display: 'block', marginBottom: '6px' }}>Temperature（随机性）</label>
+              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>Temperature（随机性）</label>
               <input
                 type="number" step="0.1" min="0" max="1.5"
                 value={config.temperature}
                 onChange={(e) => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))}
-                style={{ 
-                  width: '100%', 
-                  padding: '10px 14px', 
-                  background: 'rgba(0,0,0,0.02)', 
-                  border: '1px solid rgba(0,0,0,0.06)', 
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: 'var(--c-input-bg)',
+                  border: '1px solid var(--c-border)',
                   borderRadius: '12px',
-                  color: '#5a4a42',
+                  color: 'var(--c-text)',
                   fontFamily: 'inherit',
                   fontSize: '13px',
                   outline: 'none'
@@ -911,37 +1105,37 @@ useEffect(() => {
               />
             </div>
             <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '13px', color: '#8a7a72', display: 'block', marginBottom: '6px' }}>记忆压缩阈值token</label>
+              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>记忆压缩阈值 token</label>
               <input
                 type="number"
                 value={config.compress_threshold}
                 onChange={(e) => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))}
-                style={{ 
-                  width: '100%', 
-                  padding: '10px 14px', 
-                  background: 'rgba(0,0,0,0.02)', 
-                  border: '1px solid rgba(0,0,0,0.06)', 
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: 'var(--c-input-bg)',
+                  border: '1px solid var(--c-border)',
                   borderRadius: '12px',
-                  color: '#5a4a42',
+                  color: 'var(--c-text)',
                   fontFamily: 'inherit',
                   fontSize: '13px',
                   outline: 'none'
                 }}
               />
             </div>
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{ fontSize: '13px', color: '#8a7a72', display: 'block', marginBottom: '6px' }}>压缩后保留回合数</label>
+            <div style={{ marginBottom: '22px' }}>
+              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>压缩后保留回合数</label>
               <input
                 type="number"
                 value={config.compress_keep_rounds}
                 onChange={(e) => setConfig(p => ({ ...p, compress_keep_rounds: Number(e.target.value) }))}
-                style={{ 
-                  width: '100%', 
-                  padding: '10px 14px', 
-                  background: 'rgba(0,0,0,0.02)', 
-                  border: '1px solid rgba(0,0,0,0.06)', 
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: 'var(--c-input-bg)',
+                  border: '1px solid var(--c-border)',
                   borderRadius: '12px',
-                  color: '#5a4a42',
+                  color: 'var(--c-text)',
                   fontFamily: 'inherit',
                   fontSize: '13px',
                   outline: 'none'
@@ -949,26 +1143,26 @@ useEffect(() => {
               />
             </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button 
-                onClick={() => setShowSetting(false)} 
-                style={{ 
-                  padding: '10px 18px', 
-                  background: 'transparent', 
-                  border: '1px solid rgba(0,0,0,0.1)', 
-                  color: '#8a7a72', 
+              <button
+                onClick={() => setShowSetting(false)}
+                style={{
+                  padding: '10px 18px',
+                  background: 'transparent',
+                  border: '1px solid var(--c-border)',
+                  color: 'var(--c-text-muted)',
                   borderRadius: '12px',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   fontSize: '13px'
                 }}
               >取消</button>
-              <button 
-                onClick={saveSettings} 
-                style={{ 
-                  padding: '10px 18px', 
-                  background: 'linear-gradient(135deg, #f5e6dc, #f0ddd0)', 
-                  border: '1px solid rgba(212,196,184,0.4)', 
-                  color: '#5a4a42', 
+              <button
+                onClick={saveSettings}
+                style={{
+                  padding: '10px 18px',
+                  background: 'var(--c-accent)',
+                  border: '1px solid var(--c-accent)',
+                  color: 'var(--c-accent-text)',
                   borderRadius: '12px',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
