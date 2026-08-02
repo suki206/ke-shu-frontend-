@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 
-const API_BASE = import.meta.env.DEV
-  ? 'http://localhost:3000/api'
-  : 'https://ke-shu-backend.onrender.com/api'
+const API_BASE = 'https://ke-shu-backend.onrender.com/api'
 
 // ========== 小鲸鱼桌宠组件 ==========
 const WhalePet = () => {
@@ -152,7 +150,9 @@ const ChatPage = () => {
     return !sessionStorage.getItem('hasVisited')
   })
   const [sessionList, setSessionList] = useState([])
-  const [activeSessionId, setActiveSessionId] = useState(null)
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+  return sessionStorage.getItem('activeSessionId') || null
+})
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -185,26 +185,34 @@ const ChatPage = () => {
     }, 50)
   }
 
-  const fetchSessions = async () => {
-    try {
-      const res = await axios.get(`${API_BASE}/sessions`)
-      const sessions = res.data || []
-      setSessionList(sessions)
-      
-      if (sessions.length > 0 && !activeSessionId) {
-        switchSession(sessions[0].id)
-      }
-    } catch (err) {
-      console.error('加载会话列表失败:', err.message)
-      setSessionList([])
+ const fetchSessions = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/sessions`)
+    const sessions = res.data || []
+    setSessionList(sessions)
+    
+    // 如果当前活跃的会话已不存在（被删了），清理状态
+    if (activeSessionId && !sessions.find(s => s.id === activeSessionId)) {
+      sessionStorage.removeItem('activeSessionId')
+      setActiveSessionId(null)
+      setMessages([])
+      setArchivedList([])
+      setHasOlderArchive(false)
+      setArchiveCursor(null)
     }
+  } catch (err) {
+    console.error('加载会话列表失败:', err.message)
+    setSessionList([])
   }
+}
 
-  const createSession = async () => {
-    try {
-      const res = await axios.post(`${API_BASE}/session/new`)
-      setSessionList(prev => [res.data, ...prev])
-      setActiveSessionId(res.data.id)
+ const createSession = async () => {
+  try {
+    const res = await axios.post(`${API_BASE}/session/new`)
+    const newSession = res.data
+    setSessionList(prev => [newSession, ...prev])
+    sessionStorage.setItem('activeSessionId', newSession.id)
+    setActiveSessionId(newSession.id)
       setMessages([])
       setArchivedList([])
       setHasOlderArchive(false)
@@ -217,8 +225,9 @@ const ChatPage = () => {
   }
 
   const switchSession = async (sid) => {
-    try {
-      setActiveSessionId(sid)
+  try {
+    sessionStorage.setItem('activeSessionId', sid)
+    setActiveSessionId(sid)
       const res = await axios.get(`${API_BASE}/messages/${sid}`)
       setMessages(res.data || [])
       setArchivedList([])
@@ -252,37 +261,48 @@ const ChatPage = () => {
     }
   }
 
-  const renameSession = async (sid, newTitle) => {
-    try {
-      await axios.put(`${API_BASE}/session/${sid}`, { title: newTitle })
-      fetchSessions()
-    } catch (err) {
-      console.error('重命名失败:', err.message)
-    }
+const renameSession = async (sid, newTitle) => {
+  try {
+    await axios.put(`${API_BASE}/session/${sid}`, { title: newTitle })
+    // 乐观更新：立即改本地状态，不用等服务器返回
+    setSessionList(prev => prev.map(s => s.id === sid ? { ...s, title: newTitle } : s))
+    // 后台同步一次，确保数据一致
+    await fetchSessions()
+  } catch (err) {
+    console.error('重命名失败:', err.message)
+    alert('重命名失败：' + err.message)
+    fetchSessions()
   }
+}
 
   const handleDeleteClick = (sid, sname) => {
     setDeleteModal({ show: true, sessionId: sid, name: sname || '这个会话' })
   }
 
   const confirmDelete = async () => {
-    if (!deleteModal.sessionId) return
-    try {
-      await axios.delete(`${API_BASE}/session/${deleteModal.sessionId}`)
-      fetchSessions()
-      if (activeSessionId === deleteModal.sessionId) {
-        setActiveSessionId(null)
-        setMessages([])
-        setArchivedList([])
-        setHasOlderArchive(false)
-        setArchiveCursor(null)
-      }
-    } catch (err) {
-      console.error('删除失败:', err.message)
-      alert('删除失败：' + err.message)
+  if (!deleteModal.sessionId) return
+  try {
+    await axios.delete(`${API_BASE}/session/${deleteModal.sessionId}`)
+    // 乐观更新：直接从本地列表移除
+    setSessionList(prev => prev.filter(s => s.id !== deleteModal.sessionId))
+    
+    // 如果删的是当前正在聊的会话，清空当前对话
+    if (activeSessionId === deleteModal.sessionId) {
+      sessionStorage.removeItem('activeSessionId')
+      setActiveSessionId(null)
+      setMessages([])
+      setArchivedList([])
+      setHasOlderArchive(false)
+      setArchiveCursor(null)
     }
-    setDeleteModal({ show: false, sessionId: null, name: '' })
+  } catch (err) {
+    console.error('删除失败:', err.message)
+    alert('删除失败：' + err.message)
+    // 出错了重新拉取列表兜底
+    fetchSessions()
   }
+  setDeleteModal({ show: false, sessionId: null, name: '' })
+}
 
   // ================= 【核心修复】发送消息函数 =================
   const sendMessage = async () => {
@@ -339,10 +359,30 @@ const ChatPage = () => {
     }
   }
 
-  useEffect(() => {
-    fetchSessions()
-    getSettings()
-  }, [])
+useEffect(() => {
+  const init = async () => {
+    try {
+      // 先获取会话列表
+      const res = await axios.get(`${API_BASE}/sessions`)
+      const sessions = res.data || []
+      setSessionList(sessions)
+      
+      // 获取设置
+      getSettings()
+      
+      // 恢复上次活跃的会话（刷新后自动回到原来的对话）
+      const savedId = sessionStorage.getItem('activeSessionId')
+      if (savedId && sessions.find(s => s.id === savedId)) {
+        await switchSession(savedId)
+      } else if (sessions.length > 0) {
+        await switchSession(sessions[0].id)
+      }
+    } catch (err) {
+      console.error('初始化失败:', err.message)
+    }
+  }
+  init()
+}, [])
 
   const formatTime = (timeStr) => {
     if (!timeStr) return ''
