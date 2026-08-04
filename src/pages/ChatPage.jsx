@@ -42,20 +42,83 @@ const StarField = ({ count = 30 }) => {
   return (<div className="starfield" aria-hidden="true">{stars.map(s => (<span key={s.id} className="star" style={{ left: `${s.left}%`, top: `${s.top}%`, width: `${s.size}px`, height: `${s.size}px`, animationDelay: `${s.delay}s`, animationDuration: `${s.duration}s` }} />))}</div>)
 }
 
-// ========== 花藤装饰 (SVG) ==========
-const VineDecoration = () => (
-  <svg style={{ position: 'absolute', top: 0, right: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.6 }} viewBox="0 0 280 800" preserveAspectRatio="none">
-    <path d="M260,0 C240,50 270,100 250,150 C230,200 260,250 240,300 C220,350 250,400 230,450 C210,500 240,550 220,600 C200,650 230,700 210,800" stroke="var(--c-vine)" strokeWidth="1.5" fill="none" />
-    <path d="M250,150 C230,160 220,150 210,170" stroke="var(--c-vine)" strokeWidth="1" fill="none" />
-    <circle cx="210" cy="170" r="3" fill="var(--c-vine)" opacity="0.5" />
-    <path d="M240,300 C220,310 210,300 200,320" stroke="var(--c-vine)" strokeWidth="1" fill="none" />
-    <circle cx="200" cy="320" r="4" fill="var(--c-vine)" opacity="0.5" />
-    <path d="M230,450 C210,460 200,450 190,470" stroke="var(--c-vine)" strokeWidth="1" fill="none" />
-    <circle cx="190" cy="470" r="3.5" fill="var(--c-vine)" opacity="0.5" />
-    <path d="M220,600 C200,610 190,600 180,620" stroke="var(--c-vine)" strokeWidth="1" fill="none" />
-    <circle cx="180" cy="620" r="4" fill="var(--c-vine)" opacity="0.5" />
-  </svg>
-)
+// ========== 花藤装饰 (立体攀附柔焦版 SVG) ==========
+const VineDecoration = () => {
+  return (
+    <svg 
+      style={{ position: 'absolute', top: 0, right: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }} 
+      viewBox="0 0 280 800" 
+      preserveAspectRatio="xMaxYMid slice"
+    >
+      <defs>
+        {/* 柔焦模糊滤镜，制造朦胧立体感 */}
+        <filter id="softBlur" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" />
+        </filter>
+        <filter id="deepBlur" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" />
+        </filter>
+      </defs>
+
+      {/* 后景藤蔓：最模糊，垫在后面 */}
+      <g filter="url(#deepBlur)" opacity="0.4" stroke="var(--c-vine)" fill="none" strokeLinecap="round">
+        <path d="M270,-20 C250,80 280,180 260,280 C240,380 270,480 250,580 C230,680 260,780 240,820" strokeWidth="2" />
+        <path d="M260,280 C240,290 230,320 210,310" strokeWidth="1.5" />
+        <path d="M250,580 C230,590 220,620 200,610" strokeWidth="1.5" />
+      </g>
+
+      {/* 中景藤蔓：攀附边缘，半清晰 */}
+      <g filter="url(#softBlur)" opacity="0.65" stroke="var(--c-vine)" fill="none" strokeLinecap="round">
+        <path d="M255,-20 C235,70 265,160 245,260 C225,360 255,450 235,550 C215,650 245,750 225,820" strokeWidth="1.8" />
+        {/* 向内延伸的枝蔓 */}
+        <path d="M245,260 C215,250 195,270 165,260 C150,255 140,265 120,250" strokeWidth="1.2" />
+        <path d="M235,550 C205,540 185,560 155,550 C140,545 130,555 110,540" strokeWidth="1.2" />
+      </g>
+
+      {/* 前景叶片与花朵：最清晰，立体感来源 */}
+      <g fill="var(--c-vine)" filter="url(#softBlur)">
+        {/* 攀附在右侧边缘的叶子 */}
+        <path d="M245,260 C260,245 280,255 275,275 C265,285 250,280 245,260 Z" opacity="0.8" />
+        <path d="M235,550 C250,535 270,545 265,565 C255,575 240,570 235,550 Z" opacity="0.8" />
+
+        {/* 延伸出去的叶子串 */}
+        <path d="M165,260 C150,245 130,255 135,275 C150,285 160,280 165,260 Z" opacity="0.7" />
+        <path d="M120,250 C105,235 85,245 90,265 C105,275 115,270 120,250 Z" opacity="0.6" />
+        
+        <path d="M155,550 C140,535 120,545 125,565 C140,575 150,570 155,550 Z" opacity="0.7" />
+        <path d="M110,540 C95,525 75,535 80,555 C95,565 105,560 110,540 Z" opacity="0.6" />
+      </g>
+
+      {/* 柔焦花串 (五瓣花) */}
+      <g fill="none" stroke="var(--c-vine)" strokeWidth="1" filter="url(#softBlur)">
+        {/* 第一簇花 */}
+        <g transform="translate(120, 250)" opacity="0.85">
+          <circle cx="0" cy="-6" r="3.5" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="6" cy="-2" r="3.5" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="3.5" cy="5" r="3.5" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="-3.5" cy="5" r="3.5" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="-6" cy="-2" r="3.5" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="0" cy="0" r="1.5" fill="var(--c-vine)" fillOpacity="0.6" />
+        </g>
+
+        {/* 第二簇花 */}
+        <g transform="translate(110, 540)" opacity="0.85">
+          <circle cx="0" cy="-5" r="3" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="5" cy="-1" r="3" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="3" cy="4" r="3" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="-3" cy="4" r="3" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="-5" cy="-1" r="3" fill="var(--c-vine)" fillOpacity="0.3" />
+          <circle cx="0" cy="0" r="1.2" fill="var(--c-vine)" fillOpacity="0.6" />
+        </g>
+
+        {/* 散落小花苞 */}
+        <circle cx="245" cy="100" r="2" fill="var(--c-vine)" fillOpacity="0.5" />
+        <circle cx="240" cy="400" r="2" fill="var(--c-vine)" fillOpacity="0.5" />
+        <circle cx="245" cy="700" r="2" fill="var(--c-vine)" fillOpacity="0.5" />
+      </g>
+    </svg>
+  )
+}
 
 // ========== 品牌字标 ==========
 const Wordmark = ({ size = 'md' }) => (<span className={`wordmark wordmark-${size}`}><span className="wordmark-part">ke</span><span className="wordmark-amp">&amp;</span><span className="wordmark-part">shu</span></span>)
