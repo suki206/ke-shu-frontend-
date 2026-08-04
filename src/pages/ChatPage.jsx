@@ -14,9 +14,9 @@ axios.interceptors.request.use(config => {
 // ========== 主题配置 ==========
 const THEMES = ['warm', 'mist', 'noir']
 const THEME_LABELS = { warm: 'Warm', mist: 'Mist', noir: 'Noir' }
-const THEME_META_COLOR = { warm: '#F6EDE0', mist: '#EFF2F4', noir: '#16181C' }
+const THEME_META_COLOR = { warm: '#F7EFE5', mist: '#EEF2F5', noir: '#101216' }
 
-// ========== 图标（线条风格） ==========
+// ========== 图标 ==========
 const Icon = {
   Menu: (p) => (
     <svg width={p.size || 20} height={p.size || 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -44,12 +44,6 @@ const Icon = {
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   ),
-  Close: (p) => (
-    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-      <line x1="5" y1="5" x2="19" y2="19" />
-      <line x1="19" y1="5" x2="5" y2="19" />
-    </svg>
-  ),
   ArrowUp: (p) => (
     <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="19" x2="12" y2="5" />
@@ -63,7 +57,6 @@ const Icon = {
   )
 }
 
-// 精简齿轮图标
 const SettingsIcon = (p) => (
   <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
@@ -73,43 +66,14 @@ const SettingsIcon = (p) => (
 
 // ========== 头像 ==========
 const UserAvatar = ({ size = 30 }) => (
-  <div style={{
-    width: size,
-    height: size,
-    borderRadius: '50%',
-    flexShrink: 0,
-    background: 'var(--c-bubble-user-bg)',
-    border: '1px solid var(--c-bubble-user-border)',
-    boxShadow: '0 2px 8px var(--c-shadow)'
-  }} />
+  <div className="user-avatar" style={{ width: size, height: size }} />
 )
 
-// AI 头像：月牙标记
 const AIAvatar = ({ size = 30 }) => (
-  <div style={{
-    position: 'relative',
-    width: size,
-    height: size,
-    borderRadius: '50%',
-    flexShrink: 0,
-    overflow: 'hidden',
-    background: 'radial-gradient(circle at 32% 28%, var(--c-accent-soft), var(--c-accent) 68%, var(--c-text) 150%)',
-    boxShadow: '0 2px 10px var(--c-shadow), inset 0 0 0 1px var(--c-border)'
-  }}>
-    <div style={{
-      position: 'absolute',
-      width: size * 0.86,
-      height: size * 0.86,
-      borderRadius: '50%',
-      background: 'var(--c-bg-solid)',
-      top: '-8%',
-      left: '32%',
-      opacity: 0.94
-    }} />
-  </div>
+  <div className="ai-avatar" style={{ width: size, height: size }} />
 )
 
-// ========== 星空层：三套主题都有，浓淡不同 ==========
+// ========== 星空层 ==========
 const StarField = ({ count = 30 }) => {
   const stars = useMemo(() => Array.from({ length: count }).map((_, i) => ({
     id: i,
@@ -149,18 +113,18 @@ const Wordmark = ({ size = 'md' }) => (
   </span>
 )
 
-// ========== 开屏页：深空 + 星星凝聚成文字 ==========
+// ========== 开屏页：星座粒子凝聚文字 ==========
 const SplashScreen = ({ onEnter }) => {
   const canvasRef = useRef(null)
   const [visible, setVisible] = useState(true)
   const [fadeOut, setFadeOut] = useState(false)
-  const [textReady, setTextReady] = useState(false)
-  const animationRef = useRef(null)
+  const animRef = useRef(null)
   const particlesRef = useRef([])
-  const dustsRef = useRef([])
-  const targetPointsRef = useRef([])
+  const dustRef = useRef([])
+  const targetsRef = useRef([])
   const startTimeRef = useRef(null)
-  const textShownRef = useRef(false)
+  const phaseRef = useRef('gathering') // gathering -> formed -> floating
+  const floatOffsetRef = useRef(0)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -171,7 +135,7 @@ const SplashScreen = ({ onEnter }) => {
       const dpr = window.devicePixelRatio || 1
       canvas.width = window.innerWidth * dpr
       canvas.height = window.innerHeight * dpr
-      ctx.scale(dpr, dpr)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
     resize()
     window.addEventListener('resize', resize)
@@ -190,12 +154,12 @@ const SplashScreen = ({ onEnter }) => {
     offCtx.textBaseline = 'middle'
 
     // 主标题
-    offCtx.font = '200 32px "Cormorant Garamond", Georgia, serif'
-    offCtx.fillText("Tell me everything", w / 2, h / 2 - 22)
+    offCtx.font = '200 34px "Cormorant Garamond", Georgia, serif'
+    offCtx.fillText('Tell me everything', w / 2, h / 2 - 28)
 
     // 副标题
     offCtx.font = 'italic 400 15px "Cormorant Garamond", Georgia, serif'
-    offCtx.fillText("I'm here, always", w / 2, h / 2 + 22)
+    offCtx.fillText("I'm here, always", w / 2, h / 2 + 24)
 
     const imageData = offCtx.getImageData(0, 0, w, h)
     const pixels = imageData.data
@@ -206,7 +170,7 @@ const SplashScreen = ({ onEnter }) => {
     for (let y = 0; y < h; y += step) {
       for (let x = 0; x < w; x += step) {
         const idx = (y * w + x) * 4
-        if (pixels[idx + 3] > 120) {
+        if (pixels[idx + 3] > 100) {
           targetPoints.push({ x, y })
         }
       }
@@ -218,36 +182,45 @@ const SplashScreen = ({ onEnter }) => {
       ;[targetPoints[i], targetPoints[j]] = [targetPoints[j], targetPoints[i]]
     }
 
-    targetPointsRef.current = targetPoints
+    targetsRef.current = targetPoints
 
-    // 创建粒子（只取部分目标点，避免太多）
-    const maxParticles = Math.min(targetPoints.length, 800)
+    // 创建粒子（取部分目标点，避免性能问题）
+    const maxParticles = Math.min(targetPoints.length, 600)
     const particles = []
     for (let i = 0; i < maxParticles; i++) {
       const tp = targetPoints[i]
+      // 从屏幕四周随机出发
+      const side = Math.floor(Math.random() * 4)
+      let sx, sy
+      switch (side) {
+        case 0: sx = Math.random() * w; sy = -20; break
+        case 1: sx = w + 20; sy = Math.random() * h; break
+        case 2: sx = Math.random() * w; sy = h + 20; break
+        default: sx = -20; sy = Math.random() * h; break
+      }
       particles.push({
-        x: Math.random() * w,
-        y: Math.random() * h,
+        x: sx,
+        y: sy,
         targetX: tp.x,
         targetY: tp.y,
-        size: Math.random() * 1.2 + 0.4,
-        speed: Math.random() * 0.025 + 0.012,
-        delay: Math.random() * 1500,
+        size: Math.random() * 1.4 + 0.5,
+        speed: Math.random() * 0.018 + 0.010,
+        delay: Math.random() * 800,
         opacity: 0,
-        arrived: false
+        arrived: false,
+        twinkleOffset: Math.random() * Math.PI * 2
       })
     }
     particlesRef.current = particles
 
     // 环境星尘
-    const dustCount = 70
-    dustsRef.current = Array.from({ length: dustCount }, () => ({
+    dustRef.current = Array.from({ length: 60 }, () => ({
       x: Math.random() * w,
       y: Math.random() * h,
-      size: Math.random() * 1.0 + 0.2,
-      opacity: Math.random() * 0.4 + 0.1,
-      twinkleSpeed: Math.random() * 0.0015 + 0.0005,
-      twinkleOffset: Math.random() * Math.PI * 2
+      size: Math.random() * 1.2 + 0.2,
+      opacity: Math.random() * 0.3 + 0.1,
+      speed: Math.random() * 0.0008 + 0.0003,
+      offset: Math.random() * Math.PI * 2
     }))
 
     const animate = (timestamp) => {
@@ -258,33 +231,42 @@ const SplashScreen = ({ onEnter }) => {
 
       ctx.clearRect(0, 0, ww, wh)
 
-      // 深空背景 + 极淡中心光晕
-      const gradient = ctx.createRadialGradient(ww / 2, wh / 2, 0, ww / 2, wh / 2, ww * 0.7)
-      gradient.addColorStop(0, '#0a0a12')
-      gradient.addColorStop(0.5, '#050508')
-      gradient.addColorStop(1, '#020204')
-      ctx.fillStyle = gradient
+      // 深空背景
+      const bgGrad = ctx.createRadialGradient(ww / 2, wh / 2, 0, ww / 2, wh / 2, ww * 0.8)
+      bgGrad.addColorStop(0, '#0c0c14')
+      bgGrad.addColorStop(0.5, '#06060a')
+      bgGrad.addColorStop(1, '#020203')
+      ctx.fillStyle = bgGrad
+      ctx.fillRect(0, 0, ww, wh)
+
+      // 极淡中心光晕
+      const glow = ctx.createRadialGradient(ww / 2, wh / 2, 0, ww / 2, wh / 2, 300)
+      glow.addColorStop(0, 'rgba(100, 120, 180, 0.03)')
+      glow.addColorStop(1, 'transparent')
+      ctx.fillStyle = glow
       ctx.fillRect(0, 0, ww, wh)
 
       // 绘制环境星尘
-      dustsRef.current.forEach(d => {
-        const twinkle = Math.sin(elapsed * d.twinkleSpeed + d.twinkleOffset)
-        const alpha = d.opacity * (0.4 + twinkle * 0.6)
+      dustRef.current.forEach(d => {
+        const twinkle = Math.sin(elapsed * d.speed + d.offset)
+        const alpha = d.opacity * (0.5 + twinkle * 0.5)
         ctx.beginPath()
         ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(200, 220, 255, ${alpha})`
+        ctx.fillStyle = `rgba(200, 215, 255, ${alpha})`
         ctx.fill()
       })
 
-      // 绘制凝聚粒子
+      // 检查是否全部到达
       let allArrived = true
+      let arrivedCount = 0
+
       particlesRef.current.forEach(p => {
         if (elapsed < p.delay) {
           allArrived = false
-          // 延迟期间也显示，但位置随机闪烁
+          // 延迟期间绘制在起始位置，微弱闪烁
           ctx.beginPath()
-          ctx.arc(p.x, p.y, p.size * 0.6, 0, Math.PI * 2)
-          ctx.fillStyle = `rgba(200, 220, 255, ${0.15})`
+          ctx.arc(p.x, p.y, p.size * 0.5, 0, Math.PI * 2)
+          ctx.fillStyle = `rgba(180, 200, 255, 0.15)`
           ctx.fill()
           return
         }
@@ -293,59 +275,78 @@ const SplashScreen = ({ onEnter }) => {
         const dy = p.targetY - p.y
         const dist = Math.sqrt(dx * dx + dy * dy)
 
-        if (dist > 0.8) {
+        if (dist > 1.5) {
           allArrived = false
           p.x += dx * p.speed
           p.y += dy * p.speed
-          p.opacity = Math.min(p.opacity + 0.04, 0.9)
+          p.opacity = Math.min(p.opacity + 0.03, 0.85)
         } else {
           p.x = p.targetX
           p.y = p.targetY
           p.arrived = true
-          p.opacity = Math.max(p.opacity - 0.015, 0.25)
+          arrivedCount++
+          // 到达后呼吸闪烁
+          const breathe = Math.sin(elapsed * 0.002 + p.twinkleOffset)
+          p.opacity = 0.5 + breathe * 0.35
         }
+
+        // 绘制粒子发光
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(200, 220, 255, ${p.opacity * 0.15})`
+        ctx.fill()
 
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(220, 230, 255, ${p.opacity})`
+        ctx.fillStyle = `rgba(220, 235, 255, ${p.opacity})`
         ctx.fill()
       })
 
-      // 文字浮动效果
-      if (allArrived || textShownRef.current) {
-        if (!textShownRef.current) {
-          textShownRef.current = true
-          setTextReady(true)
+      // 星座连线（相邻且已到达的粒子之间）
+      if (arrivedCount > 50) {
+        ctx.strokeStyle = 'rgba(180, 200, 240, 0.08)'
+        ctx.lineWidth = 0.5
+        const pts = particlesRef.current.filter(p => p.arrived)
+        for (let i = 0; i < pts.length; i += 3) {
+          for (let j = i + 1; j < pts.length; j += 3) {
+            const dx = pts[i].x - pts[j].x
+            const dy = pts[i].y - pts[j].y
+            const d = Math.sqrt(dx * dx + dy * dy)
+            if (d < 28) {
+              ctx.beginPath()
+              ctx.moveTo(pts[i].x, pts[i].y)
+              ctx.lineTo(pts[j].x, pts[j].y)
+              ctx.stroke()
+            }
+          }
         }
-
-        const floatY = Math.sin(elapsed * 0.0008) * 2.5
-
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-
-        // 主标题发光层
-        ctx.font = '200 32px "Cormorant Garamond", Georgia, serif'
-        ctx.fillStyle = 'rgba(200, 220, 255, 0.12)'
-        ctx.fillText("Tell me everything", ww / 2 + 1, wh / 2 - 22 + floatY + 1)
-        ctx.fillText("Tell me everything", ww / 2 - 1, wh / 2 - 22 + floatY - 1)
-
-        // 主标题
-        ctx.fillStyle = 'rgba(220, 230, 255, 0.92)'
-        ctx.fillText("Tell me everything", ww / 2, wh / 2 - 22 + floatY)
-
-        // 副标题
-        ctx.font = 'italic 400 15px "Cormorant Garamond", Georgia, serif'
-        ctx.fillStyle = 'rgba(180, 190, 210, 0.65)'
-        ctx.fillText("I'm here, always", ww / 2, wh / 2 + 22 + floatY * 0.5)
       }
 
-      animationRef.current = requestAnimationFrame(animate)
+      // 阶段切换
+      if (allArrived && phaseRef.current === 'gathering') {
+        phaseRef.current = 'formed'
+        floatOffsetRef.current = elapsed
+      }
+
+      // 整体浮动（形成后）
+      if (phaseRef.current === 'formed' || phaseRef.current === 'floating') {
+        phaseRef.current = 'floating'
+        const floatY = Math.sin((elapsed - floatOffsetRef.current) * 0.0008) * 2
+        // 所有粒子整体偏移
+        particlesRef.current.forEach(p => {
+          if (p.arrived) {
+            p.targetY = p.targetY + floatY * 0.01 // 轻微调整目标
+          }
+        })
+      }
+
+      animRef.current = requestAnimationFrame(animate)
     }
 
-    animationRef.current = requestAnimationFrame(animate)
+    animRef.current = requestAnimationFrame(animate)
 
     return () => {
-      cancelAnimationFrame(animationRef.current)
+      cancelAnimationFrame(animRef.current)
       window.removeEventListener('resize', resize)
     }
   }, [])
@@ -355,7 +356,7 @@ const SplashScreen = ({ onEnter }) => {
     setTimeout(() => {
       setVisible(false)
       onEnter()
-    }, 700)
+    }, 800)
   }
 
   if (!visible) return null
@@ -372,9 +373,9 @@ const SplashScreen = ({ onEnter }) => {
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        transition: 'opacity 0.7s cubic-bezier(0.65, 0, 0.35, 1), transform 0.7s cubic-bezier(0.65, 0, 0.35, 1)',
+        transition: 'opacity 0.8s cubic-bezier(0.65, 0, 0.35, 1), transform 0.8s cubic-bezier(0.65, 0, 0.35, 1)',
         opacity: fadeOut ? 0 : 1,
-        transform: fadeOut ? 'scale(1.03)' : 'scale(1)'
+        transform: fadeOut ? 'scale(1.02)' : 'scale(1)'
       }}
     >
       <canvas
@@ -386,14 +387,6 @@ const SplashScreen = ({ onEnter }) => {
           height: '100%'
         }}
       />
-
-      {/* HTML 文字层（作为 Canvas 后备/叠加，确保清晰度） */}
-      <div className={`splash-text-layer ${textReady ? 'ready' : ''}`}>
-        <div className="splash-main-text">Tell me everything</div>
-        <div className="splash-sub-text">I'm here, always</div>
-      </div>
-
-      {/* Begin 按钮 - 始终可点 */}
       <button
         onClick={handleClick}
         className="splash-begin-btn"
@@ -507,7 +500,6 @@ const ChatPage = () => {
       console.error('切换会话失败:', err.message)
       return
     }
-
     try {
       const archiveRes = await axios.get(`${API_BASE}/messages/archived/${sid}?limit=1`)
       if (archiveRes.data?.list?.length > 0) {
@@ -668,7 +660,7 @@ const ChatPage = () => {
       meta.name = 'theme-color'
       document.head.appendChild(meta)
     }
-    meta.setAttribute('content', THEME_META_COLOR[theme] || '#F6EDE0')
+    meta.setAttribute('content', THEME_META_COLOR[theme] || '#F7EFE5')
   }, [theme])
 
   const cycleTheme = () => {
@@ -732,37 +724,12 @@ const ChatPage = () => {
   }
 
   const renderMsgItem = (msg, key) => (
-    <div key={key} style={{
-      display: 'flex',
-      justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-      marginBottom: '16px',
-      padding: '0 16px'
-    }}>
-      <div style={{
-        maxWidth: '78%',
-        display: 'flex',
-        flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-        alignItems: 'flex-start',
-        gap: '8px'
-      }}>
+    <div key={key} className={`message-row ${msg.role}`}>
+      <div className="message-inner">
         {msg.role === 'user' ? <UserAvatar /> : <AIAvatar />}
-        <div style={{
-          padding: '12px 17px',
-          borderRadius: msg.role === 'user' ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          background: msg.role === 'user' ? 'var(--c-bubble-user-bg)' : 'var(--c-bubble-ai-bg)',
-          backdropFilter: 'blur(10px)',
-          color: msg.role === 'user' ? 'var(--c-bubble-user-text)' : 'var(--c-bubble-ai-text)',
-          fontSize: '14.5px',
-          lineHeight: '1.7',
-          boxShadow: '0 3px 16px var(--c-shadow), inset 0 1px 0 var(--c-highlight)',
-          border: msg.role === 'user' ? '1px solid var(--c-bubble-user-border)' : '1px solid var(--c-bubble-ai-border)'
-        }}>
-          <div>{msg.content}</div>
-          <div style={{ fontSize: '11px', marginTop: '6px', color: 'var(--c-text-faint)', textAlign: 'right' }}>
-            {formatTime(msg.created_at)}
-          </div>
+        <div className={`message-bubble ${msg.role}`}>
+          <div className="message-content">{msg.content}</div>
+          <div className="message-time">{formatTime(msg.created_at)}</div>
         </div>
       </div>
     </div>
@@ -773,6 +740,7 @@ const ChatPage = () => {
   return (
     <div
       data-theme={theme}
+      className="chat-page-root"
       style={{
         flex: 1,
         display: 'flex',
@@ -787,253 +755,90 @@ const ChatPage = () => {
     >
       <div className="ambient-bg" />
       <div className="noise-overlay" />
-      <StarField count={theme === 'noir' ? 40 : theme === 'mist' ? 18 : 16} />
+      <StarField count={theme === 'noir' ? 42 : theme === 'mist' ? 20 : 18} />
 
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
 
       {showSidebar && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'var(--c-overlay)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 200,
-            animation: 'fadeIn 0.3s ease'
-          }}
+          className="sidebar-overlay"
           onClick={() => setShowSidebar(false)}
         />
       )}
 
       {/* 侧边栏 */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: showSidebar ? 0 : '-320px',
-        width: '280px',
-        height: 'var(--app-height, 100dvh)',
-        background: 'var(--c-surface)',
-        backdropFilter: 'blur(20px)',
-        zIndex: 300,
-        transition: 'left 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-        display: 'flex',
-        flexDirection: 'column',
-        boxShadow: showSidebar ? '4px 0 24px var(--c-shadow)' : 'none',
-        borderRight: '1px solid var(--c-border)'
-      }}>
-        <div style={{ padding: '26px 20px 18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {/* 侧边栏左上角：月亮图标代替鲸鱼 */}
-              <div style={{
-                width: '26px',
-                height: '26px',
-                borderRadius: '50%',
-                overflow: 'hidden',
-                background: 'radial-gradient(circle at 32% 28%, var(--c-accent-soft), var(--c-accent) 68%, var(--c-text) 150%)',
-                boxShadow: '0 1px 6px var(--c-shadow), inset 0 0 0 1px var(--c-border)',
-                flexShrink: 0,
-                position: 'relative'
-              }}>
-                <div style={{
-                  position: 'absolute',
-                  width: '22px',
-                  height: '22px',
-                  borderRadius: '50%',
-                  background: 'var(--c-bg-solid)',
-                  top: '-8%',
-                  left: '32%',
-                  opacity: 0.94
-                }} />
-              </div>
-              <Wordmark size="md" />
-            </div>
-            <button
-              className="icon-btn"
-              onClick={cycleTheme}
-              title={`当前主题：${THEME_LABELS[theme]}`}
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--c-border)',
-                borderRadius: '999px',
-                width: '30px',
-                height: '30px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                color: 'var(--c-text-muted)'
-              }}
-            >
-              <Icon.Moon size={13} />
-            </button>
+      <div className={`sidebar ${showSidebar ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="sidebar-brand">
+            <AIAvatar size={26} />
+            <Wordmark size="md" />
           </div>
-
           <button
-            onClick={createSession}
-            style={{
-              width: '100%',
-              padding: '12px',
-              background: 'var(--c-accent)',
-              border: '1px solid var(--c-accent)',
-              borderRadius: '16px',
-              color: 'var(--c-accent-text)',
-              cursor: 'pointer',
-              marginBottom: '4px',
-              fontSize: '13.5px',
-              fontFamily: 'var(--font-body)',
-              letterSpacing: '1px',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 2px 10px var(--c-shadow)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px'
-            }}
+            className="icon-btn theme-toggle"
+            onClick={cycleTheme}
+            title={`当前主题：${THEME_LABELS[theme]}`}
           >
-            <Icon.Plus size={12} /> 新建对话
+            <Icon.Moon size={13} />
           </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px' }}>
-          <div style={{
-            fontSize: '11px',
-            color: 'var(--c-text-faint)',
-            marginBottom: '8px',
-            paddingLeft: '4px',
-            letterSpacing: '1.5px',
-            textTransform: 'uppercase'
-          }}>
-            最近对话
-          </div>
+        <button className="new-chat-btn" onClick={createSession}>
+          <Icon.Plus size={12} /> 新建对话
+        </button>
+
+        <div className="sidebar-body">
+          <div className="sidebar-section-title">最近对话</div>
           {sessionList.map(item => (
             <div
               key={item.id}
-              className="session-item"
-              style={{
-                padding: '12px 14px',
-                borderRadius: '14px',
-                background: activeSessionId === item.id ? 'var(--c-accent-soft)' : 'transparent',
-                cursor: 'pointer',
-                marginBottom: '4px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                border: activeSessionId === item.id ? '1px solid var(--c-border)' : '1px solid transparent'
-              }}
+              className={`session-item ${activeSessionId === item.id ? 'active' : ''}`}
               onClick={() => switchSession(item.id)}
             >
-              <span style={{
-                fontSize: '13.5px',
-                color: 'var(--c-text)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>{item.title}</span>
-              <div className="session-actions" style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+              <span className="session-title">{item.title}</span>
+              <div className="session-actions">
                 <button
                   className="icon-btn"
                   onClick={(e) => { e.stopPropagation(); handleRenameClick(item.id, item.title) }}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}
                 ><Icon.Edit /></button>
                 <button
                   className="icon-btn"
                   onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id, item.title) }}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}
                 ><Icon.Trash /></button>
               </div>
             </div>
           ))}
         </div>
 
-        <div style={{ padding: '16px', borderTop: '1px solid var(--c-border)' }}>
-          <button
-            onClick={() => { setShowSidebar(false); setShowSetting(true) }}
-            style={{
-              width: '100%',
-              padding: '10px',
-              background: 'transparent',
-              border: '1px solid var(--c-border)',
-              borderRadius: '12px',
-              color: 'var(--c-text-muted)',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontFamily: 'var(--font-body)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px'
-            }}
-          >
+        <div className="sidebar-footer">
+          <button className="settings-btn" onClick={() => { setShowSidebar(false); setShowSetting(true) }}>
             <SettingsIcon size={14} /> 全局设置
           </button>
         </div>
       </div>
 
       {/* 主内容区 */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative' }}>
-        <div style={{
-          padding: '14px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid var(--c-border)',
-          flexShrink: 0
-        }}>
-          <button
-            className="icon-btn"
-            onClick={() => setShowSidebar(true)}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-text-muted)', display: 'flex' }}
-          >
+      <div className="main-content">
+        <div className="top-bar">
+          <button className="icon-btn menu-btn" onClick={() => setShowSidebar(true)}>
             <Icon.Menu />
           </button>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontStyle: 'italic', color: 'var(--c-text-muted)', letterSpacing: '0.5px' }}>
+          <div className="top-bar-title">
             {activeSessionId ? (sessionList.find(s => s.id === activeSessionId)?.title || '对话中') : 'ke&shu'}
           </div>
           <div style={{ width: '20px' }} />
         </div>
 
-        <div
-          ref={messageBoxRef}
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '16px 0',
-            overscrollBehavior: 'contain',
-            WebkitOverflowScrolling: 'touch',
-            minHeight: 0
-          }}
-        >
+        <div ref={messageBoxRef} className="message-box">
           {!activeSessionId ? (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              color: 'var(--c-text-faint)',
-              gap: '14px'
-            }}>
+            <div className="empty-state">
               <AIAvatar size={44} />
-              <div style={{ fontSize: '14px', fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>选择或新建一个对话</div>
+              <div className="empty-text">选择或新建一个对话</div>
             </div>
           ) : (
             <>
               {hasOlderArchive && (
-                <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--c-text-faint)', fontSize: '12px' }}>
-                  <span
-                    onClick={loadOlderArchive}
-                    style={{
-                      cursor: 'pointer',
-                      padding: '7px 16px',
-                      borderRadius: '999px',
-                      background: 'var(--c-surface)',
-                      border: '1px solid var(--c-border)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
+                <div className="load-more-wrap">
+                  <span className="load-more-btn" onClick={loadOlderArchive}>
                     <Icon.ArrowUp size={11} /> 加载更早的历史
                   </span>
                 </div>
@@ -1041,28 +846,19 @@ const ChatPage = () => {
               {archivedList.map((msg, idx) => renderMsgItem(msg, `arch-${idx}`))}
               {Object.entries(groupedMessages).map(([date, msgs]) => (
                 <div key={date}>
-                  <div style={{ textAlign: 'center', margin: '20px 0 12px' }}>
-                    <span style={{
-                      fontSize: '11px',
-                      color: 'var(--c-text-faint)',
-                      background: 'var(--c-surface)',
-                      padding: '4px 14px',
-                      borderRadius: '999px',
-                      letterSpacing: '1px'
-                    }}>
-                      {date}
-                    </span>
+                  <div className="date-divider">
+                    <span>{date}</span>
                   </div>
                   {msgs.map((msg, idx) => renderMsgItem(msg, `live-${idx}`))}
                 </div>
               ))}
               {loading && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 20px', color: 'var(--c-text-muted)', fontSize: '13px' }}>
+                <div className="loading-row">
                   <AIAvatar />
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0s' }}>·</span>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.2s' }}>·</span>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.4s' }}>·</span>
+                  <div className="loading-dots">
+                    <span style={{ animationDelay: '0s' }}>·</span>
+                    <span style={{ animationDelay: '0.2s' }}>·</span>
+                    <span style={{ animationDelay: '0.4s' }}>·</span>
                   </div>
                 </div>
               )}
@@ -1070,55 +866,19 @@ const ChatPage = () => {
           )}
         </div>
 
-        <div style={{
-          padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)',
-          borderTop: '1px solid var(--c-border)',
-          background: 'var(--c-surface)',
-          backdropFilter: 'blur(10px)',
-          flexShrink: 0
-        }}>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+        <div className="input-area">
+          <div className="input-inner">
             <textarea
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.ctrlKey && e.key === 'Enter' && sendMessage()}
               placeholder="Tell me everything..."
-              style={{
-                flex: 1,
-                padding: '12px 16px',
-                background: 'var(--c-input-bg)',
-                border: '1px solid var(--c-border)',
-                borderRadius: '18px',
-                color: 'var(--c-text)',
-                resize: 'none',
-                fontFamily: 'inherit',
-                fontSize: '14px',
-                outline: 'none',
-                lineHeight: '1.5',
-                boxShadow: '0 2px 8px var(--c-shadow)',
-                minHeight: '46px'
-              }}
               rows={1}
             />
             <button
+              className="send-btn"
               onClick={sendMessage}
               disabled={loading || !activeSessionId}
-              style={{
-                width: '46px',
-                height: '46px',
-                borderRadius: '50%',
-                background: 'var(--c-accent)',
-                border: '1px solid var(--c-accent)',
-                color: 'var(--c-accent-text)',
-                cursor: loading || !activeSessionId ? 'not-allowed' : 'pointer',
-                opacity: loading || !activeSessionId ? 0.45 : 1,
-                transition: 'all 0.3s ease',
-                boxShadow: '0 2px 10px var(--c-shadow)',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
             >
               <Icon.ArrowUp size={18} />
             </button>
@@ -1135,161 +895,52 @@ const ChatPage = () => {
 
       {/* 重命名弹窗 */}
       {renameModal.show && (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'var(--c-overlay)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2100, animation: 'fadeIn 0.2s ease'
-        }}
-          onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}
-        >
-          <div
-            style={{
-              background: 'var(--c-surface-solid)',
-              borderRadius: '22px', padding: '26px 24px 20px',
-              width: '300px', maxWidth: '86vw',
-              boxShadow: '0 20px 60px var(--c-shadow)',
-              border: '1px solid var(--c-border)',
-              animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: '15px', fontFamily: 'var(--font-display)', fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '14px' }}>
-              重命名对话
-            </div>
+        <div className="modal-overlay" onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">重命名对话</div>
             <input
               ref={renameInputRef}
               value={renameModal.value}
               onChange={(e) => setRenameModal(p => ({ ...p, value: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && confirmRename()}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: 'var(--c-input-bg)',
-                border: '1px solid var(--c-border)',
-                borderRadius: '12px',
-                color: 'var(--c-text)',
-                fontFamily: 'inherit',
-                fontSize: '14px',
-                outline: 'none',
-                marginBottom: '18px'
-              }}
+              className="modal-input"
             />
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}
-                style={{
-                  flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)',
-                  background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px',
-                  cursor: 'pointer', fontFamily: 'inherit'
-                }}
-              >取消</button>
-              <button
-                onClick={confirmRename}
-                style={{
-                  flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)',
-                  background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500,
-                  cursor: 'pointer', fontFamily: 'inherit'
-                }}
-              >确定</button>
+            <div className="modal-actions">
+              <button className="modal-btn secondary" onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}>取消</button>
+              <button className="modal-btn primary" onClick={confirmRename}>确定</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* 删除弹窗 */}
       {deleteModal.show && (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'var(--c-overlay)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, animation: 'fadeIn 0.2s ease'
-        }}>
-          <div style={{
-            background: 'var(--c-surface-solid)',
-            borderRadius: '22px', padding: '28px 24px 20px',
-            width: '300px', maxWidth: '86vw', textAlign: 'center',
-            boxShadow: '0 20px 60px var(--c-shadow)',
-            border: '1px solid var(--c-border)',
-            animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)'
-          }}>
-            <div style={{
-              fontSize: '15px', fontFamily: 'var(--font-display)', fontStyle: 'italic',
-              color: 'var(--c-text)', marginBottom: '6px'
-            }}>
-              确定删除这段对话？
-            </div>
-            <div style={{
-              fontSize: '12.5px', color: 'var(--c-text-muted)', marginBottom: '22px'
-            }}>
-              "{deleteModal.name}" 将被永久删除
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })}
-                style={{
-                  flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)',
-                  background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px',
-                  cursor: 'pointer', fontFamily: 'inherit'
-                }}
-              >取消</button>
-              <button onClick={confirmDelete}
-                style={{
-                  flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)',
-                  background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500,
-                  cursor: 'pointer', fontFamily: 'inherit'
-                }}
-              >确定</button>
+        <div className="modal-overlay">
+          <div className="modal-card center">
+            <div className="modal-title">确定删除这段对话？</div>
+            <div className="modal-desc">"{deleteModal.name}" 将被永久删除</div>
+            <div className="modal-actions">
+              <button className="modal-btn secondary" onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })}>取消</button>
+              <button className="modal-btn primary" onClick={confirmDelete}>确定</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* 设置弹窗 */}
       {showSetting && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'var(--c-overlay)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 400,
-          padding: '20px'
-        }}>
-          <div style={{
-            width: '480px',
-            maxWidth: '100%',
-            maxHeight: '86vh',
-            overflowY: 'auto',
-            background: 'var(--c-surface-solid)',
-            padding: '28px',
-            borderRadius: '22px',
-            boxShadow: '0 8px 40px var(--c-shadow)',
-            border: '1px solid var(--c-border)'
-          }}>
-            <h3 style={{ marginTop: 0, fontWeight: 400, fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: '20px', color: 'var(--c-text)', marginBottom: '22px' }}>
-              全局设置
-            </h3>
+        <div className="modal-overlay">
+          <div className="modal-card wide">
+            <h3 className="modal-title">全局设置</h3>
 
-            <div style={{ marginBottom: '22px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--c-text-faint)', display: 'block', marginBottom: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>外观</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="setting-group">
+              <label className="setting-label">外观</label>
+              <div className="theme-pills">
                 {THEMES.map(t => (
                   <button
                     key={t}
-                    className="theme-pill"
+                    className={`theme-pill ${theme === t ? 'active' : ''}`}
                     onClick={() => setTheme(t)}
-                    style={{
-                      flex: 1,
-                      padding: '9px 0',
-                      borderRadius: '999px',
-                      border: `1px solid ${theme === t ? 'var(--c-accent)' : 'var(--c-border)'}`,
-                      background: theme === t ? 'var(--c-accent)' : 'transparent',
-                      color: theme === t ? 'var(--c-accent-text)' : 'var(--c-text-muted)',
-                      fontSize: '12.5px',
-                      letterSpacing: '1px',
-                      cursor: 'pointer',
-                      fontFamily: 'var(--font-display)'
-                    }}
                   >
                     {THEME_LABELS[t]}
                   </button>
@@ -1297,113 +948,49 @@ const ChatPage = () => {
               </div>
             </div>
 
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>系统人设提示词</label>
+            <div className="setting-group">
+              <label className="setting-label">系统人设提示词</label>
               <textarea
+                className="modal-textarea"
                 value={config.system_prompt}
                 onChange={(e) => setConfig(p => ({ ...p, system_prompt: e.target.value }))}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  background: 'var(--c-input-bg)',
-                  border: '1px solid var(--c-border)',
-                  borderRadius: '12px',
-                  color: 'var(--c-text)',
-                  fontFamily: 'inherit',
-                  fontSize: '13px',
-                  outline: 'none'
-                }}
                 rows={3}
               />
             </div>
 
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>Temperature（随机性）</label>
+            <div className="setting-group">
+              <label className="setting-label">Temperature（随机性）</label>
               <input
+                className="modal-input"
                 type="number" step="0.1" min="0" max="1.5"
                 value={config.temperature}
                 onChange={(e) => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  background: 'var(--c-input-bg)',
-                  border: '1px solid var(--c-border)',
-                  borderRadius: '12px',
-                  color: 'var(--c-text)',
-                  fontFamily: 'inherit',
-                  fontSize: '13px',
-                  outline: 'none'
-                }}
               />
             </div>
 
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>记忆压缩阈值 token</label>
+            <div className="setting-group">
+              <label className="setting-label">记忆压缩阈值 token</label>
               <input
+                className="modal-input"
                 type="number"
                 value={config.compress_threshold}
                 onChange={(e) => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  background: 'var(--c-input-bg)',
-                  border: '1px solid var(--c-border)',
-                  borderRadius: '12px',
-                  color: 'var(--c-text)',
-                  fontFamily: 'inherit',
-                  fontSize: '13px',
-                  outline: 'none'
-                }}
               />
             </div>
 
-            <div style={{ marginBottom: '22px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>压缩后保留回合数</label>
+            <div className="setting-group">
+              <label className="setting-label">压缩后保留回合数</label>
               <input
+                className="modal-input"
                 type="number"
                 value={config.compress_keep_rounds}
                 onChange={(e) => setConfig(p => ({ ...p, compress_keep_rounds: Number(e.target.value) }))}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  background: 'var(--c-input-bg)',
-                  border: '1px solid var(--c-border)',
-                  borderRadius: '12px',
-                  color: 'var(--c-text)',
-                  fontFamily: 'inherit',
-                  fontSize: '13px',
-                  outline: 'none'
-                }}
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowSetting(false)}
-                style={{
-                  padding: '10px 18px',
-                  background: 'transparent',
-                  border: '1px solid var(--c-border)',
-                  color: 'var(--c-text-muted)',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: '13px'
-                }}
-              >取消</button>
-              <button
-                onClick={saveSettings}
-                style={{
-                  padding: '10px 18px',
-                  background: 'var(--c-accent)',
-                  border: '1px solid var(--c-accent)',
-                  color: 'var(--c-accent-text)',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: '13px'
-                }}
-              >保存</button>
+            <div className="modal-actions right">
+              <button className="modal-btn secondary" onClick={() => setShowSetting(false)}>取消</button>
+              <button className="modal-btn primary" onClick={saveSettings}>保存</button>
             </div>
           </div>
         </div>
