@@ -3,9 +3,6 @@ import axios from 'axios'
 
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
 
-// 像素鲸鱼素材：放在前端项目的 public/whale-pixel.png
-const WHALE_SRC = '/whale-pixel.png'
-
 // 防止浏览器/Service Worker 缓存 API 响应
 axios.interceptors.request.use(config => {
   if (config.method === 'get') {
@@ -19,7 +16,7 @@ const THEMES = ['warm', 'mist', 'noir']
 const THEME_LABELS = { warm: 'Warm', mist: 'Mist', noir: 'Noir' }
 const THEME_META_COLOR = { warm: '#F6EDE0', mist: '#EFF2F4', noir: '#16181C' }
 
-// ========== 图标（线条风格，替换 emoji） ==========
+// ========== 图标（线条风格） ==========
 const Icon = {
   Menu: (p) => (
     <svg width={p.size || 20} height={p.size || 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -66,7 +63,7 @@ const Icon = {
   )
 }
 
-// 精简齿轮图标（上面那个占位有个 opacity:0 的坏路径，这里单独给个能用的）
+// 精简齿轮图标
 const SettingsIcon = (p) => (
   <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
@@ -74,7 +71,7 @@ const SettingsIcon = (p) => (
   </svg>
 )
 
-// ========== 头像：极简，随主题自适应，无表情符号 ==========
+// ========== 头像 ==========
 const UserAvatar = ({ size = 30 }) => (
   <div style={{
     width: size,
@@ -87,7 +84,7 @@ const UserAvatar = ({ size = 30 }) => (
   }} />
 )
 
-// 神秘感头像：CSS 实现的"蚀相/月牙"标记，无需图片，随主题自动换色
+// AI 头像：月牙标记
 const AIAvatar = ({ size = 30 }) => (
   <div style={{
     position: 'relative',
@@ -112,8 +109,8 @@ const AIAvatar = ({ size = 30 }) => (
   </div>
 )
 
-// ========== 星空层：三套主题都有，浓淡不同；shooting=true 时加流星 ==========
-const StarField = ({ count = 30, shooting = false }) => {
+// ========== 星空层：三套主题都有，浓淡不同 ==========
+const StarField = ({ count = 30 }) => {
   const stars = useMemo(() => Array.from({ length: count }).map((_, i) => ({
     id: i,
     left: Math.random() * 100,
@@ -139,12 +136,6 @@ const StarField = ({ count = 30, shooting = false }) => {
           }}
         />
       ))}
-      {shooting && (
-        <>
-          <span className="shooting-star" style={{ left: '18%', animationDuration: '7s', animationDelay: '0.5s' }} />
-          <span className="shooting-star" style={{ left: '62%', animationDuration: '9s', animationDelay: '3.5s' }} />
-        </>
-      )}
     </div>
   )
 }
@@ -158,10 +149,206 @@ const Wordmark = ({ size = 'md' }) => (
   </span>
 )
 
-// ========== 开屏页 ==========
+// ========== 开屏页：深空 + 星星凝聚成文字 ==========
 const SplashScreen = ({ onEnter }) => {
+  const canvasRef = useRef(null)
   const [visible, setVisible] = useState(true)
   const [fadeOut, setFadeOut] = useState(false)
+  const [textReady, setTextReady] = useState(false)
+  const animationRef = useRef(null)
+  const particlesRef = useRef([])
+  const dustsRef = useRef([])
+  const targetPointsRef = useRef([])
+  const startTimeRef = useRef(null)
+  const textShownRef = useRef(false)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+
+    const resize = () => {
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = window.innerWidth * dpr
+      canvas.height = window.innerHeight * dpr
+      ctx.scale(dpr, dpr)
+    }
+    resize()
+    window.addEventListener('resize', resize)
+
+    const w = window.innerWidth
+    const h = window.innerHeight
+
+    // 预渲染文字获取像素坐标
+    const offCanvas = document.createElement('canvas')
+    const offCtx = offCanvas.getContext('2d')
+    offCanvas.width = w
+    offCanvas.height = h
+
+    offCtx.fillStyle = '#fff'
+    offCtx.textAlign = 'center'
+    offCtx.textBaseline = 'middle'
+
+    // 主标题
+    offCtx.font = '200 32px "Cormorant Garamond", Georgia, serif'
+    offCtx.fillText("Tell me everything", w / 2, h / 2 - 22)
+
+    // 副标题
+    offCtx.font = 'italic 400 15px "Cormorant Garamond", Georgia, serif'
+    offCtx.fillText("I'm here, always", w / 2, h / 2 + 22)
+
+    const imageData = offCtx.getImageData(0, 0, w, h)
+    const pixels = imageData.data
+
+    // 收集文字像素坐标（采样）
+    const targetPoints = []
+    const step = 3
+    for (let y = 0; y < h; y += step) {
+      for (let x = 0; x < w; x += step) {
+        const idx = (y * w + x) * 4
+        if (pixels[idx + 3] > 120) {
+          targetPoints.push({ x, y })
+        }
+      }
+    }
+
+    // 随机打乱
+    for (let i = targetPoints.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[targetPoints[i], targetPoints[j]] = [targetPoints[j], targetPoints[i]]
+    }
+
+    targetPointsRef.current = targetPoints
+
+    // 创建粒子（只取部分目标点，避免太多）
+    const maxParticles = Math.min(targetPoints.length, 800)
+    const particles = []
+    for (let i = 0; i < maxParticles; i++) {
+      const tp = targetPoints[i]
+      particles.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        targetX: tp.x,
+        targetY: tp.y,
+        size: Math.random() * 1.2 + 0.4,
+        speed: Math.random() * 0.025 + 0.012,
+        delay: Math.random() * 1500,
+        opacity: 0,
+        arrived: false
+      })
+    }
+    particlesRef.current = particles
+
+    // 环境星尘
+    const dustCount = 70
+    dustsRef.current = Array.from({ length: dustCount }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      size: Math.random() * 1.0 + 0.2,
+      opacity: Math.random() * 0.4 + 0.1,
+      twinkleSpeed: Math.random() * 0.0015 + 0.0005,
+      twinkleOffset: Math.random() * Math.PI * 2
+    }))
+
+    const animate = (timestamp) => {
+      if (!startTimeRef.current) startTimeRef.current = timestamp
+      const elapsed = timestamp - startTimeRef.current
+      const ww = window.innerWidth
+      const wh = window.innerHeight
+
+      ctx.clearRect(0, 0, ww, wh)
+
+      // 深空背景 + 极淡中心光晕
+      const gradient = ctx.createRadialGradient(ww / 2, wh / 2, 0, ww / 2, wh / 2, ww * 0.7)
+      gradient.addColorStop(0, '#0a0a12')
+      gradient.addColorStop(0.5, '#050508')
+      gradient.addColorStop(1, '#020204')
+      ctx.fillStyle = gradient
+      ctx.fillRect(0, 0, ww, wh)
+
+      // 绘制环境星尘
+      dustsRef.current.forEach(d => {
+        const twinkle = Math.sin(elapsed * d.twinkleSpeed + d.twinkleOffset)
+        const alpha = d.opacity * (0.4 + twinkle * 0.6)
+        ctx.beginPath()
+        ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(200, 220, 255, ${alpha})`
+        ctx.fill()
+      })
+
+      // 绘制凝聚粒子
+      let allArrived = true
+      particlesRef.current.forEach(p => {
+        if (elapsed < p.delay) {
+          allArrived = false
+          // 延迟期间也显示，但位置随机闪烁
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, p.size * 0.6, 0, Math.PI * 2)
+          ctx.fillStyle = `rgba(200, 220, 255, ${0.15})`
+          ctx.fill()
+          return
+        }
+
+        const dx = p.targetX - p.x
+        const dy = p.targetY - p.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+
+        if (dist > 0.8) {
+          allArrived = false
+          p.x += dx * p.speed
+          p.y += dy * p.speed
+          p.opacity = Math.min(p.opacity + 0.04, 0.9)
+        } else {
+          p.x = p.targetX
+          p.y = p.targetY
+          p.arrived = true
+          p.opacity = Math.max(p.opacity - 0.015, 0.25)
+        }
+
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(220, 230, 255, ${p.opacity})`
+        ctx.fill()
+      })
+
+      // 文字浮动效果
+      if (allArrived || textShownRef.current) {
+        if (!textShownRef.current) {
+          textShownRef.current = true
+          setTextReady(true)
+        }
+
+        const floatY = Math.sin(elapsed * 0.0008) * 2.5
+
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        // 主标题发光层
+        ctx.font = '200 32px "Cormorant Garamond", Georgia, serif'
+        ctx.fillStyle = 'rgba(200, 220, 255, 0.12)'
+        ctx.fillText("Tell me everything", ww / 2 + 1, wh / 2 - 22 + floatY + 1)
+        ctx.fillText("Tell me everything", ww / 2 - 1, wh / 2 - 22 + floatY - 1)
+
+        // 主标题
+        ctx.fillStyle = 'rgba(220, 230, 255, 0.92)'
+        ctx.fillText("Tell me everything", ww / 2, wh / 2 - 22 + floatY)
+
+        // 副标题
+        ctx.font = 'italic 400 15px "Cormorant Garamond", Georgia, serif'
+        ctx.fillStyle = 'rgba(180, 190, 210, 0.65)'
+        ctx.fillText("I'm here, always", ww / 2, wh / 2 + 22 + floatY * 0.5)
+      }
+
+      animationRef.current = requestAnimationFrame(animate)
+    }
+
+    animationRef.current = requestAnimationFrame(animate)
+
+    return () => {
+      cancelAnimationFrame(animationRef.current)
+      window.removeEventListener('resize', resize)
+    }
+  }, [])
 
   const handleClick = () => {
     setFadeOut(true)
@@ -179,63 +366,37 @@ const SplashScreen = ({ onEnter }) => {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'var(--c-bg-gradient)',
+        background: '#050508',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        transition: 'opacity 0.7s ease, transform 0.7s ease',
+        transition: 'opacity 0.7s cubic-bezier(0.65, 0, 0.35, 1), transform 0.7s cubic-bezier(0.65, 0, 0.35, 1)',
         opacity: fadeOut ? 0 : 1,
-        transform: fadeOut ? 'scale(1.04)' : 'scale(1)'
+        transform: fadeOut ? 'scale(1.03)' : 'scale(1)'
       }}
     >
-      <div className="ambient-bg" />
-      <StarField count={46} shooting={true} />
-      <img
-        src={WHALE_SRC}
-        alt=""
-        className="pixel-whale"
+      <canvas
+        ref={canvasRef}
         style={{
-          position: 'relative',
-          width: '96px',
-          height: 'auto',
-          animation: 'gentleFloat 4.5s ease-in-out infinite',
-          marginBottom: '22px',
-          filter: 'drop-shadow(0 8px 20px var(--c-shadow))'
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%'
         }}
       />
-      <div style={{ position: 'relative', marginBottom: '10px' }}>
-        <Wordmark size="lg" />
+
+      {/* HTML 文字层（作为 Canvas 后备/叠加，确保清晰度） */}
+      <div className={`splash-text-layer ${textReady ? 'ready' : ''}`}>
+        <div className="splash-main-text">Tell me everything</div>
+        <div className="splash-sub-text">I'm here, always</div>
       </div>
-      <p style={{
-        position: 'relative',
-        fontFamily: 'var(--font-display)',
-        fontStyle: 'italic',
-        fontSize: '15px',
-        color: 'var(--c-text-muted)',
-        letterSpacing: '0.5px',
-        marginBottom: '48px'
-      }}>
-        I'm here, always
-      </p>
+
+      {/* Begin 按钮 - 始终可点 */}
       <button
         onClick={handleClick}
-        style={{
-          position: 'relative',
-          padding: '13px 44px',
-          borderRadius: '999px',
-          border: '1px solid var(--c-star-bright)',
-          background: 'var(--c-surface)',
-          backdropFilter: 'blur(14px)',
-          color: 'var(--c-text)',
-          fontSize: '12.5px',
-          cursor: 'pointer',
-          fontFamily: 'var(--font-display)',
-          letterSpacing: '3px',
-          transition: 'all 0.3s ease',
-          boxShadow: '0 4px 20px var(--c-shadow), 0 0 0 1px var(--c-highlight) inset, 0 0 18px var(--c-star)'
-        }}
+        className="splash-begin-btn"
       >
         BEGIN
       </button>
@@ -266,10 +427,8 @@ const ChatPage = () => {
   const [archivedList, setArchivedList] = useState([])
   const [hasOlderArchive, setHasOlderArchive] = useState(false)
   const [archiveCursor, setArchiveCursor] = useState(null)
-
   const [deleteModal, setDeleteModal] = useState({ show: false, sessionId: null, name: '' })
   const [renameModal, setRenameModal] = useState({ show: false, sessionId: null, value: '' })
-
   const [theme, setTheme] = useState(() => localStorage.getItem('ks_theme') || 'warm')
   const [toasts, setToasts] = useState([])
 
@@ -302,8 +461,6 @@ const ChatPage = () => {
       const res = await axios.get(`${API_BASE}/sessions`)
       const sessions = res.data || []
       setSessionList(sessions)
-
-      // 如果当前活跃的会话已不存在（被删了），清理状态
       if (activeSessionId && !sessions.find(s => s.id === activeSessionId)) {
         sessionStorage.removeItem('activeSessionId')
         setActiveSessionId(null)
@@ -351,7 +508,6 @@ const ChatPage = () => {
       return
     }
 
-    // 单独检测归档，失败不影响会话切换
     try {
       const archiveRes = await axios.get(`${API_BASE}/messages/archived/${sid}?limit=1`)
       if (archiveRes.data?.list?.length > 0) {
@@ -370,7 +526,6 @@ const ChatPage = () => {
       params.append('limit', '6')
       const res = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?${params.toString()}`)
       const { list, hasMore } = res.data
-
       if (list.length > 0) {
         setArchivedList(prev => [...list, ...prev])
         setArchiveCursor(list[0].id)
@@ -384,9 +539,7 @@ const ChatPage = () => {
   const renameSession = async (sid, newTitle) => {
     try {
       await axios.put(`${API_BASE}/session/${sid}`, { title: newTitle })
-      // 乐观更新：立即改本地状态，不用等服务器返回
       setSessionList(prev => prev.map(s => s.id === sid ? { ...s, title: newTitle } : s))
-      // 后台同步一次，确保数据一致
       await fetchSessions()
     } catch (err) {
       console.error('重命名失败:', err.message)
@@ -416,10 +569,7 @@ const ChatPage = () => {
     if (!deleteModal.sessionId) return
     try {
       await axios.delete(`${API_BASE}/session/${deleteModal.sessionId}`)
-      // 乐观更新：直接从本地列表移除
       setSessionList(prev => prev.filter(s => s.id !== deleteModal.sessionId))
-
-      // 如果删的是当前正在聊的会话，清空当前对话
       if (activeSessionId === deleteModal.sessionId) {
         sessionStorage.removeItem('activeSessionId')
         setActiveSessionId(null)
@@ -431,20 +581,17 @@ const ChatPage = () => {
     } catch (err) {
       console.error('删除失败:', err.message)
       showToast('删除失败：' + err.message)
-      // 出错了重新拉取列表兜底
       fetchSessions()
     }
     setDeleteModal({ show: false, sessionId: null, name: '' })
   }
 
-  // ================= 发送消息函数 =================
   const sendMessage = async () => {
     if (!inputText.trim() || !activeSessionId || loading) return
     const content = inputText.trim()
     setInputText('')
     setLoading(true)
 
-    // 先添加用户消息到UI
     const tempUserMsg = { role: 'user', content, created_at: new Date() }
     setMessages(prev => [...prev, tempUserMsg])
     scrollBottom()
@@ -454,18 +601,16 @@ const ChatPage = () => {
         sessionId: activeSessionId,
         content
       })
-
       const aiReply = { role: 'assistant', content: res.data.reply, created_at: new Date() }
       setMessages(prev => [...prev, aiReply])
     } catch (err) {
-      // 请求失败：把上面那条用户消息撤回
       setMessages(prev => prev.slice(0, -1))
       showToast('请求失败：' + err.message)
     }
+
     setLoading(false)
     scrollBottom()
 
-    // 单独检测归档，失败不影响主流程
     try {
       const archiveRes = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?limit=1`)
       setHasOlderArchive((archiveRes.data?.list?.length || 0) > 0)
@@ -497,15 +642,10 @@ const ChatPage = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        // 先获取会话列表
         const res = await axios.get(`${API_BASE}/sessions`)
         const sessions = res.data || []
         setSessionList(sessions)
-
-        // 获取设置
         getSettings()
-
-        // 恢复上次活跃的会话（刷新后自动回到原来的对话）
         const savedId = sessionStorage.getItem('activeSessionId')
         if (savedId && sessions.find(s => s.id === savedId)) {
           await switchSession(savedId)
@@ -519,7 +659,6 @@ const ChatPage = () => {
     init()
   }, [])
 
-  // ================= 主题：应用 / 持久化 / 状态栏色同步 =================
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('ks_theme', theme)
@@ -537,9 +676,6 @@ const ChatPage = () => {
     setTheme(THEMES[(idx + 1) % THEMES.length])
   }
 
-  // ================= 视口修复：解决输入框被键盘遮挡的问题 =================
-  // 原因：移动端 100vh 不会随虚拟键盘弹出而收缩，导致底部输入区被键盘盖住。
-  // 这里用 visualViewport 的实际高度写入 CSS 变量，容器高度跟着实时视口走。
   useEffect(() => {
     const root = document.documentElement
     const updateHeight = () => {
@@ -610,7 +746,6 @@ const ChatPage = () => {
         gap: '8px'
       }}>
         {msg.role === 'user' ? <UserAvatar /> : <AIAvatar />}
-
         <div style={{
           padding: '12px 17px',
           borderRadius: msg.role === 'user' ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
@@ -651,7 +786,8 @@ const ChatPage = () => {
       }}
     >
       <div className="ambient-bg" />
-      <StarField count={theme === 'noir' ? 34 : theme === 'mist' ? 16 : 14} shooting={theme === 'noir'} />
+      <div className="noise-overlay" />
+      <StarField count={theme === 'noir' ? 40 : theme === 'mist' ? 18 : 16} />
 
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
 
@@ -669,6 +805,7 @@ const ChatPage = () => {
         />
       )}
 
+      {/* 侧边栏 */}
       <div style={{
         position: 'fixed',
         top: 0,
@@ -686,8 +823,29 @@ const ChatPage = () => {
       }}>
         <div style={{ padding: '26px 20px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <img src={WHALE_SRC} alt="" className="pixel-whale" style={{ width: '26px', height: 'auto' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* 侧边栏左上角：月亮图标代替鲸鱼 */}
+              <div style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                background: 'radial-gradient(circle at 32% 28%, var(--c-accent-soft), var(--c-accent) 68%, var(--c-text) 150%)',
+                boxShadow: '0 1px 6px var(--c-shadow), inset 0 0 0 1px var(--c-border)',
+                flexShrink: 0,
+                position: 'relative'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '50%',
+                  background: 'var(--c-bg-solid)',
+                  top: '-8%',
+                  left: '32%',
+                  opacity: 0.94
+                }} />
+              </div>
               <Wordmark size="md" />
             </div>
             <button
@@ -738,7 +896,14 @@ const ChatPage = () => {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--c-text-faint)', marginBottom: '8px', paddingLeft: '4px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+          <div style={{
+            fontSize: '11px',
+            color: 'var(--c-text-faint)',
+            marginBottom: '8px',
+            paddingLeft: '4px',
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase'
+          }}>
             最近对话
           </div>
           {sessionList.map(item => (
@@ -805,6 +970,7 @@ const ChatPage = () => {
         </div>
       </div>
 
+      {/* 主内容区 */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative' }}>
         <div style={{
           padding: '14px 20px',
@@ -872,9 +1038,7 @@ const ChatPage = () => {
                   </span>
                 </div>
               )}
-
               {archivedList.map((msg, idx) => renderMsgItem(msg, `arch-${idx}`))}
-
               {Object.entries(groupedMessages).map(([date, msgs]) => (
                 <div key={date}>
                   <div style={{ textAlign: 'center', margin: '20px 0 12px' }}>
@@ -892,7 +1056,6 @@ const ChatPage = () => {
                   {msgs.map((msg, idx) => renderMsgItem(msg, `live-${idx}`))}
                 </div>
               ))}
-
               {loading && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 20px', color: 'var(--c-text-muted)', fontSize: '13px' }}>
                   <AIAvatar />
@@ -963,14 +1126,14 @@ const ChatPage = () => {
         </div>
       </div>
 
-      {/* Toast 轻提示（替代原来的浏览器原生 alert） */}
+      {/* Toast */}
       <div className="toast-wrap">
         {toasts.map(t => (
           <div key={t.id} className="toast-item">{t.message}</div>
         ))}
       </div>
 
-      {/* 重命名弹窗（替代原来的浏览器原生 prompt） */}
+      {/* 重命名弹窗 */}
       {renameModal.show && (
         <div style={{
           position: 'fixed', inset: 0,
@@ -978,7 +1141,7 @@ const ChatPage = () => {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 2100, animation: 'fadeIn 0.2s ease'
         }}
-        onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}
+          onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}
         >
           <div
             style={{
@@ -1050,7 +1213,8 @@ const ChatPage = () => {
             animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)'
           }}>
             <div style={{
-              fontSize: '15px', fontFamily: 'var(--font-display)', fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '6px'
+              fontSize: '15px', fontFamily: 'var(--font-display)', fontStyle: 'italic',
+              color: 'var(--c-text)', marginBottom: '6px'
             }}>
               确定删除这段对话？
             </div>
@@ -1066,18 +1230,14 @@ const ChatPage = () => {
                   background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px',
                   cursor: 'pointer', fontFamily: 'inherit'
                 }}
-              >
-                取消
-              </button>
+              >取消</button>
               <button onClick={confirmDelete}
                 style={{
                   flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)',
                   background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500,
                   cursor: 'pointer', fontFamily: 'inherit'
                 }}
-              >
-                确定
-              </button>
+              >确定</button>
             </div>
           </div>
         </div>
@@ -1156,6 +1316,7 @@ const ChatPage = () => {
                 rows={3}
               />
             </div>
+
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>Temperature（随机性）</label>
               <input
@@ -1175,6 +1336,7 @@ const ChatPage = () => {
                 }}
               />
             </div>
+
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>记忆压缩阈值 token</label>
               <input
@@ -1194,6 +1356,7 @@ const ChatPage = () => {
                 }}
               />
             </div>
+
             <div style={{ marginBottom: '22px' }}>
               <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>压缩后保留回合数</label>
               <input
@@ -1213,6 +1376,7 @@ const ChatPage = () => {
                 }}
               />
             </div>
+
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setShowSetting(false)}

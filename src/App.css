@@ -1,5 +1,5 @@
 /* ============================================================
-   ke&shu — 全局样式
+   ke&shu --- 全局样式
    三套主题：warm（暖）/ mist（雾）/ noir（夜）
    ============================================================ */
 
@@ -9,7 +9,7 @@
 
 [data-theme="warm"] {
   --c-bg-solid: #F6EDE0;
-  --c-bg-gradient: radial-gradient(ellipse 120% 70% at 50% -8%, #FBF5EC 0%, #F6EDE0 48%, #F0E1CE 100%);
+  --c-bg-gradient: radial-gradient(ellipse 140% 90% at 50% -10%, #FDF8F0 0%, #F6EDE0 35%, #F0E1CE 65%, #E8D5C0 100%);
   --c-surface: rgba(255, 252, 248, 0.86);
   --c-surface-solid: #FFFCF8;
   --c-border: rgba(120, 96, 72, 0.13);
@@ -29,8 +29,8 @@
   --c-shadow: rgba(90, 70, 50, 0.11);
   --c-overlay: rgba(45, 32, 20, 0.30);
   --c-scrollbar: rgba(120, 96, 72, 0.20);
-  --c-blob-1: rgba(169, 128, 93, 0.10);
-  --c-blob-2: rgba(212, 178, 138, 0.14);
+  --c-blob-1: rgba(169, 128, 93, 0.12);
+  --c-blob-2: rgba(212, 178, 138, 0.16);
   --c-highlight: rgba(255, 250, 244, 0.55);
   --c-star: rgba(150, 112, 78, 0.6);
   --c-star-bright: rgba(120, 88, 58, 0.85);
@@ -40,7 +40,7 @@
 
 [data-theme="mist"] {
   --c-bg-solid: #EFF2F4;
-  --c-bg-gradient: radial-gradient(ellipse 120% 70% at 50% -8%, #F8FAFB 0%, #EFF2F4 48%, #E5EAEE 100%);
+  --c-bg-gradient: radial-gradient(ellipse 140% 90% at 50% -10%, #F8FAFB 0%, #EFF2F4 35%, #E5EAEE 65%, #DDE5EA 100%);
   --c-surface: rgba(255, 255, 255, 0.86);
   --c-surface-solid: #FCFDFD;
   --c-border: rgba(58, 74, 90, 0.11);
@@ -60,8 +60,8 @@
   --c-shadow: rgba(50, 65, 80, 0.09);
   --c-overlay: rgba(18, 26, 34, 0.30);
   --c-scrollbar: rgba(58, 74, 90, 0.18);
-  --c-blob-1: rgba(93, 122, 147, 0.10);
-  --c-blob-2: rgba(140, 165, 185, 0.14);
+  --c-blob-1: rgba(93, 122, 147, 0.12);
+  --c-blob-2: rgba(140, 165, 185, 0.16);
   --c-highlight: rgba(255, 255, 255, 0.6);
   --c-star: rgba(90, 112, 133, 0.55);
   --c-star-bright: rgba(70, 92, 113, 0.8);
@@ -71,7 +71,7 @@
 
 [data-theme="noir"] {
   --c-bg-solid: #16181C;
-  --c-bg-gradient: radial-gradient(ellipse 120% 70% at 50% -8%, #1C1F24 0%, #16181C 50%, #101216 100%);
+  --c-bg-gradient: radial-gradient(ellipse 120% 80% at 50% 45%, rgba(35, 35, 55, 0.7) 0%, #16181C 50%, #0A0A0F 100%);
   --c-surface: rgba(28, 30, 35, 0.88);
   --c-surface-solid: #1E2025;
   --c-border: rgba(255, 255, 255, 0.08);
@@ -91,8 +91,8 @@
   --c-shadow: rgba(0, 0, 0, 0.4);
   --c-overlay: rgba(0, 0, 0, 0.55);
   --c-scrollbar: rgba(255, 255, 255, 0.14);
-  --c-blob-1: rgba(201, 173, 134, 0.07);
-  --c-blob-2: rgba(140, 120, 90, 0.10);
+  --c-blob-1: rgba(201, 173, 134, 0.08);
+  --c-blob-2: rgba(140, 120, 90, 0.12);
   --c-highlight: rgba(255, 255, 255, 0.07);
   --c-star: rgba(233, 229, 221, 0.85);
   --c-star-bright: rgba(255, 255, 255, 0.95);
@@ -101,14 +101,12 @@
 }
 
 /* ---------- 字体 ---------- */
-
 :root {
   --font-display: 'Cormorant Garamond', Georgia, serif;
   --font-body: "Songti SC", "STSongti-SC", "SimSun", Georgia, "Noto Serif SC", serif;
 }
 
 /* ---------- 基础重置 ---------- */
-
 * { box-sizing: border-box; }
 
 html, body {
@@ -137,7 +135,6 @@ body {
 }
 
 /* ---------- 动效 ---------- */
-
 @keyframes gentleFloat {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
@@ -163,8 +160,19 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* ---------- 氛围背景（雾感光斑，纯 CSS，不用图片） ---------- */
+/* ---------- 噪点纹理（全局） ---------- */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
 
+/* ---------- 氛围背景（雾感光斑） ---------- */
 .ambient-bg {
   position: fixed;
   inset: 0;
@@ -178,28 +186,27 @@ body {
   content: '';
   position: absolute;
   border-radius: 50%;
-  filter: blur(60px);
+  filter: blur(80px);
   transition: background 0.6s ease;
 }
 
 .ambient-bg::before {
-  width: 340px;
-  height: 340px;
-  top: -80px;
-  right: -60px;
+  width: 380px;
+  height: 380px;
+  top: -100px;
+  right: -80px;
   background: var(--c-blob-1);
 }
 
 .ambient-bg::after {
-  width: 280px;
-  height: 280px;
-  bottom: -60px;
-  left: -60px;
+  width: 320px;
+  height: 320px;
+  bottom: -80px;
+  left: -80px;
   background: var(--c-blob-2);
 }
 
-/* ---------- 星空层（三套主题都带，浓淡不同） ---------- */
-
+/* ---------- 星空层 ---------- */
 .starfield {
   position: absolute;
   inset: 0;
@@ -220,6 +227,7 @@ body {
   50% { opacity: 1; transform: scale(1); }
 }
 
+/* 流星样式保留但默认不使用 */
 .shooting-star {
   position: absolute;
   width: 2px;
@@ -238,8 +246,88 @@ body {
   100% { transform: translate(160px, 520px) rotate(24deg); opacity: 0; }
 }
 
-/* ---------- Toast 轻提示（替代原生 alert） ---------- */
+/* ---------- 开屏页样式 ---------- */
+.splash-screen {
+  cursor: default;
+}
 
+.splash-text-layer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.splash-text-layer.ready {
+  opacity: 1;
+}
+
+.splash-main-text {
+  font-family: var(--font-display);
+  font-weight: 200;
+  font-size: 32px;
+  color: rgba(220, 230, 255, 0.92);
+  letter-spacing: 2px;
+  text-shadow: 0 0 20px rgba(200, 220, 255, 0.3), 0 0 60px rgba(200, 220, 255, 0.1);
+  animation: splashFloat 5s ease-in-out infinite;
+}
+
+.splash-sub-text {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 15px;
+  color: rgba(180, 190, 210, 0.65);
+  margin-top: 10px;
+  letter-spacing: 1px;
+  animation: splashFloat 5s ease-in-out infinite;
+  animation-delay: 0.5s;
+}
+
+@keyframes splashFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.splash-begin-btn {
+  position: absolute;
+  bottom: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 13px 48px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #a0a0ac;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  letter-spacing: 3px;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.splash-begin-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #e8e6e3;
+  box-shadow: 0 4px 30px rgba(200, 220, 255, 0.1), 0 0 20px rgba(200, 220, 255, 0.05);
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.splash-begin-btn:active {
+  transform: translateX(-50%) translateY(0) scale(0.97);
+}
+
+/* ---------- Toast 轻提示 ---------- */
 .toast-wrap {
   position: fixed;
   top: 18px;
@@ -275,18 +363,7 @@ body {
   to { opacity: 0; transform: translateY(-8px) scale(0.96); }
 }
 
-/* ---------- 像素鲸鱼素材：保持像素锐利 ---------- */
-
-.pixel-whale {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  user-select: none;
-  pointer-events: none;
-}
-
 /* ---------- 品牌字标 ---------- */
-
 .wordmark {
   font-family: var(--font-display);
   display: inline-flex;
@@ -309,12 +386,10 @@ body {
 
 .wordmark-lg { font-size: 46px; letter-spacing: 0.5px; }
 .wordmark-lg .wordmark-amp { font-size: 40px; margin: 0 1px; }
-
 .wordmark-md { font-size: 22px; letter-spacing: 0.3px; }
 .wordmark-md .wordmark-amp { font-size: 20px; }
 
 /* ---------- 会话列表交互 ---------- */
-
 .session-item .session-actions {
   opacity: 0.55;
   transition: opacity 0.2s ease;
@@ -329,13 +404,11 @@ body {
 }
 
 /* ---------- 主题选择 pill ---------- */
-
 .theme-pill {
   transition: all 0.25s ease;
 }
 
 /* ---------- 图标按钮通用 hover ---------- */
-
 .icon-btn {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
@@ -349,7 +422,6 @@ body {
 }
 
 /* ---------- 滚动条 ---------- */
-
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -364,7 +436,6 @@ body {
 }
 
 /* ---------- 输入框 placeholder ---------- */
-
 textarea::placeholder {
   color: var(--c-text-faint);
   font-style: italic;
@@ -375,8 +446,13 @@ input::placeholder {
 }
 
 /* ---------- 移动端适配 ---------- */
-
 @media (max-width: 480px) {
   .wordmark-lg { font-size: 36px; }
   .wordmark-lg .wordmark-amp { font-size: 32px; }
+  .splash-main-text { font-size: 26px; }
+  .splash-sub-text { font-size: 13px; }
+  .splash-begin-btn {
+    padding: 11px 36px;
+    font-size: 11.5px;
+  }
 }
