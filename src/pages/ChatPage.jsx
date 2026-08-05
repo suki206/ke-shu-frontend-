@@ -104,162 +104,37 @@ const Wordmark = ({ size = 'md' }) => (
 )
 
 // ============================================================
-// 1. 开屏页 —— 主题实景 + 星辰汇聚成品牌字标，漫天星尘缓缓浮升
-//    只播一次，成字后转为呼吸微光与常驻星尘；BEGIN 始终可点。
+// 1. 开屏页 —— 主题实景 + 一句诗意短句在画面中央逐词浮现
+//    文字用真实字体渲染，永远清晰；只播一次，之后转为常驻的
+//    星尘与呼吸微光；BEGIN 始终可点。
 // ============================================================
-const SPLASH_DUST_COUNT = 26
+const SPLASH_DUST_COUNT = 22
+const SPLASH_PHRASE = ['every', 'word', 'finds', 'its', 'light']
 const SplashScreen = ({ onEnter, theme }) => {
   const [fadeOut, setFadeOut] = useState(false)
   const [visible, setVisible] = useState(true)
-  const canvasRef = useRef(null)
-  const rafRef = useRef(null)
   const themeLabel = THEME_LABELS[theme] || 'Aurum'
   const themeSub = THEME_SUB[theme] || '金烛'
   const [dust] = useState(() => Array.from({ length: SPLASH_DUST_COUNT }).map((_, i) => ({
     id: i,
     left: Math.random() * 100,
-    size: (1 + Math.random() * 2.6).toFixed(2),
+    size: (1 + Math.random() * 2.4).toFixed(2),
     delay: (Math.random() * 10).toFixed(2),
     duration: (11 + Math.random() * 10).toFixed(2),
-    drift: Math.round((Math.random() - 0.5) * 80)
+    drift: Math.round((Math.random() - 0.5) * 70)
   })))
-  const [twinkles] = useState(() => Array.from({ length: 46 }).map((_, i) => ({
+  const [twinkles] = useState(() => Array.from({ length: 34 }).map((_, i) => ({
     id: i,
     left: Math.random() * 100,
     top: Math.random() * 100,
-    size: (0.6 + Math.random() * 1.4).toFixed(2),
+    size: (0.6 + Math.random() * 1.3).toFixed(2),
     delay: (Math.random() * 6).toFixed(2),
     duration: (3 + Math.random() * 4).toFixed(2)
   })))
 
-  useEffect(() => {
-    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    let width = window.innerWidth
-    let height = window.innerHeight
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
-    const resize = () => {
-      width = window.innerWidth
-      height = window.innerHeight
-      canvas.width = width * dpr
-      canvas.height = height * dpr
-      canvas.style.width = width + 'px'
-      canvas.style.height = height + 'px'
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    }
-    resize()
-    window.addEventListener('resize', resize)
-
-    const rootStyle = getComputedStyle(document.documentElement)
-    const starColor = (rootStyle.getPropertyValue('--c-star') || '#FFF3D8').trim()
-    const starBright = (rootStyle.getPropertyValue('--c-star-bright') || 'rgba(255,214,140,0.9)').trim()
-
-    let cancelled = false
-    const buildStarsFromText = async () => {
-      try { await document.fonts.load(`italic 400 10px 'Cormorant Garamond'`) } catch (e) { /* 回退字体 */ }
-      try { await document.fonts.ready } catch (e) { /* noop */ }
-      if (cancelled) return
-
-      const off = document.createElement('canvas')
-      off.width = width
-      off.height = height
-      const octx = off.getContext('2d')
-      const isSmall = width < 480
-      const fontSize = Math.min(width * (isSmall ? 0.135 : 0.095), 96)
-      octx.font = `italic 400 ${fontSize}px 'Cormorant Garamond', Georgia, serif`
-      octx.textAlign = 'center'
-      octx.textBaseline = 'middle'
-      octx.fillStyle = '#fff'
-      octx.fillText('ke & shu', width / 2, height * 0.42)
-
-      const imgData = octx.getImageData(0, 0, width, height).data
-      const rawPoints = []
-      const gap = isSmall ? 3 : 2.4
-      for (let y = 0; y < height; y += gap) {
-        for (let x = 0; x < width; x += gap) {
-          const alpha = imgData[(Math.floor(y) * width + Math.floor(x)) * 4 + 3]
-          if (alpha > 140) rawPoints.push({ x, y })
-        }
-      }
-      for (let i = rawPoints.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[rawPoints[i], rawPoints[j]] = [rawPoints[j], rawPoints[i]]
-      }
-      const targetCount = isSmall ? 190 : 300
-      const chosen = rawPoints.slice(0, targetCount)
-
-      if (reduceMotion) {
-        ctx.clearRect(0, 0, width, height)
-        chosen.forEach(p => {
-          ctx.beginPath()
-          ctx.fillStyle = starColor
-          ctx.globalAlpha = 0.9
-          ctx.arc(p.x, p.y, 1.4, 0, Math.PI * 2)
-          ctx.fill()
-        })
-        return
-      }
-
-      const stars = chosen.map((p) => {
-        const angle = Math.random() * Math.PI * 2
-        const radius = Math.max(width, height) * (0.55 + Math.random() * 0.55)
-        return {
-          x0: width / 2 + Math.cos(angle) * radius,
-          y0: height * 0.42 + Math.sin(angle) * radius,
-          tx: p.x,
-          ty: p.y,
-          size: 1.1 + Math.random() * 2,
-          delay: Math.random() * 650,
-          dur: 1300 + Math.random() * 900,
-          phase: Math.random() * Math.PI * 2
-        }
-      })
-
-      const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3)
-      let start = null
-      const frame = (ts) => {
-        if (cancelled) return
-        if (start === null) start = ts
-        const elapsed = ts - start
-        ctx.clearRect(0, 0, width, height)
-        stars.forEach(s => {
-          const t = Math.min(1, Math.max(0, (elapsed - s.delay) / s.dur))
-          const e = easeOutCubic(t)
-          const x = s.x0 + (s.tx - s.x0) * e
-          const y = s.y0 + (s.ty - s.y0) * e
-          let alpha
-          if (t <= 0) alpha = 0
-          else if (t < 1) alpha = Math.min(1, t * 1.5)
-          else {
-            const settleT = elapsed - (s.delay + s.dur)
-            alpha = 0.8 + 0.2 * Math.sin(settleT / 520 + s.phase)
-          }
-          const glow = 6 + (1 - e) * 10
-          const size = s.size * (0.55 + e * 0.5)
-          ctx.save()
-          ctx.globalAlpha = Math.max(0, Math.min(1, alpha))
-          ctx.shadowColor = starBright
-          ctx.shadowBlur = glow
-          ctx.fillStyle = starColor
-          ctx.beginPath()
-          ctx.arc(x, y, size, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.restore()
-        })
-        rafRef.current = requestAnimationFrame(frame)
-      }
-      rafRef.current = requestAnimationFrame(frame)
-    }
-
-    buildStarsFromText()
-    return () => {
-      cancelled = true
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      window.removeEventListener('resize', resize)
-    }
-  }, [])
+  // 成句用时（词数 * 间隔 + 单词动画时长），后续元素依此顺延出场
+  const wordStep = 0.3
+  const phraseDoneAt = 0.3 + SPLASH_PHRASE.length * wordStep + 0.5
 
   const handleClick = () => {
     setFadeOut(true)
@@ -301,7 +176,7 @@ const SplashScreen = ({ onEnter, theme }) => {
         ))}
       </div>
 
-      <div className="splash-glow" aria-hidden="true" />
+      <div className="splash-glow" style={{ animationDelay: `${phraseDoneAt + 0.3}s` }} aria-hidden="true" />
 
       <div className="splash-dust-field" aria-hidden="true">
         {dust.map(d => (
@@ -320,9 +195,20 @@ const SplashScreen = ({ onEnter, theme }) => {
         ))}
       </div>
 
-      <canvas ref={canvasRef} className="splash-canvas" />
-      {/* 星辰成字之后，一道柔光缓缓扫过文字，只出现一次 */}
-      <div className="splash-shimmer" aria-hidden="true" />
+      {/* 正文：在画面中央逐词浮现的诗意短句，真实字体，永远清晰 */}
+      <div className="splash-headline">
+        {SPLASH_PHRASE.map((w, i) => (
+          <span
+            key={i}
+            className="splash-word"
+            style={{ animationDelay: `${0.3 + i * wordStep}s` }}
+          >
+            {w}
+          </span>
+        ))}
+      </div>
+      {/* 短句浮现完毕后，一道柔光缓缓扫过，只出现一次 */}
+      <div className="splash-shimmer" style={{ animationDelay: `${phraseDoneAt}s` }} aria-hidden="true" />
 
       {/* 画框式四角装饰，缓缓收拢，呼应主界面的装裱质感 */}
       <div className="splash-frame" aria-hidden="true">
@@ -333,24 +219,24 @@ const SplashScreen = ({ onEnter, theme }) => {
       </div>
 
       <div className="splash-foot">
-        <div className="splash-ornament" aria-hidden="true">
+        <div className="splash-ornament" style={{ animationDelay: `${phraseDoneAt + 0.15}s` }} aria-hidden="true">
           <span className="splash-ornament-line" />
           <span className="splash-ornament-dot" />
           <span className="splash-ornament-line" />
         </div>
-        <div className="splash-rule" />
+        <div className="splash-rule" style={{ animationDelay: `${phraseDoneAt + 0.3}s, ${phraseDoneAt + 1.2}s` }} />
         <div className="splash-theme-tag">
           {`${themeLabel} · ${themeSub}`.split('').map((ch, i) => (
             <span
               key={i}
               className="splash-theme-char"
-              style={{ animationDelay: `${3.05 + i * 0.045}s` }}
+              style={{ animationDelay: `${phraseDoneAt + 0.5 + i * 0.045}s` }}
             >
               {ch === ' ' ? '\u00A0' : ch}
             </span>
           ))}
         </div>
-        <button onClick={handleClick} className="splash-begin-btn">
+        <button onClick={handleClick} className="splash-begin-btn" style={{ animationDelay: `${phraseDoneAt + 1.05}s` }}>
           <span className="splash-begin-tick" />
           <span className="splash-begin-label">BEGIN</span>
           <span className="splash-begin-tick" />
@@ -870,7 +756,7 @@ const ChatPage = () => {
       {/* 全局设置弹窗 */}
       {showSetting && (
         <div className="modal-veil" style={{ zIndex: 400, padding: '20px' }}>
-          <div className="modal-card" style={{ width: '480px', maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', padding: '32px' }}>
+          <div className="modal-card modal-card-solid" style={{ width: '480px', maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', padding: '32px' }}>
             <div className="modal-title" style={{ marginBottom: '28px' }}>SETTINGS</div>
 
             <div style={{ marginBottom: '26px' }}>
