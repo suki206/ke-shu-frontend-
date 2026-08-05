@@ -1,168 +1,274 @@
 /* ============================================================
-ke&shu — 全局样式 (精装梦幻版)
-三套主题：warm（暖）/ mist（雾）/ noir（夜）
-============================================================ */
+   ke&shu --- 精装高级梦幻版 (花藤 + 光晕 + 星辰汇聚)
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap');
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500;1,600&display=swap');
-
-/* ---------- 主题变量 ---------- */
-
+/* -------- 主题变量 (新增花藤专用色 & 磨砂透明通道) -------- */
 [data-theme="warm"] {
-  --c-bg-solid: #FDF8F3;
-  --c-bg-gradient: radial-gradient(ellipse 140% 90% at 50% -10%, #FFFBF6 0%, #FDF8F3 40%, #F5EDE2 100%);
-  --c-surface: rgba(255, 252, 248, 0.75);
+  --c-bg-solid: #F6EDE0;
+  --c-bg-gradient: radial-gradient(ellipse 140% 80% at 50% -10%, #FCF5EB 0%, #F6EDE0 45%, #EDE0CE 100%);
+  --c-surface: rgba(255, 252, 248, 0.72);
   --c-surface-solid: #FFFCF8;
-  --c-border: rgba(150, 120, 90, 0.12);
-  --c-text: #4A3F35;
+  --c-border: rgba(120, 96, 72, 0.13);
+  --c-text: #3E332A;
   --c-text-muted: #9A8672;
   --c-text-faint: #C6B6A4;
-  --c-accent: #B08D6C;
-  --c-accent-soft: rgba(176, 141, 108, 0.15);
+  --c-accent: #A9805D;
+  --c-accent-soft: #E9D9C6;
   --c-accent-text: #FFFBF6;
-  --c-bubble-user-bg: linear-gradient(135deg, rgba(255,252,248,0.6), rgba(241,226,208,0.5));
-  --c-bubble-user-text: #493A2B;
-  --c-bubble-user-border: rgba(169, 128, 93, 0.2);
-  --c-bubble-ai-bg: rgba(255, 253, 250, 0.45);
-  --c-bubble-ai-text: #40352C;
-  --c-bubble-ai-border: rgba(255, 255, 255, 0.6);
-  --c-input-bg: rgba(255, 253, 250, 0.55);
-  --c-shadow: rgba(120, 90, 60, 0.08);
-  --c-overlay: rgba(45, 32, 20, 0.25);
-  --c-scrollbar: rgba(120, 96, 72, 0.2);
-  --c-blob-1: rgba(255, 200, 160, 0.25);
-  --c-blob-2: rgba(212, 178, 138, 0.18);
+  
+  /* 磨砂气泡专用 (RGB值不带单位) */
+  --c-glass-bg: rgba(255, 248, 240, 0.40);
+  --c-glass-border: rgba(169, 128, 93, 0.25);
+  
+  /* 花藤配色 (暖金玫瑰) */
+  --c-vine-main: #B28B6F;
+  --c-vine-light: #E8D5C0;
+  --c-flower-1: #F2D1C6;
+  --c-flower-2: #E8BBA8;
+  --c-flower-shadow: rgba(160, 110, 80, 0.3);
+
+  --c-shadow: rgba(90, 70, 50, 0.11);
+  --c-overlay: rgba(45, 32, 20, 0.30);
+  --c-scrollbar: rgba(120, 96, 72, 0.20);
+  --c-blob-1: rgba(200, 160, 130, 0.25);
+  --c-blob-2: rgba(230, 200, 170, 0.20);
+  --c-blob-3: rgba(240, 215, 190, 0.18);
+  --c-blob-4: rgba(180, 140, 110, 0.15);
   --c-highlight: rgba(255, 250, 244, 0.55);
-  --c-star: rgba(150, 112, 78, 0.5);
-  --c-star-bright: rgba(120, 88, 58, 0.85);
-  --c-vine: rgba(176, 141, 108, 0.25); /* 藤蔓颜色 */
   --c-toast-bg: rgba(62, 51, 42, 0.94);
   --c-toast-text: #FBF5EC;
 }
 
 [data-theme="mist"] {
-  --c-bg-solid: #F2F5F8;
-  --c-bg-gradient: radial-gradient(ellipse 140% 90% at 50% -10%, #F8FAFC 0%, #F2F5F8 40%, #E8EEF3 100%);
-  --c-surface: rgba(255, 255, 255, 0.7);
+  --c-bg-solid: #EFF2F4;
+  --c-bg-gradient: radial-gradient(ellipse 140% 80% at 50% -10%, #F8FAFB 0%, #EFF2F4 45%, #E3E9EE 100%);
+  --c-surface: rgba(255, 255, 255, 0.72);
   --c-surface-solid: #FCFDFD;
-  --c-border: rgba(70, 90, 110, 0.1);
-  --c-text: #36404A;
+  --c-border: rgba(58, 74, 90, 0.11);
+  --c-text: #333B44;
   --c-text-muted: #8B98A3;
   --c-text-faint: #C2CBD2;
-  --c-accent: #6A8AA3;
-  --c-accent-soft: rgba(106, 138, 163, 0.15);
+  --c-accent: #5D7A93;
+  --c-accent-soft: #DAE3E9;
   --c-accent-text: #FBFCFD;
-  --c-bubble-user-bg: linear-gradient(135deg, rgba(255,255,255,0.5), rgba(214,223,230,0.4));
-  --c-bubble-user-text: #33404A;
-  --c-bubble-user-border: rgba(93, 122, 147, 0.2);
-  --c-bubble-ai-bg: rgba(255, 255, 255, 0.4);
-  --c-bubble-ai-text: #313A42;
-  --c-bubble-ai-border: rgba(255, 255, 255, 0.7);
-  --c-input-bg: rgba(255, 255, 255, 0.5);
-  --c-shadow: rgba(50, 65, 80, 0.08);
-  --c-overlay: rgba(18, 26, 34, 0.25);
+  
+  --c-glass-bg: rgba(235, 240, 245, 0.45);
+  --c-glass-border: rgba(93, 122, 147, 0.20);
+  
+  /* 花藤配色 (银灰蓝绣球) */
+  --c-vine-main: #7A8FA0;
+  --c-vine-light: #CCD9E3;
+  --c-flower-1: #C5D6E8;
+  --c-flower-2: #A9C0D6;
+  --c-flower-shadow: rgba(70, 100, 130, 0.25);
+
+  --c-shadow: rgba(50, 65, 80, 0.09);
+  --c-overlay: rgba(18, 26, 34, 0.30);
   --c-scrollbar: rgba(58, 74, 90, 0.18);
-  --c-blob-1: rgba(180, 200, 220, 0.25);
-  --c-blob-2: rgba(140, 165, 185, 0.18);
+  --c-blob-1: rgba(150, 180, 200, 0.25);
+  --c-blob-2: rgba(190, 210, 225, 0.20);
+  --c-blob-3: rgba(210, 225, 235, 0.18);
+  --c-blob-4: rgba(130, 160, 180, 0.15);
   --c-highlight: rgba(255, 255, 255, 0.6);
-  --c-star: rgba(90, 112, 133, 0.5);
-  --c-star-bright: rgba(70, 92, 113, 0.8);
-  --c-vine: rgba(106, 138, 163, 0.2);
   --c-toast-bg: rgba(40, 48, 56, 0.94);
   --c-toast-text: #F5F8FA;
 }
 
 [data-theme="noir"] {
-  --c-bg-solid: #14151A;
-  --c-bg-gradient: radial-gradient(ellipse 140% 90% at 50% -10%, #1A1C22 0%, #14151A 40%, #0E0F13 100%);
-  --c-surface: rgba(26, 28, 35, 0.75);
+  --c-bg-solid: #16181C;
+  --c-bg-gradient: radial-gradient(ellipse 140% 80% at 50% -10%, #1E2128 0%, #16181C 45%, #101216 100%);
+  --c-surface: rgba(28, 30, 35, 0.78);
   --c-surface-solid: #1E2025;
-  --c-border: rgba(255, 255, 255, 0.06);
+  --c-border: rgba(255, 255, 255, 0.08);
   --c-text: #E9E5DD;
   --c-text-muted: #8B8983;
   --c-text-faint: #55534E;
   --c-accent: #C9AD86;
-  --c-accent-soft: rgba(201, 173, 134, 0.15);
+  --c-accent-soft: rgba(201, 173, 134, 0.18);
   --c-accent-text: #1B1712;
-  --c-bubble-user-bg: linear-gradient(135deg, rgba(45,42,38,0.6), rgba(30,28,25,0.5));
-  --c-bubble-user-text: #EDE6D8;
-  --c-bubble-user-border: rgba(201, 173, 134, 0.25);
-  --c-bubble-ai-bg: rgba(255, 255, 255, 0.03);
-  --c-bubble-ai-text: #E4E1DA;
-  --c-bubble-ai-border: rgba(255, 255, 255, 0.06);
-  --c-input-bg: rgba(255, 255, 255, 0.04);
+  
+  --c-glass-bg: rgba(40, 42, 48, 0.45);
+  --c-glass-border: rgba(201, 173, 134, 0.25);
+  
+  /* 花藤配色 (灰藤紫渐变紫藤) */
+  --c-vine-main: #A0908A;
+  --c-vine-light: #6B5E5A;
+  --c-flower-1: #B8A5C9;
+  --c-flower-2: #9A84B0;
+  --c-flower-shadow: rgba(80, 60, 100, 0.4);
+
   --c-shadow: rgba(0, 0, 0, 0.4);
   --c-overlay: rgba(0, 0, 0, 0.55);
   --c-scrollbar: rgba(255, 255, 255, 0.14);
-  --c-blob-1: rgba(100, 80, 120, 0.15); /* 暗色加入一丝紫调梦幻感 */
-  --c-blob-2: rgba(201, 173, 134, 0.08);
-  --c-highlight: rgba(255, 255, 255, 0.05);
-  --c-star: rgba(233, 229, 221, 0.85);
-  --c-star-bright: rgba(255, 255, 255, 0.95);
-  --c-vine: rgba(160, 140, 180, 0.3); /* 灰紫藤蔓 */
+  --c-blob-1: rgba(140, 120, 160, 0.20);
+  --c-blob-2: rgba(100, 80, 120, 0.18);
+  --c-blob-3: rgba(180, 150, 200, 0.12);
+  --c-blob-4: rgba(60, 50, 80, 0.20);
+  --c-highlight: rgba(255, 255, 255, 0.07);
   --c-toast-bg: rgba(233, 229, 221, 0.95);
   --c-toast-text: #1B1712;
 }
 
-/* ---------- 字体 ---------- */
-:root {
-  --font-display: 'Cormorant Garamond', Georgia, serif;
-  --font-body: "Songti SC", "STSongti-SC", "SimSun", Georgia, "Noto Serif SC", serif;
+/* -------- 基础重置 -------- */
+* { box-sizing: border-box; }
+html, body {
+  height: 100%; margin: 0; padding: 0;
+  overflow: hidden; overscroll-behavior: none;
+}
+body {
+  font-family: "Songti SC", "STSongti-SC", "SimSun", Georgia, "Noto Serif SC", serif;
+  -webkit-font-smoothing: antialiased;
+}
+#root {
+  height: 100%; width: 100%; display: flex; flex-direction: column;
 }
 
-/* ---------- 基础重置 ---------- */
-* { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; }
-body { font-family: var(--font-body); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-#root { height: 100%; margin: 0 !important; padding: 0 !important; max-width: none !important; width: 100%; display: flex; flex-direction: column; min-height: 0; }
-
-/* ---------- 动效 ---------- */
-@keyframes gentleFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+/* -------- 动效库 -------- */
+@keyframes gentleFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(0.5deg); }
+}
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scaleIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
-@keyframes dotPulse { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
-@keyframes slideInLeft { from { transform: translateX(-16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-/* 开屏星空凝聚动画 */
-@keyframes starConverge {
-  0% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
-  30% { opacity: 1; }
-  100% { transform: translate(0, 0) scale(1); opacity: 0; }
+@keyframes dotPulse {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
 }
-@keyframes textReveal {
-  0% { opacity: 0; filter: blur(15px); letter-spacing: 15px; }
-  50% { opacity: 0; filter: blur(10px); }
-  100% { opacity: 1; filter: blur(0); letter-spacing: 2px; }
+/* 星辰汇聚专用 */
+@keyframes convergeStar {
+  0% { transform: translate(var(--tx), var(--ty)) scale(0.2); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: translate(0, 0) scale(1); opacity: 1; }
+}
+@keyframes textFadeUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes floatWord {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
 }
 
-/* ---------- 氛围背景 ---------- */
-.ambient-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
-.ambient-bg::before, .ambient-bg::after {
-  content: ''; position: absolute; border-radius: 50%; filter: blur(80px); transition: background 0.6s ease;
+/* -------- 氛围背景（4层光晕，极致梦幻） -------- */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
 }
-.ambient-bg::before { width: 500px; height: 500px; top: -100px; right: -80px; background: var(--c-blob-1); }
-.ambient-bg::after { width: 400px; height: 400px; bottom: -80px; left: -80px; background: var(--c-blob-2); }
+.ambient-bg .blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  transition: background 0.6s ease;
+}
+.ambient-bg .blob:nth-child(1) {
+  width: 400px; height: 400px;
+  top: -120px; right: -100px;
+  background: var(--c-blob-1);
+}
+.ambient-bg .blob:nth-child(2) {
+  width: 350px; height: 350px;
+  bottom: -100px; left: -100px;
+  background: var(--c-blob-2);
+}
+.ambient-bg .blob:nth-child(3) {
+  width: 280px; height: 280px;
+  top: 40%; left: 20%;
+  background: var(--c-blob-3);
+}
+.ambient-bg .blob:nth-child(4) {
+  width: 320px; height: 320px;
+  bottom: 20%; right: 10%;
+  background: var(--c-blob-4);
+}
 
-/* ---------- 星空层 ---------- */
-.starfield { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-.star { position: absolute; border-radius: 50%; background: var(--c-star); opacity: 0; animation: starTwinkle ease-in-out infinite; }
-@keyframes starTwinkle { 0%, 100% { opacity: 0; transform: scale(0.6); } 50% { opacity: 0.8; transform: scale(1); } }
+/* -------- 磨砂玻璃气泡 (透出背景纹理) -------- */
+.bubble-glass {
+  background: var(--c-glass-bg) !important;
+  backdrop-filter: blur(24px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.2) !important;
+  border: 1px solid var(--c-glass-border) !important;
+  box-shadow: 0 4px 24px var(--c-shadow), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+  border-radius: 24px !important;
+  padding: 14px 20px !important;
+}
+.bubble-glass .msg-text {
+  color: var(--c-text);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.02);
+  line-height: 1.7;
+  font-size: 14.5px;
+}
 
-/* ---------- Toast ---------- */
-.toast-wrap { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 3000; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.toast-item { background: var(--c-toast-bg); color: var(--c-toast-text); padding: 11px 20px; border-radius: 999px; font-size: 13px; font-family: var(--font-body); letter-spacing: 0.3px; box-shadow: 0 8px 28px var(--c-shadow); animation: toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1), toastOut 0.3s ease 2.2s forwards; white-space: nowrap; }
+/* -------- 侧边栏花藤 SVG 容器 (攀附在边框) -------- */
+.vine-wrapper {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 10;
+  overflow: visible;
+}
+.vine-wrapper svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+/* 花藤路径颜色随主题自动变化 */
+.vine-path {
+  stroke: var(--c-vine-main);
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+}
+.vine-leaf {
+  fill: var(--c-vine-light);
+  opacity: 0.5;
+}
+.vine-flower {
+  fill: var(--c-flower-1);
+  opacity: 0.85;
+  filter: drop-shadow(0 2px 6px var(--c-flower-shadow));
+}
+.vine-flower-center {
+  fill: var(--c-flower-2);
+  opacity: 0.9;
+}
+
+/* -------- Toast -------- */
+.toast-wrap {
+  position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+  z-index: 3000; pointer-events: none; display: flex; flex-direction: column;
+  align-items: center; gap: 8px;
+}
+.toast-item {
+  background: var(--c-toast-bg); color: var(--c-toast-text);
+  padding: 11px 20px; border-radius: 999px; font-size: 13px;
+  font-family: var(--font-body); letter-spacing: 0.3px;
+  box-shadow: 0 8px 28px var(--c-shadow);
+  animation: toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1), toastOut 0.3s ease 2.2s forwards;
+  white-space: nowrap;
+}
 @keyframes toastIn { from { opacity: 0; transform: translateY(-12px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes toastOut { to { opacity: 0; transform: translateY(-8px) scale(0.96); } }
 
-/* ---------- 品牌字标 ---------- */
-.wordmark { font-family: var(--font-display); display: inline-flex; align-items: baseline; gap: 3px; color: var(--c-text); user-select: none; }
+/* -------- 品牌字标 (无鲸鱼) -------- */
+.wordmark {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  display: inline-flex; align-items: baseline; gap: 3px;
+  color: var(--c-text); user-select: none;
+}
 .wordmark-part { font-weight: 500; }
 .wordmark-amp { font-style: italic; font-weight: 400; color: var(--c-accent); opacity: 0.85; }
-.wordmark-lg { font-size: 46px; letter-spacing: 0.5px; }
-.wordmark-lg .wordmark-amp { font-size: 40px; margin: 0 1px; }
+.wordmark-lg { font-size: 52px; letter-spacing: 1px; }
+.wordmark-lg .wordmark-amp { font-size: 46px; margin: 0 2px; }
 .wordmark-md { font-size: 22px; letter-spacing: 0.3px; }
 .wordmark-md .wordmark-amp { font-size: 20px; }
 
-/* ---------- 交互 ---------- */
+/* -------- 会话列表 / 主题按钮 / 滚动条 (保留你的优秀细节) -------- */
 .session-item .session-actions { opacity: 0.55; transition: opacity 0.2s ease; }
 .session-item:hover .session-actions { opacity: 1; }
 .session-item { transition: background 0.2s ease, border-color 0.2s ease; }
@@ -170,17 +276,13 @@ body { font-family: var(--font-body); -webkit-font-smoothing: antialiased; -moz-
 .icon-btn { transition: opacity 0.2s ease, transform 0.2s ease; }
 .icon-btn:hover { opacity: 0.7; }
 .icon-btn:active { transform: scale(0.92); }
-
-/* ---------- 滚动条 ---------- */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--c-scrollbar); border-radius: 4px; }
-
-/* ---------- 输入框 ---------- */
 textarea::placeholder { color: var(--c-text-faint); font-style: italic; }
 input::placeholder { color: var(--c-text-faint); }
 
 @media (max-width: 480px) {
-  .wordmark-lg { font-size: 36px; }
-  .wordmark-lg .wordmark-amp { font-size: 32px; }
+  .wordmark-lg { font-size: 40px; }
+  .wordmark-lg .wordmark-amp { font-size: 34px; }
 }
