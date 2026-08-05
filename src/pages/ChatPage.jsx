@@ -104,14 +104,23 @@ const Wordmark = ({ size = 'md' }) => (
 )
 
 // ============================================================
-// 1. 开屏页 —— 主题实景 + 星辰汇聚成 "I am here"
-//    只播一次，成字后转为极轻的常驻微光；BEGIN 始终可点。
+// 1. 开屏页 —— 主题实景 + 星辰汇聚成品牌字标，漫天星尘缓缓浮升
+//    只播一次，成字后转为呼吸微光与常驻星尘；BEGIN 始终可点。
 // ============================================================
+const SPLASH_DUST_COUNT = 26
 const SplashScreen = ({ onEnter }) => {
   const [fadeOut, setFadeOut] = useState(false)
   const [visible, setVisible] = useState(true)
   const canvasRef = useRef(null)
   const rafRef = useRef(null)
+  const [dust] = useState(() => Array.from({ length: SPLASH_DUST_COUNT }).map((_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    size: (1 + Math.random() * 2.6).toFixed(2),
+    delay: (Math.random() * 10).toFixed(2),
+    duration: (11 + Math.random() * 10).toFixed(2),
+    drift: Math.round((Math.random() - 0.5) * 80)
+  })))
 
   useEffect(() => {
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -153,7 +162,7 @@ const SplashScreen = ({ onEnter }) => {
       octx.textAlign = 'center'
       octx.textBaseline = 'middle'
       octx.fillStyle = '#fff'
-      octx.fillText('I am here', width / 2, height * 0.42)
+      octx.fillText('ke & shu', width / 2, height * 0.42)
 
       const imgData = octx.getImageData(0, 0, width, height).data
       const rawPoints = []
@@ -263,10 +272,26 @@ const SplashScreen = ({ onEnter }) => {
     >
       <PhotoBackdrop />
       <div className="splash-dim" />
+      <div className="splash-glow" aria-hidden="true" />
+      <div className="splash-dust-field" aria-hidden="true">
+        {dust.map(d => (
+          <span
+            key={d.id}
+            className="splash-dust"
+            style={{
+              left: `${d.left}%`,
+              width: `${d.size}px`,
+              height: `${d.size}px`,
+              '--dust-duration': `${d.duration}s`,
+              '--dust-delay': `${d.delay}s`,
+              '--dust-drift': `${d.drift}px`
+            }}
+          />
+        ))}
+      </div>
       <canvas ref={canvasRef} className="splash-canvas" />
       <div className="splash-foot">
         <div className="splash-rule" />
-        <div className="splash-subtitle">给你的 AI 一个家</div>
         <button onClick={handleClick} className="splash-begin-btn">BEGIN</button>
       </div>
     </div>
