@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import axios from 'axios'
 
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
@@ -13,34 +13,9 @@ axios.interceptors.request.use(config => {
 
 // ========== 主题配置 ==========
 const THEMES = ['warm', 'mist', 'noir']
-const THEME_LABELS = { warm: 'Warm', mist: 'Mist', noir: 'Noir' }
-const THEME_META_COLOR = { warm: '#F6EDE0', mist: '#EFF2F4', noir: '#16181C' }
-
-// 每个主题对应的花种：暖阳蔷薇 / 雾霭铃兰 / 夜阑紫藤
-const THEME_FLOWER = { warm: 'rose', mist: 'lily', noir: 'wisteria' }
-const THEME_FLOWER_NAME = { warm: '蔷薇', mist: '铃兰', noir: '紫藤' }
-
-// 开屏配色（三主题同一片夜空，星尘颜色不同）
-const SPLASH_PALETTE = {
-  warm: {
-    bg: '#0B0906',
-    dust: ['#FFE7C6', '#F2CFA6', '#FFFFFF', '#D9A96E'],
-    nebula: ['rgba(148, 96, 44, 0.22)', 'rgba(96, 66, 118, 0.12)'],
-    ring: 'rgba(214, 172, 124, 0.55)'
-  },
-  mist: {
-    bg: '#06090D',
-    dust: ['#DDEDFB', '#B5D2EC', '#FFFFFF', '#8CB3D8'],
-    nebula: ['rgba(44, 88, 134, 0.22)', 'rgba(88, 118, 150, 0.14)'],
-    ring: 'rgba(150, 190, 224, 0.5)'
-  },
-  noir: {
-    bg: '#06070B',
-    dust: ['#F0E8FF', '#C7B4E9', '#FFFFFF', '#C9AD86'],
-    nebula: ['rgba(96, 62, 142, 0.24)', 'rgba(46, 72, 122, 0.18)'],
-    ring: 'rgba(180, 155, 212, 0.55)'
-  }
-}
+// 展示用的文案更新为更有质感的命名，底层 key 保持不变，不影响已保存的偏好设置
+const THEME_LABELS = { warm: 'Aurum', mist: 'Lumen', noir: 'Noir' }
+const THEME_META_COLOR = { warm: '#F3E7D6', mist: '#E9EEF3', noir: '#121019' }
 
 // ========== 图标 ==========
 const Icon = {
@@ -80,7 +55,6 @@ const Icon = {
     </svg>
   )
 }
-
 const SettingsIcon = (p) => (
   <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
@@ -89,24 +63,11 @@ const SettingsIcon = (p) => (
 
 // ========== 头像 ==========
 const UserAvatar = ({ size = 30 }) => (
-  <div style={{
-    width: size, height: size, borderRadius: '50%', flexShrink: 0,
-    background: 'var(--c-bubble-user-bg)',
-    border: '1px solid var(--c-bubble-user-border)',
-    boxShadow: '0 2px 10px var(--c-shadow), inset 0 1px 0 var(--c-highlight)'
-  }} />
+  <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, background: 'var(--c-bubble-user-bg)', border: '1px solid var(--c-bubble-user-border)', boxShadow: '0 3px 10px var(--c-shadow)' }} />
 )
-
 const AIAvatar = ({ size = 30 }) => (
-  <div style={{
-    position: 'relative', width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
-    background: 'radial-gradient(circle at 32% 28%, var(--c-accent-soft), var(--c-accent) 68%, var(--c-text) 150%)',
-    boxShadow: '0 2px 12px var(--c-shadow), inset 0 0 0 1px var(--c-border)'
-  }}>
-    <div style={{
-      position: 'absolute', width: size * 0.86, height: size * 0.86, borderRadius: '50%',
-      background: 'var(--c-bg-solid)', top: '-8%', left: '32%', opacity: 0.94
-    }} />
+  <div style={{ position: 'relative', width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: 'radial-gradient(circle at 32% 28%, var(--c-accent-soft), var(--c-accent) 68%, var(--c-text) 150%)', boxShadow: '0 3px 12px var(--c-shadow), inset 0 0 0 1px var(--c-border)' }}>
+    <div style={{ position: 'absolute', width: size * 0.86, height: size * 0.86, borderRadius: '50%', background: 'var(--c-bg-solid)', top: '-8%', left: '32%', opacity: 0.94 }} />
   </div>
 )
 
@@ -119,306 +80,178 @@ const Wordmark = ({ size = 'md' }) => (
   </span>
 )
 
-// ========== 六层氛围背景 ==========
-const AmbientBackdrop = () => (
-  <div className="ambient-bg">
-    <div className="ambient-aurora" />
-    <div className="blob" /><div className="blob" /><div className="blob" />
-    <div className="blob" /><div className="blob" /><div className="blob" />
-    <div className="ambient-stars" />
-    <div className="ambient-grain" />
-    <div className="ambient-vignette" />
-  </div>
-)
-
 // ============================================================
-// 1. 开屏页：星辰汇聚成 "I am here"
-//    - 粒子从四周缓缓聚拢，成字后不再重播，只保留细微浮动
-//    - BEGIN 始终可点，随时可以进去
+// 1. 开屏页 —— 电影感星辰汇聚
+//    深夜星空 + 缓慢漂移的星云 + 数百颗星星从四面八方汇聚
+//    组成 "I am here" 文字，仅播放一次；文字定型后转为极轻的呼吸微光。
+//    BEGIN 按钮从一开始就可点击，不必等待动画播完。
 // ============================================================
-const SplashScreen = ({ onEnter, theme }) => {
-  const canvasRef = useRef(null)
+const SplashScreen = ({ onEnter }) => {
   const [fadeOut, setFadeOut] = useState(false)
   const [visible, setVisible] = useState(true)
-  const pal = SPLASH_PALETTE[theme] || SPLASH_PALETTE.noir
+  const [showChrome, setShowChrome] = useState(false) // 副标题 / 分隔线 / BEGIN 按钮的整体淡入
+  const canvasRef = useRef(null)
+  const rafRef = useRef(null)
+
+  // 环境星尘（背景常驻的细小星点，独立于文字汇聚动画，营造深空氛围）
+  const ambientStars = useMemo(() => Array.from({ length: 70 }).map((_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    top: Math.random() * 100,
+    size: 0.6 + Math.random() * 1.6,
+    delay: Math.random() * 3.6,
+    duration: 2.6 + Math.random() * 3
+  })), [])
 
   useEffect(() => {
+    // 按钮 / 副标题稍作延迟出现，避免和汇聚动画抢视觉焦点，但依然很早就可交互
+    const t = setTimeout(() => setShowChrome(true), 260)
+    return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
+    let width = window.innerWidth
+    let height = window.innerHeight
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
 
-    let raf = 0
-    let cancelled = false
-    let W = 0, H = 0, cx = 0, cy = 0
-    let particles = [], bgStars = [], rings = [], motes = []
-    let shooting = null, nextShoot = 6200
-    let startedAt = 0
-
-    const hexToRgb = (h) => {
-      const n = parseInt(h.replace('#', ''), 16)
-      return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-    }
-
-    const makeSprite = (hex) => {
-      const [r, g, b] = hexToRgb(hex)
-      const c = document.createElement('canvas')
-      c.width = c.height = 26
-      const x = c.getContext('2d')
-      const grd = x.createRadialGradient(13, 13, 0, 13, 13, 13)
-      grd.addColorStop(0, `rgba(${r},${g},${b},1)`)
-      grd.addColorStop(0.3, `rgba(${r},${g},${b},0.6)`)
-      grd.addColorStop(0.65, `rgba(${r},${g},${b},0.14)`)
-      grd.addColorStop(1, `rgba(${r},${g},${b},0)`)
-      x.fillStyle = grd
-      x.fillRect(0, 0, 26, 26)
-      return c
-    }
-
-    const sprites = pal.dust.map(makeSprite)
-    const clamp = (v, a, b) => (v < a ? a : v > b ? b : v)
-
-    const setup = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      W = canvas.clientWidth || window.innerWidth
-      H = canvas.clientHeight || window.innerHeight
-      canvas.width = Math.round(W * dpr)
-      canvas.height = Math.round(H * dpr)
+    const resize = () => {
+      width = window.innerWidth
+      height = window.innerHeight
+      canvas.width = width * dpr
+      canvas.height = height * dpr
+      canvas.style.width = width + 'px'
+      canvas.style.height = height + 'px'
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      cx = W / 2
-      cy = H * 0.42
+    }
+    resize()
+    window.addEventListener('resize', resize)
 
-      // 把 "I am here" 画进离屏画布，再采样成粒子目标点
-      const ow = Math.max(320, Math.min(Math.round(W), 1000))
-      const oh = 240
+    const rootStyle = getComputedStyle(document.documentElement)
+    const starColor = (rootStyle.getPropertyValue('--c-star') || '#FFF3D8').trim()
+    const starBright = (rootStyle.getPropertyValue('--c-star-bright') || 'rgba(255,214,140,0.9)').trim()
+
+    let cancelled = false
+
+    const buildStarsFromText = async () => {
+      try { await document.fonts.load(`italic 400 10px 'Cormorant Garamond'`) } catch (e) { /* 字体加载失败则用回退字体，不影响流程 */ }
+      try { await document.fonts.ready } catch (e) { /* noop */ }
+      if (cancelled) return
+
       const off = document.createElement('canvas')
-      off.width = ow
-      off.height = oh
-      const o = off.getContext('2d')
-      const fs = Math.max(42, Math.min(ow * 0.145, 104))
-      o.fillStyle = '#fff'
-      o.textAlign = 'center'
-      o.textBaseline = 'middle'
-      try { o.letterSpacing = `${Math.round(fs * 0.09)}px` } catch (e) { /* 旧内核忽略 */ }
-      o.font = `italic 500 ${fs}px "Cormorant Garamond", Georgia, serif`
-      o.fillText('I am here', ow / 2, oh / 2)
+      off.width = width
+      off.height = height
+      const octx = off.getContext('2d')
+      const isSmall = width < 480
+      const fontSize = Math.min(width * (isSmall ? 0.135 : 0.095), 96)
+      octx.font = `italic 400 ${fontSize}px 'Cormorant Garamond', Georgia, serif`
+      octx.textAlign = 'center'
+      octx.textBaseline = 'middle'
+      octx.fillStyle = '#fff'
+      octx.fillText('I am here', width / 2, height / 2)
+      const imgData = octx.getImageData(0, 0, width, height).data
 
-      const data = o.getImageData(0, 0, ow, oh).data
-      const gap = fs > 76 ? 3 : 2
-      const pts = []
-      for (let y = 0; y < oh; y += gap) {
-        for (let x = 0; x < ow; x += gap) {
-          if (data[(y * ow + x) * 4 + 3] > 118) pts.push([x, y])
+      const rawPoints = []
+      const gap = isSmall ? 3 : 2.4
+      for (let y = 0; y < height; y += gap) {
+        for (let x = 0; x < width; x += gap) {
+          const alpha = imgData[(Math.floor(y) * width + Math.floor(x)) * 4 + 3]
+          if (alpha > 140) rawPoints.push({ x, y })
         }
       }
+      // 洗牌后按目标数量取样，控制粒子数以保证性能
+      for (let i = rawPoints.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[rawPoints[i], rawPoints[j]] = [rawPoints[j], rawPoints[i]]
+      }
+      const targetCount = reduceMotion ? 0 : (isSmall ? 170 : 280)
+      const chosen = rawPoints.slice(0, targetCount)
 
-      const far = Math.max(W, H)
-      particles = pts.map(([px, py]) => {
-        const tx = cx + (px - ow / 2) + (Math.random() - 0.5) * gap
-        const ty = cy + (py - oh / 2) + (Math.random() - 0.5) * gap
-        const a = Math.random() * Math.PI * 2
-        const rad = far * (0.55 + Math.random() * 0.9)
-        const norm = Math.abs(px - ow / 2) / (ow / 2)
-        const roll = Math.random()
+      const stars = chosen.map((p) => {
+        const angle = Math.random() * Math.PI * 2
+        const radius = Math.max(width, height) * (0.55 + Math.random() * 0.55)
         return {
-          tx, ty,
-          sx: cx + Math.cos(a) * rad,
-          sy: cy + Math.sin(a) * rad * 0.72,
-          delay: 300 + norm * 340 + Math.random() * 640,
-          dur: 1450 + Math.random() * 980,
-          sprite: roll < 0.06 ? 3 : roll < 0.30 ? 2 : roll < 0.66 ? 1 : 0,
-          size: 2.1 + Math.random() * 2.5,
-          ph: Math.random() * Math.PI * 2,
-          sp: 0.00055 + Math.random() * 0.0009,
-          amp: 1.1 + Math.random() * 2.3
+          x0: width / 2 + Math.cos(angle) * radius,
+          y0: height / 2 + Math.sin(angle) * radius,
+          tx: p.x,
+          ty: p.y,
+          size: 1.1 + Math.random() * 2.1,
+          delay: Math.random() * 650,
+          dur: 1300 + Math.random() * 900,
+          phase: Math.random() * Math.PI * 2
         }
       })
 
-      bgStars = Array.from({ length: 190 }, () => ({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        r: 0.5 + Math.random() * 1.5,
-        ph: Math.random() * 6.2832,
-        sp: 0.0004 + Math.random() * 0.0013,
-        a: 0.22 + Math.random() * 0.6
-      }))
+      if (reduceMotion) {
+        // 减少动态效果：直接静态绘制文字形态，不做汇聚动画
+        ctx.clearRect(0, 0, width, height)
+        chosen.forEach(p => {
+          ctx.beginPath()
+          ctx.fillStyle = starColor
+          ctx.globalAlpha = 0.9
+          ctx.arc(p.x, p.y, 1.4, 0, Math.PI * 2)
+          ctx.fill()
+        })
+        return
+      }
 
-      rings = [
-        { rx: W * 0.44, ry: W * 0.135, rot: -0.22, sp: 0.000032, a: 0.42 },
-        { rx: W * 0.58, ry: W * 0.185, rot: 0.18, sp: -0.000024, a: 0.30 },
-        { rx: W * 0.31, ry: W * 0.085, rot: 0.44, sp: 0.000046, a: 0.34 }
-      ]
-      motes = rings.map((r, i) => ({ ring: i, t: Math.random() * 6.2832, sp: 0.00042 + i * 0.00013 }))
+      const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3)
+      let start = null
+      const CONVERGE_TOTAL = 2400 // 汇聚阶段大致时长（ms），之后进入常驻微光呼吸
+
+      const frame = (ts) => {
+        if (cancelled) return
+        if (start === null) start = ts
+        const elapsed = ts - start
+        ctx.clearRect(0, 0, width, height)
+        stars.forEach(s => {
+          const t = Math.min(1, Math.max(0, (elapsed - s.delay) / s.dur))
+          const e = easeOutCubic(t)
+          const x = s.x0 + (s.tx - s.x0) * e
+          const y = s.y0 + (s.ty - s.y0) * e
+          let alpha
+          if (t <= 0) alpha = 0
+          else if (t < 1) alpha = Math.min(1, t * 1.5)
+          else {
+            // 汇聚完成后：进入极轻的常驻闪烁，而不是重新聚散
+            const settleT = elapsed - (s.delay + s.dur)
+            alpha = 0.78 + 0.22 * Math.sin(settleT / 480 + s.phase)
+          }
+          const glow = 6 + (1 - e) * 10
+          const size = s.size * (0.55 + e * 0.5)
+          ctx.save()
+          ctx.globalAlpha = Math.max(0, Math.min(1, alpha))
+          ctx.shadowColor = starBright
+          ctx.shadowBlur = glow
+          ctx.fillStyle = starColor
+          ctx.beginPath()
+          ctx.arc(x, y, size, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.restore()
+        })
+        rafRef.current = requestAnimationFrame(frame)
+      }
+      rafRef.current = requestAnimationFrame(frame)
     }
 
-    const draw = (now) => {
-      if (cancelled) return
-      const t = now - startedAt
-
-      // 底色 + 星云
-      ctx.globalCompositeOperation = 'source-over'
-      ctx.globalAlpha = 1
-      ctx.fillStyle = pal.bg
-      ctx.fillRect(0, 0, W, H)
-
-      const drift = Math.sin(t * 0.00006) * 40
-      const n1 = ctx.createRadialGradient(W * 0.32 + drift, H * 0.3, 0, W * 0.32 + drift, H * 0.3, W * 0.8)
-      n1.addColorStop(0, pal.nebula[0])
-      n1.addColorStop(1, 'rgba(0,0,0,0)')
-      ctx.fillStyle = n1
-      ctx.fillRect(0, 0, W, H)
-
-      const n2 = ctx.createRadialGradient(W * 0.74 - drift, H * 0.66, 0, W * 0.74 - drift, H * 0.66, W * 0.72)
-      n2.addColorStop(0, pal.nebula[1])
-      n2.addColorStop(1, 'rgba(0,0,0,0)')
-      ctx.fillStyle = n2
-      ctx.fillRect(0, 0, W, H)
-
-      ctx.globalCompositeOperation = 'lighter'
-
-      // 背景星点
-      for (let i = 0; i < bgStars.length; i++) {
-        const s = bgStars[i]
-        const tw = 0.55 + 0.45 * Math.sin(t * s.sp + s.ph)
-        ctx.globalAlpha = s.a * tw * 0.75
-        const d = s.r * 7
-        ctx.drawImage(sprites[2], s.x - d / 2, s.y - d / 2, d, d)
-      }
-
-      // 轨道环
-      const ringFade = clamp((t - 700) / 2200, 0, 1)
-      ctx.lineWidth = 1
-      for (let i = 0; i < rings.length; i++) {
-        const r = rings[i]
-        ctx.save()
-        ctx.translate(cx, cy)
-        ctx.rotate(r.rot + t * r.sp)
-        ctx.globalAlpha = r.a * ringFade * 0.5
-        ctx.strokeStyle = pal.ring
-        ctx.beginPath()
-        ctx.ellipse(0, 0, r.rx, r.ry, 0, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.restore()
-      }
-
-      // 沿轨道游走的亮点
-      for (let i = 0; i < motes.length; i++) {
-        const m = motes[i]
-        const r = rings[m.ring]
-        const ang = m.t + t * m.sp
-        const rot = r.rot + t * r.sp
-        const ex = Math.cos(ang) * r.rx
-        const ey = Math.sin(ang) * r.ry
-        const x = cx + ex * Math.cos(rot) - ey * Math.sin(rot)
-        const y = cy + ex * Math.sin(rot) + ey * Math.cos(rot)
-        ctx.globalAlpha = 0.75 * ringFade
-        ctx.drawImage(sprites[3], x - 9, y - 9, 18, 18)
-      }
-
-      // 字体粒子
-      let done = 0
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i]
-        const e = clamp((t - p.delay) / p.dur, 0, 1)
-        const k = 1 - Math.pow(1 - e, 3)
-        let x, y, sizeMul
-        if (e >= 1) {
-          done++
-          x = p.tx + Math.sin(t * p.sp + p.ph) * p.amp
-          y = p.ty + Math.cos(t * p.sp * 0.78 + p.ph) * p.amp * 0.62
-          sizeMul = 1
-        } else {
-          x = p.sx + (p.tx - p.sx) * k
-          y = p.sy + (p.ty - p.sy) * k
-          sizeMul = 1.75 - 0.75 * k
-        }
-        ctx.globalAlpha = Math.min(1, e * 1.7) * (0.62 + 0.38 * Math.sin(t * p.sp * 1.5 + p.ph))
-        const d = p.size * sizeMul * 4.2
-        ctx.drawImage(sprites[p.sprite], x - d / 2, y - d / 2, d, d)
-      }
-
-      // 成字后的柔光
-      const settle = particles.length ? done / particles.length : 0
-      if (settle > 0.2) {
-        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W * 0.5, 380))
-        g.addColorStop(0, pal.ring)
-        g.addColorStop(1, 'rgba(0,0,0,0)')
-        ctx.globalAlpha = (settle - 0.2) * 0.14 * (0.8 + 0.2 * Math.sin(t * 0.0009))
-        ctx.fillStyle = g
-        ctx.fillRect(0, 0, W, H)
-      }
-
-      // 偶尔一颗流星
-      if (!shooting && t > nextShoot) {
-        shooting = {
-          x: Math.random() * W * 0.7,
-          y: Math.random() * H * 0.4,
-          vx: 0.42 + Math.random() * 0.3,
-          vy: 0.2 + Math.random() * 0.16,
-          life: 0
-        }
-        nextShoot = t + 7000 + Math.random() * 7000
-      }
-      if (shooting) {
-        shooting.life += 16
-        shooting.x += shooting.vx * 16
-        shooting.y += shooting.vy * 16
-        const lf = clamp(1 - shooting.life / 1100, 0, 1)
-        ctx.globalAlpha = lf * 0.55
-        const grd = ctx.createLinearGradient(shooting.x - shooting.vx * 90, shooting.y - shooting.vy * 90, shooting.x, shooting.y)
-        grd.addColorStop(0, 'rgba(255,255,255,0)')
-        grd.addColorStop(1, pal.dust[2])
-        ctx.strokeStyle = grd
-        ctx.lineWidth = 1.4
-        ctx.beginPath()
-        ctx.moveTo(shooting.x - shooting.vx * 90, shooting.y - shooting.vy * 90)
-        ctx.lineTo(shooting.x, shooting.y)
-        ctx.stroke()
-        if (lf <= 0) shooting = null
-      }
-
-      ctx.globalAlpha = 1
-      ctx.globalCompositeOperation = 'source-over'
-      raf = requestAnimationFrame(draw)
-    }
-
-    const begin = () => {
-      if (cancelled) return
-      setup()
-      startedAt = performance.now()
-      raf = requestAnimationFrame(draw)
-    }
-
-    // 等字体就绪再采样，最多等 1.2s
-    if (document.fonts && document.fonts.ready) {
-      Promise.race([
-        document.fonts.ready,
-        new Promise(r => setTimeout(r, 1200))
-      ]).then(begin)
-    } else {
-      begin()
-    }
-
-    let rt = 0
-    const onResize = () => {
-      clearTimeout(rt)
-      rt = setTimeout(() => { if (!cancelled && startedAt) setup() }, 220)
-    }
-    window.addEventListener('resize', onResize)
+    buildStarsFromText()
 
     return () => {
       cancelled = true
-      cancelAnimationFrame(raf)
-      clearTimeout(rt)
-      window.removeEventListener('resize', onResize)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      window.removeEventListener('resize', resize)
     }
-  }, [theme])
+  }, [])
 
   const handleClick = () => {
     setFadeOut(true)
     setTimeout(() => {
       setVisible(false)
       onEnter()
-    }, 780)
+    }, 650)
   }
 
   if (!visible) return null
@@ -426,210 +259,76 @@ const SplashScreen = ({ onEnter, theme }) => {
   return (
     <div
       className="splash-screen"
-      data-sp={theme}
       style={{
-        opacity: fadeOut ? 0 : 1,
-        transform: fadeOut ? 'scale(1.06)' : 'scale(1)',
-        filter: fadeOut ? 'blur(10px)' : 'blur(0px)'
+        position: 'fixed', inset: 0, background: 'var(--c-bg-gradient)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, transition: 'opacity 0.65s ease, transform 0.65s ease',
+        opacity: fadeOut ? 0 : 1, transform: fadeOut ? 'scale(1.045)' : 'scale(1)'
       }}
-      aria-label="I am here"
     >
+      <div className="ambient-bg"><div className="blob" /><div className="blob" /><div className="blob" /><div className="blob" /></div>
+
+      {/* 常驻的细小星尘，铺满整个开屏，营造深空氛围（不参与汇聚，仅闪烁） */}
+      <div className="splash-ambient-stars">
+        {ambientStars.map(s => (
+          <span key={s.id} style={{
+            left: `${s.left}%`, top: `${s.top}%`,
+            width: s.size, height: s.size,
+            animationDelay: `${s.delay}s`, animationDuration: `${s.duration}s`,
+            opacity: 0.5
+          }} />
+        ))}
+      </div>
+
+      {/* 汇聚成字的星群，由 canvas 逐帧绘制 */}
       <canvas ref={canvasRef} className="splash-canvas" />
-      <div className="splash-foot">
-        <div className="splash-caption">
-          ke <span className="amp">&amp;</span> shu
-        </div>
-        <button className="splash-begin" onClick={handleClick}>BEGIN</button>
+
+      {/* 底部文案与入口，始终可交互，不受汇聚动画进度影响 */}
+      <div style={{ position: 'relative', zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 'min(30vh, 260px)', gap: '22px', opacity: showChrome ? 1 : 0, transition: 'opacity 0.9s ease' }}>
+        <div className="splash-rule" />
+        <div className="splash-subtitle">给你的 AI 一个家</div>
+        <button onClick={handleClick} className="splash-begin-btn">
+          BEGIN
+        </button>
       </div>
     </div>
   )
 }
 
 // ============================================================
-// 2. 花藤：每个主题一种花
-//    warm 蔷薇 · mist 铃兰 · noir 紫藤
+// 2. 侧边栏花藤 SVG
 // ============================================================
-const rnd = (i, s = 1) => {
-  const v = Math.sin(i * 127.1 + s * 311.7) * 43758.5453
-  return v - Math.floor(v)
-}
-
-// 紫藤：垂坠花串，灰藤紫渐变
-const Wisteria = ({ x, y, s = 1, seed = 1, delay = 0 }) => {
-  const beads = []
-  const n = 13
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1)
-    const yy = t * 70
-    const spread = (1 - t) * 9.5 + 1.6
-    const j = (rnd(i, seed) - 0.5) * 3.2
-    beads.push({ cx: -spread * 0.5 + j, cy: yy, r: Math.max(1.2, 5.4 - t * 3.2) })
-    if (i < n - 3) beads.push({ cx: spread * 0.5 + j * 0.5, cy: yy + 5, r: Math.max(1, 4.6 - t * 2.7) })
-  }
-  const body = beads.map((b, i) => (
-    <circle key={i} className={i % 3 === 0 ? 'petal-pale' : i % 3 === 1 ? 'petal' : 'petal-back'} cx={b.cx} cy={b.cy} r={b.r} />
-  ))
-  return (
-    <g transform={`translate(${x} ${y}) scale(${s})`}>
-      <g className="vine-cluster" style={{ animationDelay: `${delay}s` }}>
-        <g className="sway" style={{ animationDelay: `${(delay * 0.6).toFixed(2)}s` }}>
-          <g className="cluster-soft">{body}</g>
-          <g className="cluster-crisp">{body}</g>
-        </g>
-      </g>
-    </g>
-  )
-}
-
-// 蔷薇：层叠花瓣的小玫瑰
-const Rose = ({ x, y, s = 1, seed = 1, delay = 0 }) => {
-  const body = (
-    <>
-      {[0, 1, 2, 3, 4, 5].map(i => (
-        <ellipse key={`o${i}`} className="petal-back" cx="0" cy="-6.6" rx="7.6" ry="5.4" transform={`rotate(${i * 60 + rnd(i, seed) * 12})`} />
-      ))}
-      {[0, 1, 2, 3, 4].map(i => (
-        <ellipse key={`m${i}`} className="petal" cx="0" cy="-4.4" rx="5.6" ry="4.2" transform={`rotate(${i * 72 + 30 + rnd(i, seed + 3) * 10})`} />
-      ))}
-      {[0, 1, 2].map(i => (
-        <ellipse key={`i${i}`} className="petal-pale" cx="0" cy="-2.4" rx="3.4" ry="2.8" transform={`rotate(${i * 120 + 55})`} />
-      ))}
-      <circle className="flower-core" cx="0" cy="0" r="2.1" />
-    </>
-  )
-  return (
-    <g transform={`translate(${x} ${y}) scale(${s})`}>
-      <g className="vine-cluster" style={{ animationDelay: `${delay}s` }}>
-        <g className="sway" style={{ animationDelay: `${(delay * 0.6).toFixed(2)}s` }}>
-          <g className="cluster-soft">{body}</g>
-          <g className="cluster-crisp">{body}</g>
-        </g>
-      </g>
-    </g>
-  )
-}
-
-// 铃兰：一串垂挂的小白铃铛
-const Lily = ({ x, y, s = 1, seed = 1, delay = 0 }) => {
-  const bells = []
-  const n = 6
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1)
-    const bx = -1 + t * 19 + (rnd(i, seed) - 0.5) * 3.4
-    const by = 8 + t * 44
-    bells.push({ bx, by, r: 4.7 - t * 1.5 })
-  }
-  const body = (
-    <>
-      <path d="M0 0 Q 9 24 20 54" fill="none" stroke="var(--c-vine-mid)" strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
-      {bells.map((b, i) => (
-        <g key={i}>
-          <path d={`M${b.bx * 0.42} ${b.by * 0.42} Q ${b.bx * 0.8} ${b.by * 0.7} ${b.bx} ${b.by - b.r}`} fill="none" stroke="var(--c-vine-mid)" strokeWidth="0.9" opacity="0.6" />
-          <circle className={i % 2 ? 'petal' : 'petal-pale'} cx={b.bx} cy={b.by} r={b.r} />
-          <path className={i % 2 ? 'petal' : 'petal-pale'} d={`M${b.bx - b.r} ${b.by} Q ${b.bx - b.r * 0.9} ${b.by + b.r * 1.3} ${b.bx} ${b.by + b.r * 1.35} Q ${b.bx + b.r * 0.9} ${b.by + b.r * 1.3} ${b.bx + b.r} ${b.by} Z`} />
-          <circle className="flower-core" cx={b.bx} cy={b.by + b.r * 0.9} r="1" opacity="0.6" />
-        </g>
-      ))}
-    </>
-  )
-  return (
-    <g transform={`translate(${x} ${y}) scale(${s})`}>
-      <g className="vine-cluster" style={{ animationDelay: `${delay}s` }}>
-        <g className="sway" style={{ animationDelay: `${(delay * 0.6).toFixed(2)}s` }}>
-          <g className="cluster-soft">{body}</g>
-          <g className="cluster-crisp">{body}</g>
-        </g>
-      </g>
-    </g>
-  )
-}
-
-const FLOWER_COMP = { rose: Rose, lily: Lily, wisteria: Wisteria }
-
-const VineDefs = () => (
-  <defs>
-    <linearGradient id="vineStroke" x1="0" y1="0" x2="0.35" y2="1">
-      <stop offset="0%" style={{ stopColor: 'var(--c-vine-light)', stopOpacity: 0.15 }} />
-      <stop offset="20%" style={{ stopColor: 'var(--c-vine-main)', stopOpacity: 0.95 }} />
-      <stop offset="62%" style={{ stopColor: 'var(--c-vine-mid)', stopOpacity: 0.85 }} />
-      <stop offset="100%" style={{ stopColor: 'var(--c-vine-light)', stopOpacity: 0.12 }} />
-    </linearGradient>
-    <filter id="vineSoft" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="3.4" />
-    </filter>
-  </defs>
+const SidebarVines = () => (
+  <div className="vine-wrapper">
+    <svg viewBox="0 0 280 1000" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path className="vine-path" d="M20 0 C30 150, 10 280, 40 400 C70 520, 15 650, 30 800 C45 950, 20 1000, 20 1000" strokeWidth="3" />
+      <path className="vine-path" d="M20 0 C15 120, 45 240, 20 380 C-5 520, 35 680, 20 840" strokeWidth="1.5" opacity="0.5" />
+      <path className="vine-path" d="M260 0 C240 180, 270 320, 250 480 C230 640, 265 780, 250 940 C240 1000, 260 1000, 260 1000" strokeWidth="2.5" />
+      <path className="vine-path" d="M260 50 C270 200, 240 350, 260 500 C280 650, 245 800, 260 950" strokeWidth="1.5" opacity="0.4" />
+      <ellipse className="vine-flower" cx="18" cy="120" rx="8" ry="14" transform="rotate(-15, 18, 120)" />
+      <ellipse className="vine-flower" cx="32" cy="135" rx="6" ry="10" transform="rotate(10, 32, 135)" />
+      <ellipse className="vine-flower-center" cx="18" cy="120" rx="3" ry="4" />
+      <ellipse className="vine-flower" cx="42" cy="350" rx="10" ry="16" transform="rotate(-20, 42, 350)" />
+      <ellipse className="vine-flower" cx="25" cy="370" rx="7" ry="12" transform="rotate(15, 25, 370)" />
+      <ellipse className="vine-flower-center" cx="42" cy="350" rx="4" ry="5" />
+      <ellipse className="vine-flower" cx="55" cy="365" rx="5" ry="8" transform="rotate(-5, 55, 365)" />
+      <ellipse className="vine-flower" cx="248" cy="620" rx="9" ry="15" transform="rotate(25, 248, 620)" />
+      <ellipse className="vine-flower" cx="265" cy="640" rx="7" ry="11" transform="rotate(-10, 265, 640)" />
+      <ellipse className="vine-flower-center" cx="248" cy="620" rx="3.5" ry="4.5" />
+      <ellipse className="vine-flower" cx="235" cy="635" rx="6" ry="9" transform="rotate(30, 235, 635)" />
+      <ellipse className="vine-flower" cx="22" cy="850" rx="8" ry="13" transform="rotate(-12, 22, 850)" />
+      <ellipse className="vine-flower" cx="40" cy="865" rx="6" ry="10" transform="rotate(8, 40, 865)" />
+      <ellipse className="vine-flower-center" cx="22" cy="850" rx="3" ry="4" />
+      <ellipse className="vine-leaf" cx="60" cy="220" rx="12" ry="5" transform="rotate(40, 60, 220)" />
+      <ellipse className="vine-leaf" cx="5" cy="500" rx="14" ry="5" transform="rotate(-30, 5, 500)" />
+      <ellipse className="vine-leaf" cx="230" cy="400" rx="10" ry="4" transform="rotate(50, 230, 400)" />
+      <ellipse className="vine-leaf" cx="270" cy="780" rx="12" ry="5" transform="rotate(-45, 270, 780)" />
+    </svg>
+  </div>
 )
 
-// 侧边栏边框上攀附的花藤
-const SidebarVines = ({ theme }) => {
-  const Flower = FLOWER_COMP[THEME_FLOWER[theme]] || Wisteria
-  const curly = theme === 'warm'
-
-  const leftMain = curly
-    ? 'M18 -10 C34 130, 4 236, 30 358 C58 486, 8 596, 26 728 C42 846, 14 940, 22 1080'
-    : 'M20 -10 C30 148, 8 278, 38 402 C68 524, 12 654, 28 802 C44 950, 18 1010, 22 1080'
-  const leftThin = curly
-    ? 'M18 30 C6 140, 46 226, 20 340 C-4 452, 40 566, 16 690 C-6 800, 34 900, 20 1010'
-    : 'M20 20 C14 124, 46 242, 20 384 C-6 526, 36 686, 20 848 C10 950, 28 1000, 22 1060'
-  const rightMain = 'M262 -10 C240 176, 272 318, 250 480 C228 642, 266 782, 250 942 C238 1030, 262 1050, 258 1080'
-  const rightThin = 'M262 60 C274 204, 240 352, 262 502 C284 652, 246 802, 260 952'
-
-  return (
-    <div className="vine-wrapper" aria-hidden="true">
-      <svg className="vine-top" viewBox="0 0 280 1080" xmlns="http://www.w3.org/2000/svg">
-        <VineDefs />
-
-        <path className="vine-glow" d={leftMain} strokeWidth="9" pathLength="1" />
-        <path className="vine-glow" d={rightMain} strokeWidth="8" pathLength="1" />
-
-        <path className="vine-path" d={leftMain} strokeWidth="2.8" pathLength="1" />
-        <path className="vine-path thin" d={leftThin} strokeWidth="1.3" pathLength="1" style={{ animationDelay: '0.25s' }} />
-        <path className="vine-path" d={rightMain} strokeWidth="2.4" pathLength="1" style={{ animationDelay: '0.15s' }} />
-        <path className="vine-path thin" d={rightThin} strokeWidth="1.2" pathLength="1" style={{ animationDelay: '0.4s' }} />
-
-        <g transform="rotate(38 56 212)"><ellipse className="vine-leaf" cx="56" cy="212" rx="12" ry="4.6" style={{ animationDelay: '0.9s' }} /></g>
-        <g transform="rotate(-32 8 486)"><ellipse className="vine-leaf" cx="8" cy="486" rx="14" ry="5" style={{ animationDelay: '1.15s' }} /></g>
-        <g transform="rotate(24 44 612)"><ellipse className="vine-leaf" cx="44" cy="612" rx="10" ry="4" style={{ animationDelay: '1.3s' }} /></g>
-        <g transform="rotate(52 234 392)"><ellipse className="vine-leaf" cx="234" cy="392" rx="11" ry="4.2" style={{ animationDelay: '1.0s' }} /></g>
-        <g transform="rotate(-46 272 742)"><ellipse className="vine-leaf" cx="272" cy="742" rx="12.5" ry="5" style={{ animationDelay: '1.25s' }} /></g>
-        <g transform="rotate(30 248 880)"><ellipse className="vine-leaf" cx="248" cy="880" rx="10" ry="4" style={{ animationDelay: '1.45s' }} /></g>
-
-        <Flower x={17} y={118} s={1.05} seed={2} delay={0.85} />
-        <Flower x={31} y={352} s={0.86} seed={5} delay={1.1} />
-        <Flower x={15} y={640} s={0.95} seed={9} delay={1.35} />
-        <Flower x={259} y={252} s={0.9} seed={4} delay={1.0} />
-        <Flower x={263} y={598} s={1.02} seed={7} delay={1.25} />
-        <Flower x={255} y={912} s={0.82} seed={11} delay={1.5} />
-      </svg>
-
-      <svg className="vine-bottom" viewBox="0 0 280 340" xmlns="http://www.w3.org/2000/svg">
-        <path className="vine-path thin" d="M0 330 C56 316, 92 292, 126 262 C158 234, 196 220, 280 216" strokeWidth="1.5" pathLength="1" style={{ animationDelay: '0.6s' }} />
-        <g transform="rotate(-28 96 288)"><ellipse className="vine-leaf" cx="96" cy="288" rx="11" ry="4.2" style={{ animationDelay: '1.5s' }} /></g>
-        <g transform="rotate(18 196 222)"><ellipse className="vine-leaf" cx="196" cy="222" rx="10" ry="4" style={{ animationDelay: '1.65s' }} /></g>
-        <Flower x={54} y={302} s={0.7} seed={13} delay={1.6} />
-        <Flower x={228} y={214} s={0.62} seed={17} delay={1.75} />
-      </svg>
-    </div>
-  )
-}
-
-// 聊天区右下角的一小枝
-const CornerFlourish = ({ theme }) => {
-  const Flower = FLOWER_COMP[THEME_FLOWER[theme]] || Wisteria
-  return (
-    <svg className="corner-flourish" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <VineDefs />
-      <path className="vine-path thin" d="M220 214 C168 206, 130 178, 106 140 C84 106, 62 88, 24 78" strokeWidth="1.6" pathLength="1" />
-      <g transform="rotate(-34 128 164)"><ellipse className="vine-leaf" cx="128" cy="164" rx="11" ry="4.2" style={{ animationDelay: '1.1s' }} /></g>
-      <g transform="rotate(22 72 94)"><ellipse className="vine-leaf" cx="72" cy="94" rx="10" ry="3.8" style={{ animationDelay: '1.3s' }} /></g>
-      <Flower x={100} y={128} s={0.68} seed={21} delay={1.2} />
-      <Flower x={34} y={72} s={0.56} seed={29} delay={1.45} />
-    </svg>
-  )
-}
-
 // ============================================================
-// 3. 主组件 ChatPage
+// 3. 主组件 ChatPage（状态、API、工具函数 —— 与原版完全一致）
 // ============================================================
 const ChatPage = () => {
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('hasVisited'))
@@ -653,6 +352,7 @@ const ChatPage = () => {
   const [renameModal, setRenameModal] = useState({ show: false, sessionId: null, value: '' })
   const [theme, setTheme] = useState(() => localStorage.getItem('ks_theme') || 'warm')
   const [toasts, setToasts] = useState([])
+  const [inputFocused, setInputFocused] = useState(false) // 纯视觉：输入框聚焦时的高级感辉光，不影响任何逻辑
 
   const showToast = (message) => {
     const id = Date.now() + Math.random()
@@ -780,7 +480,6 @@ const ChatPage = () => {
     try { const res = await axios.get(`${API_BASE}/settings`); setConfig(res.data) }
     catch (err) { console.error('加载设置失败:', err.message) }
   }
-
   const saveSettings = async () => {
     try { await axios.post(`${API_BASE}/settings`, config); setShowSetting(false); showToast('配置已保存') }
     catch (err) { console.error('保存设置失败:', err.message); showToast('保存失败：' + err.message) }
@@ -808,7 +507,7 @@ const ChatPage = () => {
     localStorage.setItem('ks_theme', theme)
     let meta = document.querySelector('meta[name="theme-color"]')
     if (!meta) { meta = document.createElement('meta'); meta.name = 'theme-color'; document.head.appendChild(meta) }
-    meta.setAttribute('content', THEME_META_COLOR[theme] || '#F6EDE0')
+    meta.setAttribute('content', THEME_META_COLOR[theme] || '#F3E7D6')
   }, [theme])
 
   const cycleTheme = () => {
@@ -835,11 +534,10 @@ const ChatPage = () => {
   // ---------- 工具函数 ----------
   const formatTime = (timeStr) => {
     if (!timeStr) return ''
-    const date = new Date(timeStr)
+    let date = new Date(timeStr)
     if (Number.isNaN(date.getTime())) return String(timeStr).slice(0, 16)
     return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
   }
-
   const formatDate = (timeStr) => {
     if (!timeStr) return ''
     const date = new Date(timeStr); const now = new Date()
@@ -848,7 +546,6 @@ const ChatPage = () => {
     if (date.toDateString() === yesterday.toDateString()) return '昨天'
     return `${date.getMonth() + 1}月${date.getDate()}日`
   }
-
   const groupMessagesByDate = (msgs) => {
     const groups = {}
     msgs.forEach(msg => { const d = formatDate(msg.created_at); if (!groups[d]) groups[d] = []; groups[d].push(msg) })
@@ -856,102 +553,63 @@ const ChatPage = () => {
   }
 
   // ---------- 渲染消息项 ----------
-  const renderMsgItem = (msg, key) => {
-    const isUser = msg.role === 'user'
-    return (
-      <div key={key} className="msg-row" style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '18px', padding: '0 16px' }}>
-        <div style={{ maxWidth: '78%', display: 'flex', flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '9px' }}>
-          {isUser ? <UserAvatar /> : <AIAvatar />}
-          <div
-            className={`bubble-glass${isUser ? ' is-user' : ''}`}
-            style={{ borderRadius: isUser ? '22px 22px 7px 22px' : '22px 22px 22px 7px' }}
-          >
-            <div className="msg-text">{msg.content}</div>
-            <div className="msg-time">{formatTime(msg.created_at)}</div>
-          </div>
+  const renderMsgItem = (msg, key) => (
+    <div key={key} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: '18px', padding: '0 16px' }}>
+      <div style={{ maxWidth: '78%', display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '9px' }}>
+        {msg.role === 'user' ? <UserAvatar /> : <AIAvatar />}
+        <div className="bubble-glass" style={{ borderRadius: msg.role === 'user' ? '26px 26px 6px 26px' : '26px 26px 26px 6px' }}>
+          <div className="msg-text">{msg.content}</div>
+          <div style={{ fontSize: '11px', marginTop: '7px', color: 'var(--c-text-faint)', textAlign: 'right', letterSpacing: '0.5px' }}>{formatTime(msg.created_at)}</div>
         </div>
       </div>
-    )
-  }
+    </div>
+  )
 
   const groupedMessages = groupMessagesByDate(messages)
-
   return (
-    <div
-      data-theme={theme}
-      style={{
-        flex: 1, display: 'flex',
-        height: 'var(--app-height, 100dvh)', maxHeight: 'var(--app-height, 100dvh)',
-        background: 'var(--c-bg-gradient)', color: 'var(--c-text)',
-        fontFamily: 'var(--font-body)', overflow: 'hidden', position: 'relative'
-      }}
-    >
-      <AmbientBackdrop />
+    <div data-theme={theme} style={{ flex: 1, display: 'flex', height: 'var(--app-height, 100dvh)', maxHeight: 'var(--app-height, 100dvh)', background: 'var(--c-bg-gradient)', color: 'var(--c-text)', fontFamily: 'var(--font-body)', overflow: 'hidden', position: 'relative' }}>
 
-      {showSplash && <SplashScreen onEnter={handleSplashEnter} theme={theme} />}
+      {/* 4层光晕背景（含每个主题独有的信号元素：教堂天光 / 金色浮尘 / 夜光百合） */}
+      <div className="ambient-bg"><div className="blob" /><div className="blob" /><div className="blob" /><div className="blob" /></div>
+      {/* 全局胶片颗粒，叠加在最上层但不阻挡交互 */}
+      <div className="grain-overlay" />
+
+      {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
 
       {/* 遮罩层 */}
       {showSidebar && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 200, animation: 'fadeIn 0.35s ease' }}
-          onClick={() => setShowSidebar(false)}
-        />
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(6px)', zIndex: 200, animation: 'fadeIn 0.3s ease' }} onClick={() => setShowSidebar(false)} />
       )}
 
-      {/* ====== 侧边栏（花藤攀附） ====== */}
-      <div
-        className="sidebar-panel"
-        style={{
-          left: showSidebar ? 0 : '-320px',
-          boxShadow: showSidebar ? '10px 0 60px var(--c-shadow-deep)' : 'none'
-        }}
-      >
-        {showSidebar && <SidebarVines theme={theme} />}
-
+      {/* ====== 侧边栏（含花藤） ====== */}
+      <div style={{
+        position: 'fixed', top: 0, left: showSidebar ? 0 : '-320px',
+        width: '280px', height: 'var(--app-height, 100dvh)',
+        background: 'var(--c-surface)', backdropFilter: 'blur(28px) saturate(1.25)',
+        WebkitBackdropFilter: 'blur(28px) saturate(1.25)',
+        zIndex: 300, transition: 'left 0.45s cubic-bezier(0.4, 0, 0.2, 1)',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: showSidebar ? '6px 0 46px var(--c-shadow)' : 'none',
+        borderRight: '1px solid var(--c-border)',
+        overflow: 'hidden'
+      }}>
+        {showSidebar && <SidebarVines />}
         <div style={{ position: 'relative', zIndex: 20, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <div style={{ padding: '26px 22px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <div style={{ padding: '28px 20px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
               <Wordmark size="md" />
-              <button
-                className="icon-btn"
-                onClick={cycleTheme}
-                title={`当前：${THEME_LABELS[theme]} · ${THEME_FLOWER_NAME[theme]}`}
-                style={{ background: 'transparent', border: '1px solid var(--c-border)', borderRadius: '999px', width: '31px', height: '31px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--c-text-muted)' }}
-              >
+              <button className="icon-btn" onClick={cycleTheme} title={`当前主题：${THEME_LABELS[theme]}`} style={{ background: 'transparent', border: '1px solid var(--c-border)', borderRadius: '999px', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--c-text-muted)' }}>
                 <Icon.Moon size={13} />
               </button>
             </div>
-
-            <div style={{ fontSize: '10.5px', color: 'var(--c-text-faint)', letterSpacing: '2.6px', marginBottom: '20px', fontFamily: "'Cormorant Garamond', serif" }}>
-              {THEME_LABELS[theme].toUpperCase()} · {THEME_FLOWER_NAME[theme]}
-            </div>
-
-            <button
-              className="pill-btn"
-              onClick={createSession}
-              style={{ width: '100%', padding: '13px', borderRadius: '17px', cursor: 'pointer', marginBottom: '4px', fontSize: '13.5px', fontFamily: 'var(--font-body)', letterSpacing: '1.2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}
-            >
+            <button onClick={createSession} className="primary-btn" style={{ width: '100%', padding: '12px', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', borderRadius: '16px', color: 'var(--c-accent-text)', cursor: 'pointer', marginBottom: '4px', fontSize: '13.5px', fontFamily: 'var(--font-body)', letterSpacing: '1px', boxShadow: '0 4px 16px var(--c-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <Icon.Plus size={12} /> 新建对话
             </button>
           </div>
-
           <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px' }}>
-            <div style={{ fontSize: '10.5px', color: 'var(--c-text-faint)', marginBottom: '10px', paddingLeft: '6px', letterSpacing: '2.2px', textTransform: 'uppercase', fontFamily: "'Cormorant Garamond', serif" }}>
-              最近对话
-            </div>
+            <div style={{ fontSize: '11px', color: 'var(--c-text-faint)', marginBottom: '8px', paddingLeft: '4px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>最近对话</div>
             {sessionList.map(item => (
-              <div
-                key={item.id}
-                className={`session-item${activeSessionId === item.id ? ' is-active' : ''}`}
-                style={{
-                  padding: '12px 14px 12px 16px', borderRadius: '15px',
-                  background: activeSessionId === item.id ? 'var(--c-accent-soft)' : 'transparent',
-                  cursor: 'pointer', marginBottom: '5px',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  border: `1px solid ${activeSessionId === item.id ? 'var(--c-border)' : 'transparent'}`
-                }}
-                onClick={() => switchSession(item.id)}
-              >
+              <div key={item.id} className="session-item" style={{ padding: '12px 14px', borderRadius: '14px', background: activeSessionId === item.id ? 'var(--c-accent-soft)' : 'transparent', cursor: 'pointer', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: activeSessionId === item.id ? '1px solid var(--c-border)' : '1px solid transparent' }} onClick={() => switchSession(item.id)}>
                 <span style={{ fontSize: '13.5px', color: 'var(--c-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
                 <div className="session-actions" style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
                   <button className="icon-btn" onClick={(e) => { e.stopPropagation(); handleRenameClick(item.id, item.title) }} style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}><Icon.Edit /></button>
@@ -960,13 +618,8 @@ const ChatPage = () => {
               </div>
             ))}
           </div>
-
           <div style={{ padding: '16px', borderTop: '1px solid var(--c-border)', position: 'relative', zIndex: 20 }}>
-            <button
-              className="ghost-btn"
-              onClick={() => { setShowSidebar(false); setShowSetting(true) }}
-              style={{ width: '100%', padding: '11px', borderRadius: '13px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}
-            >
+            <button onClick={() => { setShowSidebar(false); setShowSetting(true) }} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text-muted)', cursor: 'pointer', fontSize: '13px', fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <SettingsIcon size={14} /> 全局设置
             </button>
           </div>
@@ -975,58 +628,45 @@ const ChatPage = () => {
 
       {/* ====== 主聊天区域 ====== */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative' }}>
-        <CornerFlourish theme={theme} />
-
-        <div className="chat-header" style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, zIndex: 2 }}>
-          <button className="icon-btn" onClick={() => setShowSidebar(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-text-muted)', display: 'flex' }}>
-            <Icon.Menu />
-          </button>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '15.5px', fontStyle: 'italic', color: 'var(--c-text-muted)', letterSpacing: '0.6px', maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {activeSessionId ? (sessionList.find(s => s.id === activeSessionId)?.title || '对话中') : 'ke & shu'}
+        <div style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--c-border)', flexShrink: 0, background: 'linear-gradient(180deg, var(--c-surface), transparent)', backdropFilter: 'blur(6px)' }}>
+          <button className="icon-btn" onClick={() => setShowSidebar(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-text-muted)', display: 'flex' }}><Icon.Menu /></button>
+          <div style={{ fontFamily: 'var(--font-accent)', fontSize: '15px', fontStyle: 'italic', color: 'var(--c-text-muted)', letterSpacing: '0.6px' }}>
+            {activeSessionId ? (sessionList.find(s => s.id === activeSessionId)?.title || '对话中') : 'ke&shu'}
           </div>
           <div style={{ width: '20px' }} />
         </div>
 
-        <div ref={messageBoxRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 0 8px', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', minHeight: 0, position: 'relative', zIndex: 1 }}>
+        <div ref={messageBoxRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 0', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', minHeight: 0, position: 'relative', zIndex: 1 }}>
           {!activeSessionId ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--c-text-faint)', gap: '18px' }}>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '92px', height: '92px', borderRadius: '50%', border: '1px solid var(--c-border)', boxShadow: '0 0 60px var(--c-accent-soft), inset 0 0 30px var(--c-accent-soft)' }}>
-                <AIAvatar size={44} />
-              </div>
-              <div style={{ fontSize: '14.5px', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', letterSpacing: '1px' }}>选择或新建一个对话</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--c-text-faint)', gap: '16px' }}>
+              <AIAvatar size={46} />
+              <div style={{ fontSize: '14px', fontFamily: 'var(--font-accent)', fontStyle: 'italic', letterSpacing: '0.5px' }}>选择或新建一个对话</div>
             </div>
           ) : (
             <>
               {hasOlderArchive && (
-                <div style={{ textAlign: 'center', padding: '14px 0 18px' }}>
-                  <span
-                    onClick={loadOlderArchive}
-                    className="ghost-btn"
-                    style={{ cursor: 'pointer', padding: '8px 18px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', letterSpacing: '0.6px' }}
-                  >
+                <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--c-text-faint)', fontSize: '12px' }}>
+                  <span onClick={loadOlderArchive} style={{ cursor: 'pointer', padding: '7px 16px', borderRadius: '999px', background: 'var(--c-surface)', border: '1px solid var(--c-border)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                     <Icon.ArrowUp size={11} /> 加载更早的历史
                   </span>
                 </div>
               )}
-
               {archivedList.map((msg, idx) => renderMsgItem(msg, `arch-${idx}`))}
-
               {Object.entries(groupedMessages).map(([date, msgs]) => (
                 <div key={date}>
-                  <div className="date-divider">
-                    <span className="rule" />
-                    <span className="label">{date}</span>
-                    <span className="rule" />
+                  <div style={{ textAlign: 'center', margin: '20px 0 12px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--c-text-faint)', background: 'var(--c-surface)', padding: '4px 14px', borderRadius: '999px', letterSpacing: '1px' }}>{date}</span>
                   </div>
                   {msgs.map((msg, idx) => renderMsgItem(msg, `live-${idx}`))}
                 </div>
               ))}
-
               {loading && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 16px 8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 20px', color: 'var(--c-text-muted)', fontSize: '13px' }}>
                   <AIAvatar />
-                  <div className="bubble-glass" style={{ borderRadius: '22px 22px 22px 7px', padding: '14px 20px' }}>
-                    <div className="typing-dots"><span /><span /><span /></div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0s' }}>·</span>
+                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.2s' }}>·</span>
+                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.4s' }}>·</span>
                   </div>
                 </div>
               )}
@@ -1034,17 +674,19 @@ const ChatPage = () => {
           )}
         </div>
 
-        <div className="composer" style={{ padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)', flexShrink: 0, zIndex: 2 }}>
-          <div style={{ display: 'flex', gap: '11px', alignItems: 'flex-end' }}>
+        <div style={{ padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)', borderTop: '1px solid var(--c-border)', background: 'var(--c-surface)', backdropFilter: 'blur(12px)', flexShrink: 0, position: 'relative', zIndex: 1 }}>
+          <div className="input-shell" style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', borderRadius: '22px', padding: '2px', boxShadow: inputFocused ? '0 0 0 2px var(--c-accent-soft), 0 6px 24px var(--c-shadow)' : '0 2px 8px var(--c-shadow)' }}>
             <textarea
-              className="composer-input"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.ctrlKey && e.key === 'Enter' && sendMessage()}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
               placeholder="Tell me everything..."
+              style={{ flex: 1, padding: '12px 16px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '18px', color: 'var(--c-text)', resize: 'none', fontFamily: 'inherit', fontSize: '14px', outline: 'none', lineHeight: '1.5', minHeight: '46px' }}
               rows={1}
             />
-            <button className="send-btn" onClick={sendMessage} disabled={loading || !activeSessionId}>
+            <button onClick={sendMessage} disabled={loading || !activeSessionId} className="send-btn" style={{ width: '46px', height: '46px', borderRadius: '50%', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', color: 'var(--c-accent-text)', cursor: loading || !activeSessionId ? 'not-allowed' : 'pointer', opacity: loading || !activeSessionId ? 0.45 : 1, boxShadow: '0 3px 14px var(--c-shadow)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Icon.ArrowUp size={18} />
             </button>
           </div>
@@ -1058,23 +700,13 @@ const ChatPage = () => {
 
       {/* 重命名弹窗 */}
       {renameModal.show && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, animation: 'fadeIn 0.2s ease' }}
-          onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}
-        >
-          <div className="glass-modal" style={{ padding: '28px 26px 22px', width: '300px', maxWidth: '86vw' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: '16px', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '16px', letterSpacing: '0.5px' }}>重命名对话</div>
-            <input
-              ref={renameInputRef}
-              className="field-input"
-              value={renameModal.value}
-              onChange={(e) => setRenameModal(p => ({ ...p, value: e.target.value }))}
-              onKeyDown={(e) => e.key === 'Enter' && confirmRename()}
-              style={{ marginBottom: '18px', fontSize: '14px' }}
-            />
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, animation: 'fadeIn 0.2s ease' }} onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}>
+          <div style={{ background: 'var(--c-surface-solid)', borderRadius: '24px', padding: '28px 24px 22px', width: '300px', maxWidth: '86vw', boxShadow: '0 24px 70px var(--c-shadow)', border: '1px solid var(--c-border)', animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: '16px', fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '16px' }}>重命名对话</div>
+            <input ref={renameInputRef} value={renameModal.value} onChange={(e) => setRenameModal(p => ({ ...p, value: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '14px', outline: 'none', marginBottom: '18px' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="ghost-btn" onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })} style={{ flex: 1, padding: '11px 0', borderRadius: '14px', fontSize: '13.5px' }}>取消</button>
-              <button className="pill-btn" onClick={confirmRename} style={{ flex: 1, padding: '11px 0', borderRadius: '14px', fontSize: '13.5px', cursor: 'pointer' }}>确定</button>
+              <button onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)', background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px', cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
+              <button onClick={confirmRename} className="primary-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)', background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
             </div>
           </div>
         </div>
@@ -1082,13 +714,13 @@ const ChatPage = () => {
 
       {/* 删除确认弹窗 */}
       {deleteModal.show && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease' }}>
-          <div className="glass-modal" style={{ padding: '30px 26px 22px', width: '300px', maxWidth: '86vw', textAlign: 'center' }}>
-            <div style={{ fontSize: '16px', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '8px' }}>确定删除这段对话？</div>
-            <div style={{ fontSize: '12.5px', color: 'var(--c-text-muted)', marginBottom: '24px', lineHeight: 1.6 }}>"{deleteModal.name}" 将被永久删除</div>
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease' }}>
+          <div style={{ background: 'var(--c-surface-solid)', borderRadius: '24px', padding: '30px 24px 22px', width: '300px', maxWidth: '86vw', textAlign: 'center', boxShadow: '0 24px 70px var(--c-shadow)', border: '1px solid var(--c-border)', animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}>
+            <div style={{ fontSize: '16px', fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '8px' }}>确定删除这段对话？</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--c-text-muted)', marginBottom: '24px' }}>"{deleteModal.name}" 将被永久删除</div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="ghost-btn" onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })} style={{ flex: 1, padding: '11px 0', borderRadius: '14px', fontSize: '13.5px' }}>取消</button>
-              <button className="pill-btn" onClick={confirmDelete} style={{ flex: 1, padding: '11px 0', borderRadius: '14px', fontSize: '13.5px', cursor: 'pointer' }}>确定</button>
+              <button onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)', background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px', cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
+              <button onClick={confirmDelete} className="primary-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)', background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
             </div>
           </div>
         </div>
@@ -1096,57 +728,34 @@ const ChatPage = () => {
 
       {/* 全局设置弹窗 */}
       {showSetting && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '20px' }}>
-          <div className="glass-modal" style={{ width: '480px', maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', padding: '30px' }}>
-            <h3 style={{ marginTop: 0, fontWeight: 400, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontSize: '21px', color: 'var(--c-text)', marginBottom: '24px', letterSpacing: '0.5px' }}>全局设置</h3>
-
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ fontSize: '10.5px', color: 'var(--c-text-faint)', display: 'block', marginBottom: '11px', letterSpacing: '2.2px', textTransform: 'uppercase' }}>外观</label>
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '20px' }}>
+          <div style={{ width: '480px', maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', background: 'var(--c-surface-solid)', padding: '30px', borderRadius: '24px', boxShadow: '0 14px 60px var(--c-shadow)', border: '1px solid var(--c-border)' }}>
+            <h3 style={{ marginTop: 0, fontWeight: 400, fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontSize: '21px', color: 'var(--c-text)', marginBottom: '24px' }}>全局设置</h3>
+            <div style={{ marginBottom: '22px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--c-text-faint)', display: 'block', marginBottom: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>外观</label>
               <div style={{ display: 'flex', gap: '8px' }}>
-                {THEMES.map(t => (
-                  <button
-                    key={t}
-                    className="theme-pill"
-                    onClick={() => setTheme(t)}
-                    style={{
-                      flex: 1, padding: '11px 0', borderRadius: '999px',
-                      border: `1px solid ${theme === t ? 'var(--c-accent)' : 'var(--c-border)'}`,
-                      background: theme === t ? 'var(--c-accent)' : 'transparent',
-                      color: theme === t ? 'var(--c-accent-text)' : 'var(--c-text-muted)',
-                      fontSize: '12.5px', letterSpacing: '1.2px', cursor: 'pointer',
-                      fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.4
-                    }}
-                  >
-                    {THEME_LABELS[t]}
-                    <div style={{ fontSize: '9.5px', opacity: 0.7, letterSpacing: '1px', fontFamily: 'var(--font-body)' }}>{THEME_FLOWER_NAME[t]}</div>
-                  </button>
-                ))}
+                {THEMES.map(t => <button key={t} className="theme-pill" onClick={() => setTheme(t)} style={{ flex: 1, padding: '9px 0', borderRadius: '999px', border: `1px solid ${theme === t ? 'var(--c-accent)' : 'var(--c-border)'}`, background: theme === t ? 'var(--c-accent)' : 'transparent', color: theme === t ? 'var(--c-accent-text)' : 'var(--c-text-muted)', fontSize: '12.5px', letterSpacing: '1px', cursor: 'pointer', fontFamily: 'var(--font-accent)' }}>{THEME_LABELS[t]}</button>)}
               </div>
             </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '7px' }}>系统人设提示词</label>
-              <textarea className="field-input" value={config.system_prompt} onChange={(e) => setConfig(p => ({ ...p, system_prompt: e.target.value }))} rows={3} style={{ resize: 'vertical', lineHeight: 1.6 }} />
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>系统人设提示词</label>
+              <textarea value={config.system_prompt} onChange={(e) => setConfig(p => ({ ...p, system_prompt: e.target.value }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} rows={3} />
             </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '7px' }}>Temperature（随机性）</label>
-              <input className="field-input" type="number" step="0.1" min="0" max="1.5" value={config.temperature} onChange={(e) => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))} />
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>Temperature（随机性）</label>
+              <input type="number" step="0.1" min="0" max="1.5" value={config.temperature} onChange={(e) => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} />
             </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '7px' }}>记忆压缩阈值 token</label>
-              <input className="field-input" type="number" value={config.compress_threshold} onChange={(e) => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))} />
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>记忆压缩阈值 token</label>
+              <input type="number" value={config.compress_threshold} onChange={(e) => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} />
             </div>
-
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '7px' }}>压缩后保留回合数</label>
-              <input className="field-input" type="number" value={config.compress_keep_rounds} onChange={(e) => setConfig(p => ({ ...p, compress_keep_rounds: Number(e.target.value) }))} />
+            <div style={{ marginBottom: '22px' }}>
+              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>压缩后保留回合数</label>
+              <input type="number" value={config.compress_keep_rounds} onChange={(e) => setConfig(p => ({ ...p, compress_keep_rounds: Number(e.target.value) }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} />
             </div>
-
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button className="ghost-btn" onClick={() => setShowSetting(false)} style={{ padding: '11px 20px', borderRadius: '13px', fontSize: '13px' }}>取消</button>
-              <button className="pill-btn" onClick={saveSettings} style={{ padding: '11px 22px', borderRadius: '13px', fontSize: '13px', cursor: 'pointer' }}>保存</button>
+              <button onClick={() => setShowSetting(false)} style={{ padding: '10px 18px', background: 'transparent', border: '1px solid var(--c-border)', color: 'var(--c-text-muted)', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>取消</button>
+              <button onClick={saveSettings} className="primary-btn" style={{ padding: '10px 18px', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', color: 'var(--c-accent-text)', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>保存</button>
             </div>
           </div>
         </div>
