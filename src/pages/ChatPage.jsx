@@ -3,7 +3,7 @@ import axios from 'axios'
 
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
 
-// 防止浏览器/Service Worker 缓存 API 响应
+// 防缓存
 axios.interceptors.request.use(config => {
   if (config.method === 'get') {
     config.params = { ...config.params, _t: Date.now() }
@@ -16,7 +16,7 @@ const THEMES = ['warm', 'mist', 'noir']
 const THEME_LABELS = { warm: 'Warm', mist: 'Mist', noir: 'Noir' }
 const THEME_META_COLOR = { warm: '#F6EDE0', mist: '#EFF2F4', noir: '#16181C' }
 
-// ========== 图标（线条风格） ==========
+// ========== 图标 ==========
 const Icon = {
   Menu: (p) => (
     <svg width={p.size || 20} height={p.size || 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -60,7 +60,7 @@ const SettingsIcon = (p) => (
   </svg>
 )
 
-// ========== 头像 (极简) ==========
+// ========== 头像 ==========
 const UserAvatar = ({ size = 30 }) => (
   <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, background: 'var(--c-bubble-user-bg)', border: '1px solid var(--c-bubble-user-border)', boxShadow: '0 2px 8px var(--c-shadow)' }} />
 )
@@ -80,7 +80,7 @@ const Wordmark = ({ size = 'md' }) => (
 )
 
 // ============================================================
-// 1. 全新开屏页：星辰汇聚 + 始终可点的 BEGIN (鲸鱼已删)
+// 1. 开屏页：星辰汇聚 + I am here (无鲸鱼)
 // ============================================================
 const SplashScreen = ({ onEnter }) => {
   const [fadeOut, setFadeOut] = useState(false)
@@ -104,26 +104,26 @@ const SplashScreen = ({ onEnter }) => {
 
   const stars = useMemo(() => Array.from({ length: 60 }).map((_, i) => {
     const angle = Math.random() * 2 * Math.PI
-    const radius = 600 + Math.random() * 800
+    const radius = 600 + Math.random() * 900
     const tx = Math.cos(angle) * radius
     const ty = Math.sin(angle) * radius
-    return { id: i, tx, ty, size: 2 + Math.random() * 4, delay: Math.random() * 0.8, duration: 1.2 + Math.random() * 0.6 }
+    return { id: i, tx, ty, size: 2 + Math.random() * 4.5, delay: Math.random() * 0.7, duration: 1.3 + Math.random() * 0.8 }
   }), [])
 
   return (
     <div className="splash-screen" style={{ position: 'fixed', inset: 0, background: 'var(--c-bg-gradient)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1000, transition: 'opacity 0.7s ease, transform 0.7s ease', opacity: fadeOut ? 0 : 1, transform: fadeOut ? 'scale(1.04)' : 'scale(1)' }}>
       <div className="ambient-bg"><div className="blob" /><div className="blob" /><div className="blob" /><div className="blob" /></div>
-      <div style={{ position: 'relative', width: '200px', height: '120px', marginBottom: '20px' }}>
+      <div style={{ position: 'relative', width: '220px', height: '140px', marginBottom: '16px' }}>
         {stars.map(s => (
-          <span key={s.id} style={{ position: 'absolute', left: '50%', top: '50%', width: s.size, height: s.size, borderRadius: '50%', background: 'var(--c-star)', boxShadow: '0 0 12px var(--c-star-bright)', transform: `translate(calc(-50% + 0px), calc(-50% + 0px))`, '--tx': `${s.tx}px`, '--ty': `${s.ty}px`, animation: `convergeStar ${s.duration}s ${s.delay}s cubic-bezier(0.2, 0.9, 0.3, 1) forwards`, opacity: 0 }} />
+          <span key={s.id} style={{ position: 'absolute', left: '50%', top: '50%', width: s.size, height: s.size, borderRadius: '50%', background: 'var(--c-star)', boxShadow: '0 0 16px var(--c-star-bright)', '--tx': `${s.tx}px`, '--ty': `${s.ty}px`, animation: `convergeStar ${s.duration}s ${s.delay}s cubic-bezier(0.2, 0.9, 0.3, 1) forwards`, opacity: 0 }} />
         ))}
       </div>
       {showText && (
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(36px, 8vw, 64px)', fontWeight: 400, fontStyle: 'italic', letterSpacing: '6px', color: 'var(--c-text)', textShadow: '0 0 40px var(--c-accent-soft)', animation: 'textFadeUp 1s ease forwards, floatWord 4s ease-in-out infinite 1.5s', marginBottom: '40px', position: 'relative' }}>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(40px, 9vw, 72px)', fontWeight: 400, fontStyle: 'italic', letterSpacing: '8px', color: 'var(--c-text)', animation: 'textFadeUp 1.2s ease forwards, floatWord 5s ease-in-out infinite 1.5s', marginBottom: '40px', position: 'relative' }}>
           I am here
         </div>
       )}
-      <button onClick={handleClick} style={{ position: 'relative', padding: '14px 48px', borderRadius: '999px', border: '1px solid var(--c-star-bright)', background: 'var(--c-surface)', backdropFilter: 'blur(14px)', color: 'var(--c-text)', fontSize: '13px', cursor: 'pointer', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '4px', transition: 'all 0.3s ease', boxShadow: '0 4px 24px var(--c-shadow), inset 0 1px 0 var(--c-highlight)', zIndex: 20, pointerEvents: 'auto' }}>
+      <button onClick={handleClick} style={{ position: 'relative', padding: '14px 52px', borderRadius: '999px', border: '1px solid var(--c-star-bright)', background: 'var(--c-surface)', backdropFilter: 'blur(16px) saturate(1.4)', color: 'var(--c-text)', fontSize: '13px', cursor: 'pointer', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '5px', transition: 'all 0.3s ease', boxShadow: '0 4px 28px var(--c-shadow), inset 0 1px 0 var(--c-highlight), 0 0 60px var(--c-accent-soft)', zIndex: 20, pointerEvents: 'auto' }}>
         BEGIN
       </button>
     </div>
@@ -131,7 +131,7 @@ const SplashScreen = ({ onEnter }) => {
 }
 
 // ============================================================
-// 2. 侧边栏花藤 SVG (攀附在边框，纯矢量，无鲸鱼)
+// 2. 侧边栏花藤 SVG
 // ============================================================
 const SidebarVines = () => (
   <div className="vine-wrapper">
@@ -163,7 +163,7 @@ const SidebarVines = () => (
 )
 
 // ============================================================
-// 3. 主页面 ChatPage (逻辑部分：状态、API、处理函数)
+// 3. 主组件 ChatPage (状态、API、工具函数)
 // ============================================================
 const ChatPage = () => {
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('hasVisited'))
@@ -208,7 +208,7 @@ const ChatPage = () => {
     }, 50)
   }
 
-  // API 交互
+  // ---------- API 函数 ----------
   const fetchSessions = async () => {
     try {
       const res = await axios.get(`${API_BASE}/sessions`)
@@ -319,7 +319,7 @@ const ChatPage = () => {
     catch (err) { console.error('保存设置失败:', err.message); showToast('保存失败：' + err.message) }
   }
 
-  // 初始化
+  // ---------- 生命周期 ----------
   useEffect(() => {
     const init = async () => {
       try {
@@ -335,7 +335,7 @@ const ChatPage = () => {
     init()
   }, [])
 
-  // 主题
+  // ---------- 主题 ----------
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('ks_theme', theme)
@@ -349,7 +349,7 @@ const ChatPage = () => {
     setTheme(THEMES[(idx + 1) % THEMES.length])
   }
 
-  // 视口修复
+  // ---------- 视口适配 ----------
   useEffect(() => {
     const root = document.documentElement
     const updateHeight = () => {
@@ -365,7 +365,7 @@ const ChatPage = () => {
     }
   }, [])
 
-  // 工具函数
+  // ---------- 工具函数 ----------
   const formatTime = (timeStr) => {
     if (!timeStr) return ''
     let date = new Date(timeStr)
@@ -386,7 +386,7 @@ const ChatPage = () => {
     return groups
   }
 
-  // 渲染消息条目 (使用磨砂玻璃类)
+  // ---------- 渲染消息项 ----------
   const renderMsgItem = (msg, key) => (
     <div key={key} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: '16px', padding: '0 16px' }}>
       <div style={{ maxWidth: '78%', display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '8px' }}>
@@ -399,7 +399,7 @@ const ChatPage = () => {
     </div>
   )
 
-  const groupedMessages = groupMessagesByDate(messages);  return (
+  const groupedMessages = groupMessagesByDate(messages)  return (
     <div data-theme={theme} style={{ flex: 1, display: 'flex', height: 'var(--app-height, 100dvh)', maxHeight: 'var(--app-height, 100dvh)', background: 'var(--c-bg-gradient)', color: 'var(--c-text)', fontFamily: 'var(--font-body)', overflow: 'hidden', position: 'relative' }}>
       
       {/* 4层光晕背景 */}
@@ -412,7 +412,7 @@ const ChatPage = () => {
         <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(4px)', zIndex: 200, animation: 'fadeIn 0.3s ease' }} onClick={() => setShowSidebar(false)} />
       )}
 
-      {/* ====== 侧边栏 (含花藤，无鲸鱼) ====== */}
+      {/* ====== 侧边栏 (含花藤) ====== */}
       <div style={{
         position: 'fixed', top: 0, left: showSidebar ? 0 : '-320px',
         width: '280px', height: 'var(--app-height, 100dvh)',

@@ -1,9 +1,9 @@
 /* ============================================================
-   ke&shu --- 精装高级梦幻版 (花藤 + 光晕 + 星辰汇聚)
+   ke&shu 精装高级梦幻版 (花藤 + 4层光晕 + 星辰汇聚)
    ============================================================ */
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap');
 
-/* -------- 主题变量 (新增花藤专用色 & 磨砂透明通道) -------- */
+/* -------- 主题变量 (含花藤专用色 & 磨砂透明) -------- */
 [data-theme="warm"] {
   --c-bg-solid: #F6EDE0;
   --c-bg-gradient: radial-gradient(ellipse 140% 80% at 50% -10%, #FCF5EB 0%, #F6EDE0 45%, #EDE0CE 100%);
@@ -17,11 +17,9 @@
   --c-accent-soft: #E9D9C6;
   --c-accent-text: #FFFBF6;
   
-  /* 磨砂气泡专用 (RGB值不带单位) */
   --c-glass-bg: rgba(255, 248, 240, 0.40);
   --c-glass-border: rgba(169, 128, 93, 0.25);
   
-  /* 花藤配色 (暖金玫瑰) */
   --c-vine-main: #B28B6F;
   --c-vine-light: #E8D5C0;
   --c-flower-1: #F2D1C6;
@@ -56,7 +54,6 @@
   --c-glass-bg: rgba(235, 240, 245, 0.45);
   --c-glass-border: rgba(93, 122, 147, 0.20);
   
-  /* 花藤配色 (银灰蓝绣球) */
   --c-vine-main: #7A8FA0;
   --c-vine-light: #CCD9E3;
   --c-flower-1: #C5D6E8;
@@ -91,7 +88,6 @@
   --c-glass-bg: rgba(40, 42, 48, 0.45);
   --c-glass-border: rgba(201, 173, 134, 0.25);
   
-  /* 花藤配色 (灰藤紫渐变紫藤) */
   --c-vine-main: #A0908A;
   --c-vine-light: #6B5E5A;
   --c-flower-1: #B8A5C9;
@@ -124,7 +120,7 @@ body {
   height: 100%; width: 100%; display: flex; flex-direction: column;
 }
 
-/* -------- 动效库 -------- */
+/* -------- 动效库 (含星星汇聚、文字淡入) -------- */
 @keyframes gentleFloat {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-10px) rotate(0.5deg); }
@@ -135,22 +131,38 @@ body {
   0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
   30% { opacity: 1; transform: translateY(-3px); }
 }
-/* 星辰汇聚专用 */
+
+/* 星星汇聚关键帧（不跟内联transform冲突） */
 @keyframes convergeStar {
-  0% { transform: translate(var(--tx), var(--ty)) scale(0.2); opacity: 0; }
-  60% { opacity: 1; }
-  100% { transform: translate(0, 0) scale(1); opacity: 1; }
-}
-@keyframes textFadeUp {
-  from { opacity: 0; transform: translateY(20px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes floatWord {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-6px); }
+  0% {
+    transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.08);
+    opacity: 0;
+    filter: blur(6px);
+  }
+  55% {
+    opacity: 1;
+    filter: blur(0px);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    filter: blur(0px);
+  }
 }
 
-/* -------- 氛围背景（4层光晕，极致梦幻） -------- */
+/* I am here 淡入 */
+@keyframes textFadeUp {
+  from { opacity: 0; transform: translateY(28px) scale(0.94); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0px); }
+}
+
+/* 浮动呼吸 */
+@keyframes floatWord {
+  0%, 100% { margin-bottom: 0px; text-shadow: 0 0 30px var(--c-accent-soft), 0 0 60px var(--c-accent-soft); }
+  50% { margin-bottom: 10px; text-shadow: 0 0 50px var(--c-accent), 0 0 90px var(--c-accent-soft); }
+}
+
+/* -------- 4层光晕背景 -------- */
 .ambient-bg {
   position: fixed;
   inset: 0;
@@ -185,7 +197,7 @@ body {
   background: var(--c-blob-4);
 }
 
-/* -------- 磨砂玻璃气泡 (透出背景纹理) -------- */
+/* -------- 磨砂玻璃气泡 -------- */
 .bubble-glass {
   background: var(--c-glass-bg) !important;
   backdrop-filter: blur(24px) saturate(1.2) !important;
@@ -202,7 +214,7 @@ body {
   font-size: 14.5px;
 }
 
-/* -------- 侧边栏花藤 SVG 容器 (攀附在边框) -------- */
+/* -------- 侧边栏花藤 SVG 容器 -------- */
 .vine-wrapper {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -215,7 +227,6 @@ body {
   width: 100%;
   height: 100%;
 }
-/* 花藤路径颜色随主题自动变化 */
 .vine-path {
   stroke: var(--c-vine-main);
   fill: none;
@@ -255,7 +266,7 @@ body {
 @keyframes toastIn { from { opacity: 0; transform: translateY(-12px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes toastOut { to { opacity: 0; transform: translateY(-8px) scale(0.96); } }
 
-/* -------- 品牌字标 (无鲸鱼) -------- */
+/* -------- 品牌字标 -------- */
 .wordmark {
   font-family: 'Cormorant Garamond', Georgia, serif;
   display: inline-flex; align-items: baseline; gap: 3px;
@@ -268,7 +279,7 @@ body {
 .wordmark-md { font-size: 22px; letter-spacing: 0.3px; }
 .wordmark-md .wordmark-amp { font-size: 20px; }
 
-/* -------- 会话列表 / 主题按钮 / 滚动条 (保留你的优秀细节) -------- */
+/* -------- 其他组件样式 -------- */
 .session-item .session-actions { opacity: 0.55; transition: opacity 0.2s ease; }
 .session-item:hover .session-actions { opacity: 1; }
 .session-item { transition: background 0.2s ease, border-color 0.2s ease; }
