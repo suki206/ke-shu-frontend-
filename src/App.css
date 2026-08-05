@@ -570,18 +570,7 @@ body {
   box-shadow: 0 36px 90px var(--c-shadow), inset 0 1px 0 var(--c-highlight);
   position: relative;
 }
-.modal-card-solid::before {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: inherit;
-  padding: var(--hair);
-  background: linear-gradient(160deg, var(--c-line-strong), transparent 40%, transparent 70%, var(--c-line-strong));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  opacity: 0.7;
-}
+
 .modal-title {
   font-family: var(--font-display);
   font-size: 19px;
@@ -984,4 +973,17 @@ button { font-family: inherit; }
   font-family: SF Mono, Monaco, "Courier New", monospace;
   font-size: 12.5px;
   color: var(--c-accent);
+}
+
+/* 确保移动端列表符号和粗体斜体正常显示 */
+.markdown-body ul { list-style-type: disc; padding-left: 18px; margin: 4px 0; }
+.markdown-body ol { list-style-type: decimal; padding-left: 18px; margin: 4px 0; }
+.markdown-body li { margin-bottom: 2px; }
+.markdown-body strong { font-weight: 600; color: var(--c-text); }
+.markdown-body em {
+  font-style: italic;
+  opacity: 0.9;
+  /* 宋体没有斜体变体，用倾斜模拟兜底 */
+  transform: skewX(-3deg);
+  display: inline-block;
 }

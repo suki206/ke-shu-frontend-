@@ -40,10 +40,10 @@ const MarkdownText = ({ text }) => {
     while (i < lines.length) {
       const line = lines[i]
       // 无序列表
-      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+      if (/^[-*•]\s*/.test(line.trim())) {
         const items = []
-        while (i < lines.length && (lines[i].trim().startsWith('- ') || lines[i].trim().startsWith('* '))) {
-          items.push(lines[i].trim().slice(2))
+        while (i < lines.length && /^[-*•]\s*/.test(lines[i].trim())) {
+          items.push(lines[i].trim().replace(/^[-*•]\s*/, ''))
           i++
         }
         result.push(
@@ -54,10 +54,10 @@ const MarkdownText = ({ text }) => {
         continue
       }
       // 有序列表
-      if (/^\d+\.\s/.test(line.trim())) {
+      if (/^\d+[\.、]\s*/.test(line.trim())) {
         const items = []
-        while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
-          items.push(lines[i].trim().replace(/^\d+\.\s/, ''))
+        while (i < lines.length && /^\d+[\.、]\s*/.test(lines[i].trim())) {
+          items.push(lines[i].trim().replace(/^\d+[\.、]\s*/, ''))
           i++
         }
         result.push(
@@ -68,10 +68,10 @@ const MarkdownText = ({ text }) => {
         continue
       }
       // 引用
-      if (line.trim().startsWith('> ')) {
+      if (/^>\s*/.test(line.trim())) {
         const items = []
-        while (i < lines.length && lines[i].trim().startsWith('> ')) {
-          items.push(lines[i].trim().slice(2))
+        while (i < lines.length && /^>\s*/.test(lines[i].trim())) {
+          items.push(lines[i].trim().replace(/^>\s*/, ''))
           i++
         }
         result.push(
@@ -177,6 +177,31 @@ const Icon = {
   Moon: (p) => (
     <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="currentColor" stroke="none">
       <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" />
+    </svg>
+  ),
+  Speak: (p) => (
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
+      <path d="M4 10v4"/><path d="M8 7v10"/><path d="M12 4v16"/><path d="M16 7v10"/><path d="M20 10v4"/>
+    </svg>
+  ),
+  Copy: (p) => (
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="8" y="8" width="12" height="12" rx="1"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>
+    </svg>
+  ),
+  Refresh: (p) => (
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>
+    </svg>
+  ),
+  Pause: (p) => (
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
+      <line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/>
+    </svg>
+  ),
+  Play: (p) => (
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="5 3 19 12 5 21 5 3"/>
     </svg>
   )
 }
@@ -446,6 +471,10 @@ const ChatPage = () => {
   const [theme, setTheme] = useState(() => localStorage.getItem('ks_theme') || 'warm')
   const [toasts, setToasts] = useState([])
   const [inputFocused, setInputFocused] = useState(false)
+  const [speakingKey, setSpeakingKey] = useState(null)
+  const [isSpeakingPaused, setIsSpeakingPaused] = useState(false)
+  const [voices, setVoices] = useState([])
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState(() => localStorage.getItem('ks_voice') || '')
 
   const showToast = (message) => {
     const id = Date.now() + Math.random()
@@ -458,27 +487,69 @@ const renameInputRef = useRef(null)
 const typingRef = useRef(null)
 
 // 语音朗读
-const speakMessage = (text) => {
-  if (!window.speechSynthesis) { showToast('当前浏览器不支持语音朗读'); return }
+const startSpeak = (text, msgKey) => {
   const utter = new SpeechSynthesisUtterance(text)
   utter.lang = 'zh-CN'
   utter.rate = 0.9
   utter.pitch = 1.05
-  window.speechSynthesis.cancel()
+  if (selectedVoiceURI) {
+    const voice = voices.find(v => v.voiceURI === selectedVoiceURI)
+    if (voice) utter.voice = voice
+  }
+  utter.onend = () => { setSpeakingKey(null); setIsSpeakingPaused(false) }
+  utter.onerror = () => { setSpeakingKey(null); setIsSpeakingPaused(false) }
   window.speechSynthesis.speak(utter)
+  setSpeakingKey(msgKey)
+  setIsSpeakingPaused(false)
 }
 
-// 复制消息
+const speakMessage = (text, msgKey) => {
+  if (!window.speechSynthesis) { showToast('当前浏览器不支持语音朗读'); return }
+  if (speakingKey === msgKey) {
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume()
+      setIsSpeakingPaused(false)
+    } else if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause()
+      setIsSpeakingPaused(true)
+    } else {
+      startSpeak(text, msgKey)
+    }
+    return
+  }
+  window.speechSynthesis.cancel()
+  startSpeak(text, msgKey)
+}
+
+// 复制消息（支持 iOS PWA）
 const copyMessage = async (text) => {
-  try { await navigator.clipboard.writeText(text); showToast('已复制') }
-  catch { showToast('复制失败') }
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      showToast('已复制')
+      return
+    }
+  } catch (e) {}
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;'
+  document.body.appendChild(ta)
+  ta.focus()
+  ta.select()
+  try {
+    const ok = document.execCommand('copy')
+    showToast(ok ? '已复制' : '复制失败')
+  } catch (e) {
+    showToast('复制失败')
+  }
+  document.body.removeChild(ta)
 }
 
 // 导出对话
 const exportConversation = () => {
   if (!activeSessionId || messages.length === 0) { showToast('没有可导出的对话'); return }
   const sessionTitle = sessionList.find(s => s.id === activeSessionId)?.title || '对话'
-  const dateStr = new Date().toLocaleDateString('zh-CN')
+  const dateStr = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
   let md = `# ${sessionTitle}\n\n> 导出时间：${dateStr}\n\n---\n\n`
   const allMsgs = [...archivedList, ...messages]
   allMsgs.forEach(msg => {
@@ -554,12 +625,16 @@ const regenerateLastMessage = async () => {
     } catch (err) { console.error('创建会话失败:', err.message); showToast('创建会话失败：' + err.message) }
   }
 
-  const switchSession = async (sid) => {
-      // 清除正在进行的打字机
-  if (typingRef.current) {
-    clearInterval(typingRef.current)
-    typingRef.current = null
-  }
+   const switchSession = async (sid) => {
+    // 清除正在进行的打字机
+    if (typingRef.current) {
+      clearInterval(typingRef.current)
+      typingRef.current = null
+    }
+    // 切换会话时停止语音
+    window.speechSynthesis?.cancel()
+    setSpeakingKey(null)
+    setIsSpeakingPaused(false)
     try {
       sessionStorage.setItem('activeSessionId', sid)
       setActiveSessionId(sid)
@@ -572,7 +647,6 @@ const regenerateLastMessage = async () => {
       } catch (e) { console.error('归档检测失败:', e.message) }
     } catch (err) { console.error('切换会话失败:', err.message) }
   }
-
   const loadOlderArchive = async () => {
     if (!activeSessionId) return
     try {
@@ -713,6 +787,17 @@ const regenerateLastMessage = async () => {
     init()
   }, [])
 
+  // 加载系统可用音色
+  useEffect(() => {
+    const loadVoices = () => {
+      const vs = window.speechSynthesis?.getVoices() || []
+      setVoices(vs.filter(v => v.lang && (v.lang.startsWith('zh') || v.lang.startsWith('cmn'))))
+    }
+    loadVoices()
+    window.speechSynthesis?.addEventListener('voiceschanged', loadVoices)
+    return () => window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices)
+  }, [])
+
   // ---------- 主题 ----------
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -807,27 +892,33 @@ const regenerateLastMessage = async () => {
             {!isUser && !msg.typing && (
               <>
                 <span
-                  onClick={() => speakMessage(msg.content)}
-                  title="朗读"
-                  style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s' }}
-                  onMouseEnter={e => e.target.style.opacity = '0.9'}
-                  onMouseLeave={e => e.target.style.opacity = '0.45'}
-                >🔊</span>
+                  onClick={() => speakMessage(msg.content, key)}
+                  title={speakingKey === key ? (isSpeakingPaused ? '继续' : '暂停') : '朗读'}
+                  style={{ cursor: 'pointer', opacity: speakingKey === key ? 0.9 : 0.45, fontSize: '10px', transition: 'opacity 0.2s', display: 'inline-flex', alignItems: 'center' }}
+                  onMouseEnter={e => { if (speakingKey !== key) e.target.style.opacity = '0.9' }}
+                  onMouseLeave={e => { if (speakingKey !== key) e.target.style.opacity = '0.45' }}
+                >
+                  {speakingKey === key && !isSpeakingPaused ? <Icon.Pause size={10} /> : speakingKey === key && isSpeakingPaused ? <Icon.Play size={10} /> : <Icon.Speak size={10} />}
+                </span>
                 <span
                   onClick={() => copyMessage(msg.content)}
                   title="复制"
-                  style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s' }}
+                  style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s', display: 'inline-flex', alignItems: 'center' }}
                   onMouseEnter={e => e.target.style.opacity = '0.9'}
                   onMouseLeave={e => e.target.style.opacity = '0.45'}
-                >📋</span>
+                >
+                  <Icon.Copy size={10} />
+                </span>
                 {isLastAI && (
                   <span
                     onClick={regenerateLastMessage}
                     title="重新生成"
-                    style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s' }}
+                    style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s', display: 'inline-flex', alignItems: 'center' }}
                     onMouseEnter={e => e.target.style.opacity = '0.9'}
                     onMouseLeave={e => e.target.style.opacity = '0.45'}
-                  >🔄</span>
+                  >
+                    <Icon.Refresh size={10} />
+                  </span>
                 )}
               </>
             )}
@@ -1085,6 +1176,24 @@ const regenerateLastMessage = async () => {
     导出当前对话
   </button>
 </div>
+
+            <div style={{ marginBottom: '26px' }}>
+              <div className="eyebrow" style={{ marginBottom: '12px' }}>Voice</div>
+              <select
+                className="field-input"
+                value={selectedVoiceURI}
+                onChange={(e) => {
+                  setSelectedVoiceURI(e.target.value)
+                  localStorage.setItem('ks_voice', e.target.value)
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <option value="">系统默认</option>
+                {voices.map(v => (
+                  <option key={v.voiceURI} value={v.voiceURI}>{v.name}</option>
+                ))}
+              </select>
+            </div>
 
             <div style={{ marginBottom: '16px' }}>
               <div className="eyebrow" style={{ marginBottom: '8px' }}>System prompt</div>
