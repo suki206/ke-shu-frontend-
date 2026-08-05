@@ -12,6 +12,7 @@ axios.interceptors.request.use(config => {
 })
 
 // ========== 主题配置 ==========
+// 底层 key 保持 warm / mist / noir 不变，不影响已保存的偏好
 const THEMES = ['warm', 'mist', 'noir']
 const THEME_LABELS = { warm: 'Aurum', mist: 'Lumen', noir: 'Lys' }
 const THEME_SUB = { warm: '金烛', mist: '纸羽', noir: '夜百合' }
@@ -103,7 +104,9 @@ const Wordmark = ({ size = 'md' }) => (
 )
 
 // ============================================================
-// 1. 开屏页 —— 光从文字内部亮起
+// 1. 开屏页 —— 主题实景 + 一句诗意短句在画面中央逐词浮现
+//    文字用真实字体渲染，永远清晰；只播一次，之后转为常驻的
+//    星尘与呼吸微光；BEGIN 始终可点。
 // ============================================================
 const SPLASH_DUST_COUNT = 22
 const SPLASH_PHRASE = ['every', 'word', 'finds', 'its', 'light']
@@ -129,6 +132,7 @@ const SplashScreen = ({ onEnter, theme }) => {
     duration: (3 + Math.random() * 4).toFixed(2)
   })))
 
+  // 成句用时（词数 * 间隔 + 单词动画时长），后续元素依此顺延出场
   const wordStep = 0.3
   const phraseDoneAt = 0.3 + SPLASH_PHRASE.length * wordStep + 0.5
 
@@ -154,6 +158,7 @@ const SplashScreen = ({ onEnter, theme }) => {
       <PhotoBackdrop />
       <div className="splash-dim" />
 
+      {/* 满天细碎的常驻星光，作为最底层的氛围 */}
       <div className="splash-twinkle-field" aria-hidden="true">
         {twinkles.map(t => (
           <span
@@ -190,26 +195,22 @@ const SplashScreen = ({ onEnter, theme }) => {
         ))}
       </div>
 
+      {/* 正文：在画面中央逐词浮现的诗意短句，真实字体，永远清晰 */}
       <div className="splash-headline">
         {SPLASH_PHRASE.map((w, i) => (
           <span
             key={i}
             className="splash-word"
-            style={{
-              animationDelay: `${0.3 + i * wordStep}s`,
-              animationName: 'lightFromWithin',
-              animationDuration: '1.8s',
-              animationFillMode: 'forwards',
-              opacity: 0,
-            }}
+            style={{ animationDelay: `${0.3 + i * wordStep}s` }}
           >
             {w}
           </span>
         ))}
       </div>
-
+      {/* 短句浮现完毕后，一道柔光缓缓扫过，只出现一次 */}
       <div className="splash-shimmer" style={{ animationDelay: `${phraseDoneAt}s` }} aria-hidden="true" />
 
+      {/* 画框式四角装饰，缓缓收拢，呼应主界面的装裱质感 */}
       <div className="splash-frame" aria-hidden="true">
         <span className="splash-corner splash-corner-tl" />
         <span className="splash-corner splash-corner-tr" />
@@ -246,7 +247,7 @@ const SplashScreen = ({ onEnter, theme }) => {
 }
 
 // ============================================================
-// 2. 侧边栏细线花藤（带呼吸）
+// 2. 侧边栏细线花藤（静态，无动画）
 // ============================================================
 const Bloom = ({ x, y, s = 1, n = 5 }) => (
   <g transform={`translate(${x} ${y}) scale(${s})`}>
@@ -267,8 +268,10 @@ const Leaf = ({ x, y, r = 0, s = 1 }) => (
 const SidebarVines = () => (
   <div className="vine-wrapper" aria-hidden="true">
     <svg viewBox="0 0 286 1120" xmlns="http://www.w3.org/2000/svg">
+      {/* 左侧主藤 */}
       <path className="vine-path" d="M17 -20 C29 130, 6 250, 30 380 C54 508, 8 620, 24 756 C40 890, 14 986, 20 1130" />
       <path className="vine-path faint" d="M17 40 C6 150, 42 246, 18 372 C-6 496, 34 640, 18 786 C6 900, 28 1000, 20 1100" />
+      {/* 右侧主藤 */}
       <path className="vine-path" d="M268 -20 C248 168, 278 306, 256 462 C234 620, 272 750, 256 906 C244 1000, 268 1040, 264 1130" />
       <path className="vine-path faint" d="M268 60 C280 196, 246 340, 268 486 C290 632, 252 776, 266 920" />
 
@@ -294,7 +297,7 @@ const SidebarVines = () => (
 )
 
 // ============================================================
-// 3. 主组件 ChatPage
+// 3. 主组件 ChatPage（状态、API、工具函数 —— 与原版完全一致）
 // ============================================================
 const ChatPage = () => {
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('hasVisited'))
@@ -524,19 +527,8 @@ const ChatPage = () => {
   // ---------- 渲染消息项 ----------
   const renderMsgItem = (msg, key) => {
     const isUser = msg.role === 'user'
-    const randomDelay = (Math.random() * 0.2 + 0.1).toFixed(2)
     return (
-      <div
-        key={key}
-        className="msg-row"
-        style={{
-          display: 'flex',
-          justifyContent: isUser ? 'flex-end' : 'flex-start',
-          marginBottom: '18px',
-          padding: '0 18px',
-          animationDelay: `${randomDelay}s`,
-        }}
-      >
+      <div key={key} className="msg-row" style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '18px', padding: '0 18px' }}>
         <div style={{ maxWidth: '80%', display: 'flex', flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '10px' }}>
           {isUser ? <UserAvatar /> : <AIAvatar />}
           <div className={`bubble-glass${isUser ? ' is-user' : ''}`} style={{ borderRadius: isUser ? '22px 22px 5px 22px' : '22px 22px 22px 5px' }}>
@@ -579,9 +571,7 @@ const ChatPage = () => {
         className="sidebar-panel glass-panel"
         style={{ left: showSidebar ? 0 : '-330px', boxShadow: showSidebar ? '14px 0 60px var(--c-shadow)' : 'none' }}
       >
-        <div style={{ opacity: showSidebar ? 1 : 0, transition: 'opacity 1.2s ease' }}>
-          <SidebarVines />
-        </div>
+        <SidebarVines />
         <div style={{ position: 'relative', zIndex: 20, display: 'flex', flexDirection: 'column', height: '100%' }}>
           <div style={{ padding: '30px 22px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>

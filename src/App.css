@@ -1,5 +1,5 @@
 /* ============================================================
-   ke & shu — 照片主题精装版 · 梦境重构
+   ke & shu — 照片主题精装版
    Aurum 金烛 · Lumen 纸羽 · Lys 夜百合
    三套主题 = 三张实景背景 + 三套完整的光色语言
    ============================================================ */
@@ -68,7 +68,6 @@
   --c-star-bright: rgba(255, 214, 140, 0.95);
   --c-splash-scrim: rgba(10, 7, 3, 0.66);
   --c-grain: 0.05;
-  --c-bubble-glow: rgba(229, 194, 136, 0.08);
 }
 
 /* ============================================================
@@ -125,7 +124,6 @@
   --c-star-bright: rgba(226, 214, 190, 0.95);
   --c-splash-scrim: rgba(18, 16, 12, 0.62);
   --c-grain: 0.028;
-  --c-bubble-glow: rgba(138, 118, 89, 0.06);
 }
 
 /* ============================================================
@@ -182,11 +180,10 @@
   --c-star-bright: rgba(226, 220, 245, 0.95);
   --c-splash-scrim: rgba(2, 2, 4, 0.60);
   --c-grain: 0.055;
-  --c-bubble-glow: rgba(220, 211, 195, 0.06);
 }
 
 /* ============================================================
-   基础重置
+   基础
    ============================================================ */
 * { box-sizing: border-box; }
 
@@ -206,92 +203,12 @@ body {
 
 ::selection { background: var(--c-accent-soft); color: var(--c-text); }
 
-/* ============================================================
-   全新动画系统 — 更慢、更软、更有梦境感
-   ============================================================ */
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.92); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* 新消息入场：从下方浮起，带一点弹性过头再回弹 */
-@keyframes riseIn {
-  0% { opacity: 0; transform: translateY(24px) scale(0.97); }
-  60% { opacity: 1; transform: translateY(-3px) scale(1.01); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* 打字指示器：竖条律动（琴键感） */
-@keyframes typingBounce {
-  0%, 100% { transform: scaleY(0.4); opacity: 0.3; }
-  50% { transform: scaleY(1); opacity: 1; }
-}
-
-/* 切换主题时的淡入淡出（不是瞬间跳变） */
-@keyframes themeCrossfade {
-  from { opacity: 0.6; filter: blur(2px); }
-  to { opacity: 1; filter: blur(0); }
-}
-
-/* 开屏 — 光从文字内部亮起 */
-@keyframes lightFromWithin {
-  0% { opacity: 0; text-shadow: 0 0 0 rgba(255,255,255,0); }
-  30% { opacity: 0.3; text-shadow: 0 0 40px var(--c-star-bright), 0 0 80px var(--c-star-bright); }
-  100% { opacity: 1; text-shadow: 0 0 20px rgba(255,255,255,0.15), 0 0 60px rgba(255,255,255,0.05); }
-}
-
-/* 星尘流动 — 沿弧形轨道运动，而非直线上升 */
-@keyframes dustFlow {
-  0% {
-    transform: translate(0, 0) scale(0.3) rotate(0deg);
-    opacity: 0;
-  }
-  15% { opacity: 0.9; }
-  85% { opacity: 0.6; }
-  100% {
-    transform: translate(var(--dust-drift, 0px), calc(-100vh - 50px)) scale(1.2) rotate(720deg);
-    opacity: 0;
-  }
-}
-
-/* 花藤的呼吸动画 — 极慢的透明度波动，像活物 */
-@keyframes vineBreathe {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 0.9; }
-}
-
-/* 气泡的微光脉冲 — 让每一条消息都有“活着”的错觉 */
-@keyframes bubblePulse {
-  0%, 100% { box-shadow: 0 8px 30px var(--c-shadow), inset 0 1px 0 var(--c-highlight); }
-  50% { box-shadow: 0 8px 40px var(--c-shadow), inset 0 1px 0 var(--c-highlight), 0 0 20px var(--c-bubble-glow); }
-}
-
-/* 花藤生长动画 */
-@keyframes vineGrow {
-  0% { stroke-dashoffset: 0; opacity: 0.4; }
-  100% { stroke-dashoffset: 20; opacity: 0.9; }
-}
-
-/* 花瓣光晕呼吸 */
-@keyframes petalGlow {
-  0% { opacity: 0.15; transform: scale(0.9); }
-  100% { opacity: 0.45; transform: scale(1.3); }
-}
-
-@keyframes toastIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes toastOut {
-  to { opacity: 0; transform: translateY(-6px); }
-}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes dotPulse { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(-6px); } }
 
 /* ============================================================
    照片背景：满屏裁切 + 柔光罩 + 胶片颗粒
@@ -323,6 +240,7 @@ body {
   background: var(--c-scrim);
 }
 
+/* 四周压暗，让中间的对话区更聚焦 */
 .photo-bg .photo-vignette {
   position: absolute;
   inset: 0;
@@ -341,7 +259,7 @@ body {
 }
 [data-theme="noir"] .grain-overlay { mix-blend-mode: soft-light; }
 
-/* 装裱细边框 */
+/* 装裱细边框 —— 像一幅被裱起来的画 */
 .app-frame {
   position: fixed;
   inset: 9px;
@@ -363,39 +281,24 @@ body {
 /* ============================================================
    透明玻璃气泡 —— 背景透得出来，字依然清楚
    ============================================================ */
-.msg-row {
-  animation: riseIn 0.42s var(--ease) both;
-}
+.msg-row { animation: riseIn 0.42s var(--ease) both; }
 
 .bubble-glass {
   position: relative;
-  background: 
-    linear-gradient(180deg, var(--c-glass-bg) 0%, rgba(0,0,0,0.06) 100%);
+  background: var(--c-glass-bg);
   backdrop-filter: blur(var(--c-glass-blur)) saturate(var(--c-glass-sat)) brightness(var(--c-glass-bright));
   -webkit-backdrop-filter: blur(var(--c-glass-blur)) saturate(var(--c-glass-sat)) brightness(var(--c-glass-bright));
   border: var(--hair) solid var(--c-glass-border);
-  box-shadow: 
-    0 8px 30px var(--c-shadow),
-    inset 0 1px 0 var(--c-highlight),
-    inset 0 -1px 0 rgba(255,255,255,0.05);
+  box-shadow: 0 8px 30px var(--c-shadow), inset 0 1px 0 var(--c-highlight);
   border-radius: 22px;
   padding: 14px 19px 11px;
-  animation: bubblePulse 6s ease-in-out infinite;
 }
 
 .bubble-glass.is-user {
-  background: 
-    linear-gradient(180deg, var(--c-glass-bg-user) 0%, rgba(0,0,0,0.08) 100%);
-  box-shadow: 
-    0 8px 30px var(--c-shadow),
-    inset 0 1px 0 var(--c-highlight),
-    inset 0 0 40px var(--c-accent-soft);
+  background: var(--c-glass-bg-user);
 }
 
-/* 每条消息的脉冲延迟不同，避免齐步走 */
-.msg-row:nth-child(odd) .bubble-glass { animation-delay: 0.5s; }
-.msg-row:nth-child(3n) .bubble-glass { animation-delay: 1.2s; }
-
+/* 上沿一道极细的高光，让玻璃有厚度 */
 .bubble-glass::after {
   content: '';
   position: absolute;
@@ -405,6 +308,7 @@ body {
   pointer-events: none;
 }
 
+/* 不支持 backdrop-filter 时把底色补厚，保证可读 */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .bubble-glass { background: color-mix(in srgb, var(--c-bg-solid) 62%, transparent); }
 }
@@ -441,6 +345,7 @@ body {
 .hairline-top    { border-top:    var(--hair) solid var(--c-line); }
 .hairline-bottom { border-bottom: var(--hair) solid var(--c-line); }
 
+/* 日期分隔：细线 + 菱形 */
 .date-divider {
   display: flex; align-items: center; justify-content: center;
   gap: 12px; margin: 26px 0 16px;
@@ -462,6 +367,7 @@ body {
   color: var(--c-text-muted);
 }
 
+/* 小标题 */
 .eyebrow {
   font-family: var(--font-accent);
   font-size: 10px;
@@ -486,6 +392,7 @@ body {
   transition: left 0.46s var(--ease), box-shadow 0.46s var(--ease);
 }
 
+/* 侧边栏内侧的一道竖向细描金 */
 .sidebar-panel::after {
   content: '';
   position: absolute;
@@ -495,44 +402,28 @@ body {
   pointer-events: none;
 }
 
-/* ===== 花藤 · 记忆中的藤蔓 ===== */
 .vine-wrapper {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 1;
   overflow: hidden;
-  opacity: 0.7;
-  animation: vineBreathe 12s ease-in-out infinite;
   -webkit-mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,0.16) 32%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.16) 68%, #000 100%);
-  mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,0.16) 32%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.16) 68%, #000 100%);
+          mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,0.16) 32%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.16) 68%, #000 100%);
 }
 .vine-wrapper svg { position: absolute; left: 0; top: 0; width: 286px; height: 1120px; }
 
 .vine-path {
   fill: none;
   stroke: var(--c-vine);
-  stroke-width: 0.6;
+  stroke-width: 1;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 8 12;
-  animation: vineGrow 8s ease-in-out infinite alternate;
 }
-.vine-path.faint { stroke: var(--c-vine-2); stroke-width: 0.5; animation-duration: 12s; }
-
-.vine-leaf { fill: none; stroke: var(--c-vine-2); stroke-width: 0.7; }
-
-.vine-petal {
-  fill: var(--c-petal);
-  opacity: 0.25;
-  filter: blur(2px);
-  animation: petalGlow 5s ease-in-out infinite alternate;
-}
-.vine-core {
-  fill: var(--c-petal-core);
-  opacity: 0.5;
-  filter: blur(1px);
-}
+.vine-path.faint { stroke: var(--c-vine-2); stroke-width: 0.8; }
+.vine-leaf { fill: none; stroke: var(--c-vine-2); stroke-width: 0.9; }
+.vine-petal { fill: var(--c-petal); }
+.vine-core  { fill: var(--c-petal-core); }
 
 /* 会话条目 */
 .session-item {
@@ -671,6 +562,7 @@ body {
   box-shadow: 0 30px 80px var(--c-shadow), inset 0 1px 0 var(--c-highlight);
   animation: scaleIn 0.28s var(--ease);
 }
+/* 设置面板：改为完全不透明的实底卡片，信息更沉稳、可读性更高 */
 .modal-card-solid {
   background: var(--c-modal-solid);
   backdrop-filter: none;
@@ -727,14 +619,11 @@ body {
 .wordmark-md { font-size: 21px; letter-spacing: 3.5px; }
 .wordmark-md .wordmark-amp { font-size: 18px; }
 
-.typing-dots {
-  display: flex; gap: 5px; align-items: center;
-}
+.typing-dots { display: flex; gap: 5px; align-items: center; }
 .typing-dots span {
-  width: 4px; height: 12px;
+  width: 4px; height: 4px; border-radius: 50%;
   background: var(--c-accent);
-  border-radius: 2px;
-  animation: typingBounce 1.2s ease-in-out infinite;
+  animation: dotPulse 1.5s ease-in-out infinite;
 }
 .typing-dots span:nth-child(2) { animation-delay: 0.18s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.36s; }
@@ -751,6 +640,7 @@ body {
   transition: opacity 0.7s var(--ease), transform 0.7s var(--ease), filter 0.7s var(--ease);
 }
 .splash-screen .photo-bg { position: absolute; }
+/* 背景极缓慢的推镜，呼吸感、梦境感的第一层 */
 .splash-screen .photo-bg .photo-layer {
   animation: splashKenBurns 13s var(--ease) forwards;
 }
@@ -759,6 +649,7 @@ body {
   background: var(--c-splash-scrim);
 }
 
+/* 满天细碎的常驻星光，最底层的静谧氛围，从一开始就轻轻闪烁 */
 .splash-twinkle-field {
   position: absolute; inset: 0;
   z-index: 2;
@@ -773,6 +664,7 @@ body {
   animation: splashTwinkle var(--tw-duration, 5s) ease-in-out var(--tw-delay, 0s) infinite;
 }
 
+/* 中心呼吸光晕，成字后缓缓亮起、缓缓收拢，像烛芯的呼吸 */
 .splash-glow {
   position: absolute;
   left: 50%; top: 42%;
@@ -787,6 +679,7 @@ body {
   animation: splashGlowBreathe 6s ease-in-out infinite;
 }
 
+/* 常驻星尘：细碎光点自下而上缓缓飘升，营造梦幻纵深感 */
 .splash-dust-field {
   position: absolute; inset: 0;
   z-index: 4;
@@ -799,9 +692,10 @@ body {
   border-radius: 50%;
   background: radial-gradient(circle, var(--c-star-bright) 0%, transparent 72%);
   opacity: 0;
-  animation: dustFlow var(--dust-duration, 16s) ease-in-out var(--dust-delay, 0s) infinite;
+  animation: splashDustRise var(--dust-duration, 16s) ease-in-out var(--dust-delay, 0s) infinite;
 }
 
+/* 正文：诗意短句在画面中央逐词浮现，真实字体渲染，边缘始终清晰锐利 */
 .splash-headline {
   position: absolute;
   left: 50%; top: 40%;
@@ -822,11 +716,15 @@ body {
   line-height: 1.3;
   letter-spacing: 0.3px;
   color: var(--c-star);
+  text-shadow: 0 2px 26px rgba(0, 0, 0, 0.4);
   display: inline-block;
   opacity: 0;
-  animation: lightFromWithin 1.8s var(--ease) forwards;
+  filter: blur(5px);
+  transform: translateY(12px) scale(1.025);
+  animation: splashWordIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* 星辰成字后，一道柔光只扫过一次，像绸缎上滑过的光 */
 .splash-shimmer {
   position: absolute;
   left: 50%; top: 30%;
@@ -843,6 +741,7 @@ body {
   animation: splashShimmerSweep 1.9s ease-in-out 1;
 }
 
+/* 画框式四角装饰，缓缓收拢，呼应主界面的装裱质感 */
 .splash-frame {
   position: absolute; inset: 18px;
   z-index: 15;
@@ -889,6 +788,7 @@ body {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12vh);
 }
 
+/* 小小的线—点—线花饰，最先浮现，为下方的仪式感开场 */
 .splash-ornament {
   display: flex; align-items: center; gap: 9px;
   opacity: 0;
@@ -917,6 +817,7 @@ body {
     splashRuleShimmer 3.4s ease-in-out infinite;
 }
 
+/* 主题名逐字浮现："Aurum · 金烛" 一类，像被轻轻念出来 */
 .splash-theme-tag {
   display: flex;
   font-family: var(--font-accent);
@@ -967,9 +868,6 @@ body {
 .splash-begin-btn:hover .splash-begin-label { letter-spacing: 8px; }
 .splash-begin-btn:active { transform: scale(0.97); }
 
-/* ============================================================
-   开屏专用关键帧
-   ============================================================ */
 @keyframes splashKenBurns {
   from { transform: scale(var(--c-photo-scale)); }
   to { transform: scale(calc(var(--c-photo-scale) + 0.045)); }
@@ -981,6 +879,15 @@ body {
 @keyframes splashGlowBreathe {
   0%, 100% { opacity: 0.10; transform: translate(-50%, -50%) scale(1); }
   50% { opacity: 0.22; transform: translate(-50%, -50%) scale(1.08); }
+}
+@keyframes splashDustRise {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  12% { opacity: 0.85; }
+  55% { opacity: 0.45; }
+  100% { transform: translate(var(--dust-drift, 0px), -112vh) scale(1); opacity: 0; }
+}
+@keyframes splashWordIn {
+  to { opacity: 1; filter: blur(0); transform: translateY(0) scale(1); }
 }
 @keyframes splashShimmerSweep {
   0% { background-position: -60% 0; opacity: 0; }
@@ -1027,6 +934,7 @@ body {
     transform: none !important;
     filter: none !important;
   }
+  /* 纯装饰性的光晕与流光，在无动效模式下直接隐藏，避免出现突兀的静态光斑 */
   .splash-glow,
   .splash-shimmer {
     animation: none !important;
