@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
@@ -12,40 +12,41 @@ axios.interceptors.request.use(config => {
 })
 
 // ========== 主题配置 ==========
+// 底层 key 保持 warm / mist / noir 不变，不影响已保存的偏好
 const THEMES = ['warm', 'mist', 'noir']
-// 展示用的文案更新为更有质感的命名，底层 key 保持不变，不影响已保存的偏好设置
-const THEME_LABELS = { warm: 'Aurum', mist: 'Lumen', noir: 'Noir' }
-const THEME_META_COLOR = { warm: '#F3E7D6', mist: '#E9EEF3', noir: '#121019' }
+const THEME_LABELS = { warm: 'Aurum', mist: 'Lumen', noir: 'Lys' }
+const THEME_SUB = { warm: '金烛', mist: '纸羽', noir: '夜百合' }
+const THEME_META_COLOR = { warm: '#191108', mist: '#F2EEE6', noir: '#060608' }
 
 // ========== 图标 ==========
 const Icon = {
   Menu: (p) => (
-    <svg width={p.size || 20} height={p.size || 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <svg width={p.size || 20} height={p.size || 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
       <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="14" y2="17" />
     </svg>
   ),
   Edit: (p) => (
-    <svg width={p.size || 14} height={p.size || 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={p.size || 14} height={p.size || 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   ),
   Trash: (p) => (
-    <svg width={p.size || 14} height={p.size || 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={p.size || 14} height={p.size || 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
     </svg>
   ),
   Plus: (p) => (
-    <svg width={p.size || 14} height={p.size || 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+    <svg width={p.size || 14} height={p.size || 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
       <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   ),
   Close: (p) => (
-    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
       <line x1="5" y1="5" x2="19" y2="19" /><line x1="19" y1="5" x2="5" y2="19" />
     </svg>
   ),
   ArrowUp: (p) => (
-    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="19" x2="12" y2="5" /><polyline points="6 11 12 5 18 11" />
     </svg>
   ),
@@ -55,19 +56,41 @@ const Icon = {
     </svg>
   )
 }
+
 const SettingsIcon = (p) => (
-  <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg width={p.size || 16} height={p.size || 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
   </svg>
 )
 
-// ========== 头像 ==========
-const UserAvatar = ({ size = 30 }) => (
-  <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, background: 'var(--c-bubble-user-bg)', border: '1px solid var(--c-bubble-user-border)', boxShadow: '0 3px 10px var(--c-shadow)' }} />
+// ========== 照片背景 ==========
+const PhotoBackdrop = () => (
+  <div className="photo-bg" aria-hidden="true">
+    <div className="photo-layer" />
+    <div className="photo-scrim" />
+    <div className="photo-vignette" />
+  </div>
 )
-const AIAvatar = ({ size = 30 }) => (
-  <div style={{ position: 'relative', width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: 'radial-gradient(circle at 32% 28%, var(--c-accent-soft), var(--c-accent) 68%, var(--c-text) 150%)', boxShadow: '0 3px 12px var(--c-shadow), inset 0 0 0 1px var(--c-border)' }}>
-    <div style={{ position: 'absolute', width: size * 0.86, height: size * 0.86, borderRadius: '50%', background: 'var(--c-bg-solid)', top: '-8%', left: '32%', opacity: 0.94 }} />
+
+// ========== 头像 ==========
+const UserAvatar = ({ size = 28 }) => (
+  <div style={{
+    width: size, height: size, borderRadius: '50%', flexShrink: 0,
+    background: 'var(--c-glass-bg-user)',
+    border: '1px solid var(--c-line-strong)',
+    backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)'
+  }} />
+)
+
+const AIAvatar = ({ size = 28 }) => (
+  <div style={{
+    width: size, height: size, borderRadius: '50%', flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    border: '1px solid var(--c-line-strong)',
+    background: 'var(--c-accent-soft)',
+    backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)'
+  }}>
+    <div style={{ width: size * 0.3, height: size * 0.3, borderRadius: '50%', background: 'var(--c-accent)', opacity: 0.85 }} />
   </div>
 )
 
@@ -81,33 +104,14 @@ const Wordmark = ({ size = 'md' }) => (
 )
 
 // ============================================================
-// 1. 开屏页 —— 电影感星辰汇聚
-//    深夜星空 + 缓慢漂移的星云 + 数百颗星星从四面八方汇聚
-//    组成 "I am here" 文字，仅播放一次；文字定型后转为极轻的呼吸微光。
-//    BEGIN 按钮从一开始就可点击，不必等待动画播完。
+// 1. 开屏页 —— 主题实景 + 星辰汇聚成 "I am here"
+//    只播一次，成字后转为极轻的常驻微光；BEGIN 始终可点。
 // ============================================================
 const SplashScreen = ({ onEnter }) => {
   const [fadeOut, setFadeOut] = useState(false)
   const [visible, setVisible] = useState(true)
-  const [showChrome, setShowChrome] = useState(false) // 副标题 / 分隔线 / BEGIN 按钮的整体淡入
   const canvasRef = useRef(null)
   const rafRef = useRef(null)
-
-  // 环境星尘（背景常驻的细小星点，独立于文字汇聚动画，营造深空氛围）
-  const ambientStars = useMemo(() => Array.from({ length: 70 }).map((_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    top: Math.random() * 100,
-    size: 0.6 + Math.random() * 1.6,
-    delay: Math.random() * 3.6,
-    duration: 2.6 + Math.random() * 3
-  })), [])
-
-  useEffect(() => {
-    // 按钮 / 副标题稍作延迟出现，避免和汇聚动画抢视觉焦点，但依然很早就可交互
-    const t = setTimeout(() => setShowChrome(true), 260)
-    return () => clearTimeout(t)
-  }, [])
 
   useEffect(() => {
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -117,7 +121,6 @@ const SplashScreen = ({ onEnter }) => {
     let width = window.innerWidth
     let height = window.innerHeight
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
-
     const resize = () => {
       width = window.innerWidth
       height = window.innerHeight
@@ -135,9 +138,8 @@ const SplashScreen = ({ onEnter }) => {
     const starBright = (rootStyle.getPropertyValue('--c-star-bright') || 'rgba(255,214,140,0.9)').trim()
 
     let cancelled = false
-
     const buildStarsFromText = async () => {
-      try { await document.fonts.load(`italic 400 10px 'Cormorant Garamond'`) } catch (e) { /* 字体加载失败则用回退字体，不影响流程 */ }
+      try { await document.fonts.load(`italic 400 10px 'Cormorant Garamond'`) } catch (e) { /* 回退字体 */ }
       try { await document.fonts.ready } catch (e) { /* noop */ }
       if (cancelled) return
 
@@ -151,9 +153,9 @@ const SplashScreen = ({ onEnter }) => {
       octx.textAlign = 'center'
       octx.textBaseline = 'middle'
       octx.fillStyle = '#fff'
-      octx.fillText('I am here', width / 2, height / 2)
-      const imgData = octx.getImageData(0, 0, width, height).data
+      octx.fillText('I am here', width / 2, height * 0.42)
 
+      const imgData = octx.getImageData(0, 0, width, height).data
       const rawPoints = []
       const gap = isSmall ? 3 : 2.4
       for (let y = 0; y < height; y += gap) {
@@ -162,31 +164,14 @@ const SplashScreen = ({ onEnter }) => {
           if (alpha > 140) rawPoints.push({ x, y })
         }
       }
-      // 洗牌后按目标数量取样，控制粒子数以保证性能
       for (let i = rawPoints.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1))
         ;[rawPoints[i], rawPoints[j]] = [rawPoints[j], rawPoints[i]]
       }
-      const targetCount = reduceMotion ? 0 : (isSmall ? 170 : 280)
+      const targetCount = isSmall ? 190 : 300
       const chosen = rawPoints.slice(0, targetCount)
 
-      const stars = chosen.map((p) => {
-        const angle = Math.random() * Math.PI * 2
-        const radius = Math.max(width, height) * (0.55 + Math.random() * 0.55)
-        return {
-          x0: width / 2 + Math.cos(angle) * radius,
-          y0: height / 2 + Math.sin(angle) * radius,
-          tx: p.x,
-          ty: p.y,
-          size: 1.1 + Math.random() * 2.1,
-          delay: Math.random() * 650,
-          dur: 1300 + Math.random() * 900,
-          phase: Math.random() * Math.PI * 2
-        }
-      })
-
       if (reduceMotion) {
-        // 减少动态效果：直接静态绘制文字形态，不做汇聚动画
         ctx.clearRect(0, 0, width, height)
         chosen.forEach(p => {
           ctx.beginPath()
@@ -198,10 +183,23 @@ const SplashScreen = ({ onEnter }) => {
         return
       }
 
+      const stars = chosen.map((p) => {
+        const angle = Math.random() * Math.PI * 2
+        const radius = Math.max(width, height) * (0.55 + Math.random() * 0.55)
+        return {
+          x0: width / 2 + Math.cos(angle) * radius,
+          y0: height * 0.42 + Math.sin(angle) * radius,
+          tx: p.x,
+          ty: p.y,
+          size: 1.1 + Math.random() * 2,
+          delay: Math.random() * 650,
+          dur: 1300 + Math.random() * 900,
+          phase: Math.random() * Math.PI * 2
+        }
+      })
+
       const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3)
       let start = null
-      const CONVERGE_TOTAL = 2400 // 汇聚阶段大致时长（ms），之后进入常驻微光呼吸
-
       const frame = (ts) => {
         if (cancelled) return
         if (start === null) start = ts
@@ -216,9 +214,8 @@ const SplashScreen = ({ onEnter }) => {
           if (t <= 0) alpha = 0
           else if (t < 1) alpha = Math.min(1, t * 1.5)
           else {
-            // 汇聚完成后：进入极轻的常驻闪烁，而不是重新聚散
             const settleT = elapsed - (s.delay + s.dur)
-            alpha = 0.78 + 0.22 * Math.sin(settleT / 480 + s.phase)
+            alpha = 0.8 + 0.2 * Math.sin(settleT / 520 + s.phase)
           }
           const glow = 6 + (1 - e) * 10
           const size = s.size * (0.55 + e * 0.5)
@@ -238,7 +235,6 @@ const SplashScreen = ({ onEnter }) => {
     }
 
     buildStarsFromText()
-
     return () => {
       cancelled = true
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -251,7 +247,7 @@ const SplashScreen = ({ onEnter }) => {
     setTimeout(() => {
       setVisible(false)
       onEnter()
-    }, 650)
+    }, 680)
   }
 
   if (!visible) return null
@@ -260,69 +256,69 @@ const SplashScreen = ({ onEnter }) => {
     <div
       className="splash-screen"
       style={{
-        position: 'fixed', inset: 0, background: 'var(--c-bg-gradient)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, transition: 'opacity 0.65s ease, transform 0.65s ease',
-        opacity: fadeOut ? 0 : 1, transform: fadeOut ? 'scale(1.045)' : 'scale(1)'
+        opacity: fadeOut ? 0 : 1,
+        transform: fadeOut ? 'scale(1.05)' : 'scale(1)',
+        filter: fadeOut ? 'blur(8px)' : 'blur(0px)'
       }}
     >
-      <div className="ambient-bg"><div className="blob" /><div className="blob" /><div className="blob" /><div className="blob" /></div>
-
-      {/* 常驻的细小星尘，铺满整个开屏，营造深空氛围（不参与汇聚，仅闪烁） */}
-      <div className="splash-ambient-stars">
-        {ambientStars.map(s => (
-          <span key={s.id} style={{
-            left: `${s.left}%`, top: `${s.top}%`,
-            width: s.size, height: s.size,
-            animationDelay: `${s.delay}s`, animationDuration: `${s.duration}s`,
-            opacity: 0.5
-          }} />
-        ))}
-      </div>
-
-      {/* 汇聚成字的星群，由 canvas 逐帧绘制 */}
+      <PhotoBackdrop />
+      <div className="splash-dim" />
       <canvas ref={canvasRef} className="splash-canvas" />
-
-      {/* 底部文案与入口，始终可交互，不受汇聚动画进度影响 */}
-      <div style={{ position: 'relative', zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 'min(30vh, 260px)', gap: '22px', opacity: showChrome ? 1 : 0, transition: 'opacity 0.9s ease' }}>
+      <div className="splash-foot">
         <div className="splash-rule" />
         <div className="splash-subtitle">给你的 AI 一个家</div>
-        <button onClick={handleClick} className="splash-begin-btn">
-          BEGIN
-        </button>
+        <button onClick={handleClick} className="splash-begin-btn">BEGIN</button>
       </div>
     </div>
   )
 }
 
 // ============================================================
-// 2. 侧边栏花藤 SVG
+// 2. 侧边栏细线花藤（静态，无动画）
 // ============================================================
+const Bloom = ({ x, y, s = 1, n = 5 }) => (
+  <g transform={`translate(${x} ${y}) scale(${s})`}>
+    {Array.from({ length: n }).map((_, i) => (
+      <ellipse key={i} className="vine-petal" cx="0" cy="-5.4" rx="3" ry="5.1" transform={`rotate(${i * (360 / n)})`} />
+    ))}
+    <circle className="vine-core" r="1.7" />
+  </g>
+)
+
+const Leaf = ({ x, y, r = 0, s = 1 }) => (
+  <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
+    <path className="vine-leaf" d="M0 0 C6 -4.4 13.5 -3.2 17 0 C13.5 3.2 6 4.4 0 0 Z" />
+    <path className="vine-leaf" d="M0 0 L17 0" />
+  </g>
+)
+
 const SidebarVines = () => (
-  <div className="vine-wrapper">
-    <svg viewBox="0 0 280 1000" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path className="vine-path" d="M20 0 C30 150, 10 280, 40 400 C70 520, 15 650, 30 800 C45 950, 20 1000, 20 1000" strokeWidth="3" />
-      <path className="vine-path" d="M20 0 C15 120, 45 240, 20 380 C-5 520, 35 680, 20 840" strokeWidth="1.5" opacity="0.5" />
-      <path className="vine-path" d="M260 0 C240 180, 270 320, 250 480 C230 640, 265 780, 250 940 C240 1000, 260 1000, 260 1000" strokeWidth="2.5" />
-      <path className="vine-path" d="M260 50 C270 200, 240 350, 260 500 C280 650, 245 800, 260 950" strokeWidth="1.5" opacity="0.4" />
-      <ellipse className="vine-flower" cx="18" cy="120" rx="8" ry="14" transform="rotate(-15, 18, 120)" />
-      <ellipse className="vine-flower" cx="32" cy="135" rx="6" ry="10" transform="rotate(10, 32, 135)" />
-      <ellipse className="vine-flower-center" cx="18" cy="120" rx="3" ry="4" />
-      <ellipse className="vine-flower" cx="42" cy="350" rx="10" ry="16" transform="rotate(-20, 42, 350)" />
-      <ellipse className="vine-flower" cx="25" cy="370" rx="7" ry="12" transform="rotate(15, 25, 370)" />
-      <ellipse className="vine-flower-center" cx="42" cy="350" rx="4" ry="5" />
-      <ellipse className="vine-flower" cx="55" cy="365" rx="5" ry="8" transform="rotate(-5, 55, 365)" />
-      <ellipse className="vine-flower" cx="248" cy="620" rx="9" ry="15" transform="rotate(25, 248, 620)" />
-      <ellipse className="vine-flower" cx="265" cy="640" rx="7" ry="11" transform="rotate(-10, 265, 640)" />
-      <ellipse className="vine-flower-center" cx="248" cy="620" rx="3.5" ry="4.5" />
-      <ellipse className="vine-flower" cx="235" cy="635" rx="6" ry="9" transform="rotate(30, 235, 635)" />
-      <ellipse className="vine-flower" cx="22" cy="850" rx="8" ry="13" transform="rotate(-12, 22, 850)" />
-      <ellipse className="vine-flower" cx="40" cy="865" rx="6" ry="10" transform="rotate(8, 40, 865)" />
-      <ellipse className="vine-flower-center" cx="22" cy="850" rx="3" ry="4" />
-      <ellipse className="vine-leaf" cx="60" cy="220" rx="12" ry="5" transform="rotate(40, 60, 220)" />
-      <ellipse className="vine-leaf" cx="5" cy="500" rx="14" ry="5" transform="rotate(-30, 5, 500)" />
-      <ellipse className="vine-leaf" cx="230" cy="400" rx="10" ry="4" transform="rotate(50, 230, 400)" />
-      <ellipse className="vine-leaf" cx="270" cy="780" rx="12" ry="5" transform="rotate(-45, 270, 780)" />
+  <div className="vine-wrapper" aria-hidden="true">
+    <svg viewBox="0 0 286 1120" xmlns="http://www.w3.org/2000/svg">
+      {/* 左侧主藤 */}
+      <path className="vine-path" d="M17 -20 C29 130, 6 250, 30 380 C54 508, 8 620, 24 756 C40 890, 14 986, 20 1130" />
+      <path className="vine-path faint" d="M17 40 C6 150, 42 246, 18 372 C-6 496, 34 640, 18 786 C6 900, 28 1000, 20 1100" />
+      {/* 右侧主藤 */}
+      <path className="vine-path" d="M268 -20 C248 168, 278 306, 256 462 C234 620, 272 750, 256 906 C244 1000, 268 1040, 264 1130" />
+      <path className="vine-path faint" d="M268 60 C280 196, 246 340, 268 486 C290 632, 252 776, 266 920" />
+
+      <Leaf x={30} y={196} r={34} s={0.82} />
+      <Leaf x={10} y={470} r={-28} s={0.9} />
+      <Leaf x={36} y={664} r={22} s={0.72} />
+      <Leaf x={16} y={928} r={-40} s={0.8} />
+      <Leaf x={250} y={286} r={-46} s={0.78} />
+      <Leaf x={264} y={556} r={30} s={0.86} />
+      <Leaf x={242} y={824} r={-24} s={0.72} />
+
+      <Bloom x={19} y={112} s={1.05} />
+      <Bloom x={31} y={128} s={0.62} n={5} />
+      <Bloom x={27} y={392} s={0.92} />
+      <Bloom x={16} y={742} s={1} />
+      <Bloom x={28} y={760} s={0.58} />
+      <Bloom x={262} y={222} s={0.86} />
+      <Bloom x={257} y={616} s={1.02} />
+      <Bloom x={268} y={634} s={0.6} />
+      <Bloom x={260} y={982} s={0.8} />
     </svg>
   </div>
 )
@@ -352,7 +348,7 @@ const ChatPage = () => {
   const [renameModal, setRenameModal] = useState({ show: false, sessionId: null, value: '' })
   const [theme, setTheme] = useState(() => localStorage.getItem('ks_theme') || 'warm')
   const [toasts, setToasts] = useState([])
-  const [inputFocused, setInputFocused] = useState(false) // 纯视觉：输入框聚焦时的高级感辉光，不影响任何逻辑
+  const [inputFocused, setInputFocused] = useState(false)
 
   const showToast = (message) => {
     const id = Date.now() + Math.random()
@@ -480,6 +476,7 @@ const ChatPage = () => {
     try { const res = await axios.get(`${API_BASE}/settings`); setConfig(res.data) }
     catch (err) { console.error('加载设置失败:', err.message) }
   }
+
   const saveSettings = async () => {
     try { await axios.post(`${API_BASE}/settings`, config); setShowSetting(false); showToast('配置已保存') }
     catch (err) { console.error('保存设置失败:', err.message); showToast('保存失败：' + err.message) }
@@ -507,7 +504,7 @@ const ChatPage = () => {
     localStorage.setItem('ks_theme', theme)
     let meta = document.querySelector('meta[name="theme-color"]')
     if (!meta) { meta = document.createElement('meta'); meta.name = 'theme-color'; document.head.appendChild(meta) }
-    meta.setAttribute('content', THEME_META_COLOR[theme] || '#F3E7D6')
+    meta.setAttribute('content', THEME_META_COLOR[theme] || '#191108')
   }, [theme])
 
   const cycleTheme = () => {
@@ -534,10 +531,11 @@ const ChatPage = () => {
   // ---------- 工具函数 ----------
   const formatTime = (timeStr) => {
     if (!timeStr) return ''
-    let date = new Date(timeStr)
+    const date = new Date(timeStr)
     if (Number.isNaN(date.getTime())) return String(timeStr).slice(0, 16)
     return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
   }
+
   const formatDate = (timeStr) => {
     if (!timeStr) return ''
     const date = new Date(timeStr); const now = new Date()
@@ -546,6 +544,7 @@ const ChatPage = () => {
     if (date.toDateString() === yesterday.toDateString()) return '昨天'
     return `${date.getMonth() + 1}月${date.getDate()}日`
   }
+
   const groupMessagesByDate = (msgs) => {
     const groups = {}
     msgs.forEach(msg => { const d = formatDate(msg.created_at); if (!groups[d]) groups[d] = []; groups[d].push(msg) })
@@ -553,64 +552,90 @@ const ChatPage = () => {
   }
 
   // ---------- 渲染消息项 ----------
-  const renderMsgItem = (msg, key) => (
-    <div key={key} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: '18px', padding: '0 16px' }}>
-      <div style={{ maxWidth: '78%', display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '9px' }}>
-        {msg.role === 'user' ? <UserAvatar /> : <AIAvatar />}
-        <div className="bubble-glass" style={{ borderRadius: msg.role === 'user' ? '26px 26px 6px 26px' : '26px 26px 26px 6px' }}>
-          <div className="msg-text">{msg.content}</div>
-          <div style={{ fontSize: '11px', marginTop: '7px', color: 'var(--c-text-faint)', textAlign: 'right', letterSpacing: '0.5px' }}>{formatTime(msg.created_at)}</div>
+  const renderMsgItem = (msg, key) => {
+    const isUser = msg.role === 'user'
+    return (
+      <div key={key} className="msg-row" style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '18px', padding: '0 18px' }}>
+        <div style={{ maxWidth: '80%', display: 'flex', flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '10px' }}>
+          {isUser ? <UserAvatar /> : <AIAvatar />}
+          <div className={`bubble-glass${isUser ? ' is-user' : ''}`} style={{ borderRadius: isUser ? '22px 22px 5px 22px' : '22px 22px 22px 5px' }}>
+            <div className="msg-text">{msg.content}</div>
+            <div className="msg-time">{formatTime(msg.created_at)}</div>
+          </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const groupedMessages = groupMessagesByDate(messages)
-  return (
-    <div data-theme={theme} style={{ flex: 1, display: 'flex', height: 'var(--app-height, 100dvh)', maxHeight: 'var(--app-height, 100dvh)', background: 'var(--c-bg-gradient)', color: 'var(--c-text)', fontFamily: 'var(--font-body)', overflow: 'hidden', position: 'relative' }}>
 
-      {/* 4层光晕背景（含每个主题独有的信号元素：教堂天光 / 金色浮尘 / 夜光百合） */}
-      <div className="ambient-bg"><div className="blob" /><div className="blob" /><div className="blob" /><div className="blob" /></div>
-      {/* 全局胶片颗粒，叠加在最上层但不阻挡交互 */}
+  return (
+    <div
+      data-theme={theme}
+      style={{
+        flex: 1, display: 'flex',
+        height: 'var(--app-height, 100dvh)', maxHeight: 'var(--app-height, 100dvh)',
+        color: 'var(--c-text)', fontFamily: 'var(--font-body)',
+        overflow: 'hidden', position: 'relative'
+      }}
+    >
+      <PhotoBackdrop />
       <div className="grain-overlay" />
+      <div className="app-frame" />
 
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
 
       {/* 遮罩层 */}
       {showSidebar && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(6px)', zIndex: 200, animation: 'fadeIn 0.3s ease' }} onClick={() => setShowSidebar(false)} />
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 200, animation: 'fadeIn 0.3s ease' }}
+          onClick={() => setShowSidebar(false)}
+        />
       )}
 
-      {/* ====== 侧边栏（含花藤） ====== */}
-      <div style={{
-        position: 'fixed', top: 0, left: showSidebar ? 0 : '-320px',
-        width: '280px', height: 'var(--app-height, 100dvh)',
-        background: 'var(--c-surface)', backdropFilter: 'blur(28px) saturate(1.25)',
-        WebkitBackdropFilter: 'blur(28px) saturate(1.25)',
-        zIndex: 300, transition: 'left 0.45s cubic-bezier(0.4, 0, 0.2, 1)',
-        display: 'flex', flexDirection: 'column',
-        boxShadow: showSidebar ? '6px 0 46px var(--c-shadow)' : 'none',
-        borderRight: '1px solid var(--c-border)',
-        overflow: 'hidden'
-      }}>
-        {showSidebar && <SidebarVines />}
+      {/* ====== 侧边栏 ====== */}
+      <div
+        className="sidebar-panel glass-panel"
+        style={{ left: showSidebar ? 0 : '-330px', boxShadow: showSidebar ? '14px 0 60px var(--c-shadow)' : 'none' }}
+      >
+        <SidebarVines />
         <div style={{ position: 'relative', zIndex: 20, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <div style={{ padding: '28px 20px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-              <Wordmark size="md" />
-              <button className="icon-btn" onClick={cycleTheme} title={`当前主题：${THEME_LABELS[theme]}`} style={{ background: 'transparent', border: '1px solid var(--c-border)', borderRadius: '999px', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--c-text-muted)' }}>
-                <Icon.Moon size={13} />
+          <div style={{ padding: '30px 22px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <div>
+                <Wordmark size="md" />
+                <div className="eyebrow" style={{ marginTop: '8px' }}>{THEME_LABELS[theme]} · {THEME_SUB[theme]}</div>
+              </div>
+              <button
+                className="icon-btn"
+                onClick={cycleTheme}
+                title={`切换主题（当前：${THEME_LABELS[theme]}）`}
+                style={{ background: 'transparent', border: '1px solid var(--c-line)', borderRadius: '999px', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--c-text-muted)' }}
+              >
+                <Icon.Moon size={12} />
               </button>
             </div>
-            <button onClick={createSession} className="primary-btn" style={{ width: '100%', padding: '12px', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', borderRadius: '16px', color: 'var(--c-accent-text)', cursor: 'pointer', marginBottom: '4px', fontSize: '13.5px', fontFamily: 'var(--font-body)', letterSpacing: '1px', boxShadow: '0 4px 16px var(--c-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <Icon.Plus size={12} /> 新建对话
+
+            <div style={{ height: '1px', background: 'linear-gradient(90deg, var(--c-line-strong), transparent)', margin: '22px 0 18px' }} />
+
+            <button
+              onClick={createSession}
+              className="line-btn"
+              style={{ width: '100%', padding: '12px', borderRadius: '999px', fontSize: '12.5px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+              <Icon.Plus size={11} /> NEW
             </button>
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--c-text-faint)', marginBottom: '8px', paddingLeft: '4px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>最近对话</div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px 8px' }}>
+            <div className="eyebrow" style={{ padding: '0 4px 10px' }}>Recent</div>
             {sessionList.map(item => (
-              <div key={item.id} className="session-item" style={{ padding: '12px 14px', borderRadius: '14px', background: activeSessionId === item.id ? 'var(--c-accent-soft)' : 'transparent', cursor: 'pointer', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: activeSessionId === item.id ? '1px solid var(--c-border)' : '1px solid transparent' }} onClick={() => switchSession(item.id)}>
-                <span style={{ fontSize: '13.5px', color: 'var(--c-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+              <div
+                key={item.id}
+                className={`session-item${activeSessionId === item.id ? ' is-active' : ''}`}
+                onClick={() => switchSession(item.id)}
+              >
+                <span style={{ fontSize: '13px', color: activeSessionId === item.id ? 'var(--c-text)' : 'var(--c-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>{item.title}</span>
                 <div className="session-actions" style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
                   <button className="icon-btn" onClick={(e) => { e.stopPropagation(); handleRenameClick(item.id, item.title) }} style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}><Icon.Edit /></button>
                   <button className="icon-btn" onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id, item.title) }} style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}><Icon.Trash /></button>
@@ -618,55 +643,77 @@ const ChatPage = () => {
               </div>
             ))}
           </div>
-          <div style={{ padding: '16px', borderTop: '1px solid var(--c-border)', position: 'relative', zIndex: 20 }}>
-            <button onClick={() => { setShowSidebar(false); setShowSetting(true) }} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text-muted)', cursor: 'pointer', fontSize: '13px', fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <SettingsIcon size={14} /> 全局设置
+
+          <div className="hairline-top" style={{ padding: '16px', position: 'relative', zIndex: 20 }}>
+            <button
+              onClick={() => { setShowSidebar(false); setShowSetting(true) }}
+              className="line-btn"
+              style={{ width: '100%', padding: '10px', borderRadius: '999px', fontSize: '11.5px', color: 'var(--c-text-muted)', borderColor: 'var(--c-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+              <SettingsIcon size={13} /> SETTINGS
             </button>
           </div>
         </div>
       </div>
 
       {/* ====== 主聊天区域 ====== */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative' }}>
-        <div style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--c-border)', flexShrink: 0, background: 'linear-gradient(180deg, var(--c-surface), transparent)', backdropFilter: 'blur(6px)' }}>
-          <button className="icon-btn" onClick={() => setShowSidebar(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-text-muted)', display: 'flex' }}><Icon.Menu /></button>
-          <div style={{ fontFamily: 'var(--font-accent)', fontSize: '15px', fontStyle: 'italic', color: 'var(--c-text-muted)', letterSpacing: '0.6px' }}>
-            {activeSessionId ? (sessionList.find(s => s.id === activeSessionId)?.title || '对话中') : 'ke&shu'}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative', zIndex: 1 }}>
+        <div className="hairline-bottom" style={{ padding: '16px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <button className="icon-btn" onClick={() => setShowSidebar(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-text-muted)', display: 'flex' }}>
+            <Icon.Menu />
+          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', maxWidth: '64%' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '14px', letterSpacing: '3.4px', color: 'var(--c-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+              {activeSessionId ? (sessionList.find(s => s.id === activeSessionId)?.title || '对话中') : 'ke & shu'}
+            </div>
+            <div style={{ width: '3px', height: '3px', transform: 'rotate(45deg)', background: 'var(--c-accent)', opacity: 0.6 }} />
           </div>
           <div style={{ width: '20px' }} />
         </div>
 
-        <div ref={messageBoxRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 0', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', minHeight: 0, position: 'relative', zIndex: 1 }}>
+        <div ref={messageBoxRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 0 10px', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
           {!activeSessionId ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--c-text-faint)', gap: '16px' }}>
-              <AIAvatar size={46} />
-              <div style={{ fontSize: '14px', fontFamily: 'var(--font-accent)', fontStyle: 'italic', letterSpacing: '0.5px' }}>选择或新建一个对话</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '18px', padding: '0 30px', textAlign: 'center' }}>
+              <Wordmark size="lg" />
+              <div style={{ width: '54px', height: '1px', background: 'linear-gradient(90deg, transparent, var(--c-line-strong), transparent)' }} />
+              <div style={{ fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontSize: '14px', letterSpacing: '1.4px', color: 'var(--c-text-muted)' }}>
+                选择或新建一个对话
+              </div>
             </div>
           ) : (
             <>
               {hasOlderArchive && (
-                <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--c-text-faint)', fontSize: '12px' }}>
-                  <span onClick={loadOlderArchive} style={{ cursor: 'pointer', padding: '7px 16px', borderRadius: '999px', background: 'var(--c-surface)', border: '1px solid var(--c-border)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <Icon.ArrowUp size={11} /> 加载更早的历史
+                <div style={{ textAlign: 'center', padding: '10px 0 20px' }}>
+                  <span
+                    onClick={loadOlderArchive}
+                    className="line-btn"
+                    style={{ cursor: 'pointer', padding: '8px 20px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '11px', color: 'var(--c-text-muted)', borderColor: 'var(--c-line)' }}
+                  >
+                    <Icon.ArrowUp size={11} /> EARLIER
                   </span>
                 </div>
               )}
+
               {archivedList.map((msg, idx) => renderMsgItem(msg, `arch-${idx}`))}
+
               {Object.entries(groupedMessages).map(([date, msgs]) => (
                 <div key={date}>
-                  <div style={{ textAlign: 'center', margin: '20px 0 12px' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--c-text-faint)', background: 'var(--c-surface)', padding: '4px 14px', borderRadius: '999px', letterSpacing: '1px' }}>{date}</span>
+                  <div className="date-divider">
+                    <span className="rule" />
+                    <span className="lozenge" />
+                    <span className="label">{date}</span>
+                    <span className="lozenge" />
+                    <span className="rule" />
                   </div>
                   {msgs.map((msg, idx) => renderMsgItem(msg, `live-${idx}`))}
                 </div>
               ))}
+
               {loading && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 20px', color: 'var(--c-text-muted)', fontSize: '13px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 18px 10px' }}>
                   <AIAvatar />
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0s' }}>·</span>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.2s' }}>·</span>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.4s' }}>·</span>
+                  <div className="bubble-glass" style={{ borderRadius: '22px 22px 22px 5px', padding: '15px 20px' }}>
+                    <div className="typing-dots"><span /><span /><span /></div>
                   </div>
                 </div>
               )}
@@ -674,20 +721,20 @@ const ChatPage = () => {
           )}
         </div>
 
-        <div style={{ padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)', borderTop: '1px solid var(--c-border)', background: 'var(--c-surface)', backdropFilter: 'blur(12px)', flexShrink: 0, position: 'relative', zIndex: 1 }}>
-          <div className="input-shell" style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', borderRadius: '22px', padding: '2px', boxShadow: inputFocused ? '0 0 0 2px var(--c-accent-soft), 0 6px 24px var(--c-shadow)' : '0 2px 8px var(--c-shadow)' }}>
+        <div className="hairline-top" style={{ padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)', flexShrink: 0 }}>
+          <div className={`composer-shell${inputFocused ? ' is-focused' : ''}`}>
             <textarea
+              className="composer-input"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.ctrlKey && e.key === 'Enter' && sendMessage()}
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}
               placeholder="Tell me everything..."
-              style={{ flex: 1, padding: '12px 16px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '18px', color: 'var(--c-text)', resize: 'none', fontFamily: 'inherit', fontSize: '14px', outline: 'none', lineHeight: '1.5', minHeight: '46px' }}
               rows={1}
             />
-            <button onClick={sendMessage} disabled={loading || !activeSessionId} className="send-btn" style={{ width: '46px', height: '46px', borderRadius: '50%', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', color: 'var(--c-accent-text)', cursor: loading || !activeSessionId ? 'not-allowed' : 'pointer', opacity: loading || !activeSessionId ? 0.45 : 1, boxShadow: '0 3px 14px var(--c-shadow)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon.ArrowUp size={18} />
+            <button onClick={sendMessage} disabled={loading || !activeSessionId} className="send-btn">
+              <Icon.ArrowUp size={17} />
             </button>
           </div>
         </div>
@@ -700,13 +747,20 @@ const ChatPage = () => {
 
       {/* 重命名弹窗 */}
       {renameModal.show && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, animation: 'fadeIn 0.2s ease' }} onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}>
-          <div style={{ background: 'var(--c-surface-solid)', borderRadius: '24px', padding: '28px 24px 22px', width: '300px', maxWidth: '86vw', boxShadow: '0 24px 70px var(--c-shadow)', border: '1px solid var(--c-border)', animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: '16px', fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '16px' }}>重命名对话</div>
-            <input ref={renameInputRef} value={renameModal.value} onChange={(e) => setRenameModal(p => ({ ...p, value: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '14px', outline: 'none', marginBottom: '18px' }} />
+        <div className="modal-veil" style={{ zIndex: 2100 }} onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}>
+          <div className="modal-card" style={{ padding: '30px 26px 24px', width: '306px', maxWidth: '86vw' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title" style={{ marginBottom: '18px' }}>RENAME</div>
+            <input
+              ref={renameInputRef}
+              className="field-input"
+              value={renameModal.value}
+              onChange={(e) => setRenameModal(p => ({ ...p, value: e.target.value }))}
+              onKeyDown={(e) => e.key === 'Enter' && confirmRename()}
+              style={{ marginBottom: '20px', fontSize: '14px' }}
+            />
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)', background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px', cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
-              <button onClick={confirmRename} className="primary-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)', background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
+              <button className="line-btn" onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })} style={{ flex: 1, padding: '11px 0', borderRadius: '999px', fontSize: '11.5px', color: 'var(--c-text-muted)' }}>取消</button>
+              <button className="solid-btn" onClick={confirmRename} style={{ flex: 1, padding: '11px 0', borderRadius: '999px', fontSize: '11.5px' }}>确定</button>
             </div>
           </div>
         </div>
@@ -714,13 +768,13 @@ const ChatPage = () => {
 
       {/* 删除确认弹窗 */}
       {deleteModal.show && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease' }}>
-          <div style={{ background: 'var(--c-surface-solid)', borderRadius: '24px', padding: '30px 24px 22px', width: '300px', maxWidth: '86vw', textAlign: 'center', boxShadow: '0 24px 70px var(--c-shadow)', border: '1px solid var(--c-border)', animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}>
-            <div style={{ fontSize: '16px', fontFamily: 'var(--font-accent)', fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '8px' }}>确定删除这段对话？</div>
-            <div style={{ fontSize: '12.5px', color: 'var(--c-text-muted)', marginBottom: '24px' }}>"{deleteModal.name}" 将被永久删除</div>
+        <div className="modal-veil" style={{ zIndex: 2000 }}>
+          <div className="modal-card" style={{ padding: '32px 26px 24px', width: '306px', maxWidth: '86vw', textAlign: 'center' }}>
+            <div className="modal-title" style={{ marginBottom: '12px' }}>DELETE</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--c-text-muted)', marginBottom: '26px', lineHeight: 1.7 }}>「{deleteModal.name}」将被永久删除</div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)', background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px', cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
-              <button onClick={confirmDelete} className="primary-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)', background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
+              <button className="line-btn" onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })} style={{ flex: 1, padding: '11px 0', borderRadius: '999px', fontSize: '11.5px', color: 'var(--c-text-muted)' }}>取消</button>
+              <button className="solid-btn" onClick={confirmDelete} style={{ flex: 1, padding: '11px 0', borderRadius: '999px', fontSize: '11.5px' }}>确定</button>
             </div>
           </div>
         </div>
@@ -728,34 +782,50 @@ const ChatPage = () => {
 
       {/* 全局设置弹窗 */}
       {showSetting && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '20px' }}>
-          <div style={{ width: '480px', maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', background: 'var(--c-surface-solid)', padding: '30px', borderRadius: '24px', boxShadow: '0 14px 60px var(--c-shadow)', border: '1px solid var(--c-border)' }}>
-            <h3 style={{ marginTop: 0, fontWeight: 400, fontFamily: 'var(--font-accent)', fontStyle: 'italic', fontSize: '21px', color: 'var(--c-text)', marginBottom: '24px' }}>全局设置</h3>
-            <div style={{ marginBottom: '22px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--c-text-faint)', display: 'block', marginBottom: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>外观</label>
+        <div className="modal-veil" style={{ zIndex: 400, padding: '20px' }}>
+          <div className="modal-card" style={{ width: '480px', maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', padding: '32px' }}>
+            <div className="modal-title" style={{ marginBottom: '28px' }}>SETTINGS</div>
+
+            <div style={{ marginBottom: '26px' }}>
+              <div className="eyebrow" style={{ marginBottom: '12px' }}>Appearance</div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                {THEMES.map(t => <button key={t} className="theme-pill" onClick={() => setTheme(t)} style={{ flex: 1, padding: '9px 0', borderRadius: '999px', border: `1px solid ${theme === t ? 'var(--c-accent)' : 'var(--c-border)'}`, background: theme === t ? 'var(--c-accent)' : 'transparent', color: theme === t ? 'var(--c-accent-text)' : 'var(--c-text-muted)', fontSize: '12.5px', letterSpacing: '1px', cursor: 'pointer', fontFamily: 'var(--font-accent)' }}>{THEME_LABELS[t]}</button>)}
+                {THEMES.map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTheme(t)}
+                    className={theme === t ? 'solid-btn' : 'line-btn'}
+                    style={{ flex: 1, padding: '11px 0', borderRadius: '14px', fontSize: '12px', lineHeight: 1.5, letterSpacing: '2px' }}
+                  >
+                    {THEME_LABELS[t]}
+                    <div style={{ fontSize: '9.5px', opacity: 0.72, letterSpacing: '1.4px', fontFamily: 'var(--font-body)', marginTop: '2px' }}>{THEME_SUB[t]}</div>
+                  </button>
+                ))}
               </div>
             </div>
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>系统人设提示词</label>
-              <textarea value={config.system_prompt} onChange={(e) => setConfig(p => ({ ...p, system_prompt: e.target.value }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} rows={3} />
+
+            <div style={{ marginBottom: '16px' }}>
+              <div className="eyebrow" style={{ marginBottom: '8px' }}>System prompt</div>
+              <textarea className="field-input" value={config.system_prompt} onChange={(e) => setConfig(p => ({ ...p, system_prompt: e.target.value }))} rows={3} style={{ resize: 'vertical', lineHeight: 1.7 }} />
             </div>
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>Temperature（随机性）</label>
-              <input type="number" step="0.1" min="0" max="1.5" value={config.temperature} onChange={(e) => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} />
+
+            <div style={{ marginBottom: '16px' }}>
+              <div className="eyebrow" style={{ marginBottom: '8px' }}>Temperature</div>
+              <input className="field-input" type="number" step="0.1" min="0" max="1.5" value={config.temperature} onChange={(e) => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))} />
             </div>
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>记忆压缩阈值 token</label>
-              <input type="number" value={config.compress_threshold} onChange={(e) => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} />
+
+            <div style={{ marginBottom: '16px' }}>
+              <div className="eyebrow" style={{ marginBottom: '8px' }}>压缩阈值 token</div>
+              <input className="field-input" type="number" value={config.compress_threshold} onChange={(e) => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))} />
             </div>
-            <div style={{ marginBottom: '22px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>压缩后保留回合数</label>
-              <input type="number" value={config.compress_keep_rounds} onChange={(e) => setConfig(p => ({ ...p, compress_keep_rounds: Number(e.target.value) }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} />
+
+            <div style={{ marginBottom: '28px' }}>
+              <div className="eyebrow" style={{ marginBottom: '8px' }}>压缩后保留回合</div>
+              <input className="field-input" type="number" value={config.compress_keep_rounds} onChange={(e) => setConfig(p => ({ ...p, compress_keep_rounds: Number(e.target.value) }))} />
             </div>
+
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowSetting(false)} style={{ padding: '10px 18px', background: 'transparent', border: '1px solid var(--c-border)', color: 'var(--c-text-muted)', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>取消</button>
-              <button onClick={saveSettings} className="primary-btn" style={{ padding: '10px 18px', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', color: 'var(--c-accent-text)', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>保存</button>
+              <button className="line-btn" onClick={() => setShowSetting(false)} style={{ padding: '11px 22px', borderRadius: '999px', fontSize: '11.5px', color: 'var(--c-text-muted)' }}>取消</button>
+              <button className="solid-btn" onClick={saveSettings} style={{ padding: '11px 26px', borderRadius: '999px', fontSize: '11.5px' }}>保存</button>
             </div>
           </div>
         </div>
