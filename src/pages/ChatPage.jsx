@@ -791,12 +791,23 @@ const regenerateLastMessage = async () => {
   useEffect(() => {
     const loadVoices = () => {
       const vs = window.speechSynthesis?.getVoices() || []
-      setVoices(vs.filter(v => v.lang && (v.lang.startsWith('zh') || v.lang.startsWith('cmn'))))
+      // 不过滤语言，移动端可能中文音色标识不标准
+      setVoices(vs)
     }
     loadVoices()
     window.speechSynthesis?.addEventListener('voiceschanged', loadVoices)
     return () => window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices)
   }, [])
+
+  const refreshVoices = () => {
+    const vs = window.speechSynthesis?.getVoices() || []
+    setVoices(vs)
+    if (vs.length === 0) {
+      showToast('未检测到可用音色，请检查系统 TTS 设置')
+    } else {
+      showToast(`已加载 ${vs.length} 个音色`)
+    }
+  }
 
   // ---------- 主题 ----------
   useEffect(() => {
@@ -852,9 +863,8 @@ const regenerateLastMessage = async () => {
   }
 
   // ---------- 渲染消息项 ----------
-  const renderMsgItem = (msg, key) => {
+ const renderMsgItem = (msg, key) => {
   const isUser = msg.role === 'user'
-  // 判断是否是当前消息列表最后一条AI消息（给重新生成按钮用）
   const lastAssistantId = messages.length > 0
     ? [...messages].reverse().find(m => m.role === 'assistant')?.id
     : null
@@ -864,65 +874,68 @@ const regenerateLastMessage = async () => {
     <div key={key} className="msg-row" style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '18px', padding: '0 18px' }}>
       <div style={{ maxWidth: '80%', display: 'flex', flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '10px' }}>
         {isUser ? <UserAvatar /> : <AIAvatar />}
-        <div className={`bubble-glass${isUser ? ' is-user' : ''}`} style={{ borderRadius: isUser ? '22px 22px 5px 22px' : '22px 22px 22px 5px' }}>
-          <div className="msg-text">
-            {isUser ? msg.content : <MarkdownText text={msg.content} />}
-            {msg.typing && (
-              <span style={{
-                display: 'inline-block',
-                width: '2px',
-                height: '1em',
-                background: 'var(--c-accent)',
-                marginLeft: '2px',
-                animation: 'cursorBlink 1s step-end infinite',
-                verticalAlign: 'text-bottom'
-              }} />
-            )}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+          {/* 气泡 */}
+          <div className={`bubble-glass${isUser ? ' is-user' : ''}`} style={{ borderRadius: isUser ? '22px 22px 5px 22px' : '22px 22px 22px 5px' }}>
+            <div className="msg-text">
+              {isUser ? msg.content : <MarkdownText text={msg.content} />}
+              {msg.typing && (
+                <span style={{
+                  display: 'inline-block',
+                  width: '2px',
+                  height: '1em',
+                  background: 'var(--c-accent)',
+                  marginLeft: '2px',
+                  animation: 'cursorBlink 1s step-end infinite',
+                  verticalAlign: 'text-bottom'
+                }} />
+              )}
+            </div>
           </div>
+          {/* 操作栏 - 气泡外面右下角 */}
           <div style={{
-            fontSize: '11px',
-            marginTop: '6px',
-            color: 'var(--c-text-faint)',
-            textAlign: 'right',
             display: 'flex',
-            justifyContent: 'flex-end',
             alignItems: 'center',
-            gap: '10px'
+            gap: '14px',
+            marginTop: '8px',
+            padding: isUser ? '0 4px 0 0' : '0 0 0 4px'
           }}>
             {!isUser && !msg.typing && (
               <>
                 <span
                   onClick={() => speakMessage(msg.content, key)}
                   title={speakingKey === key ? (isSpeakingPaused ? '继续' : '暂停') : '朗读'}
-                  style={{ cursor: 'pointer', opacity: speakingKey === key ? 0.9 : 0.45, fontSize: '10px', transition: 'opacity 0.2s', display: 'inline-flex', alignItems: 'center' }}
+                  style={{ cursor: 'pointer', opacity: speakingKey === key ? 0.9 : 0.45, transition: 'opacity 0.2s', display: 'inline-flex', alignItems: 'center' }}
                   onMouseEnter={e => { if (speakingKey !== key) e.target.style.opacity = '0.9' }}
                   onMouseLeave={e => { if (speakingKey !== key) e.target.style.opacity = '0.45' }}
                 >
-                  {speakingKey === key && !isSpeakingPaused ? <Icon.Pause size={10} /> : speakingKey === key && isSpeakingPaused ? <Icon.Play size={10} /> : <Icon.Speak size={10} />}
+                  {speakingKey === key && !isSpeakingPaused ? <Icon.Pause size={14} /> : speakingKey === key && isSpeakingPaused ? <Icon.Play size={14} /> : <Icon.Speak size={14} />}
                 </span>
                 <span
                   onClick={() => copyMessage(msg.content)}
                   title="复制"
-                  style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s', display: 'inline-flex', alignItems: 'center' }}
+                  style={{ cursor: 'pointer', opacity: 0.45, transition: 'opacity 0.2s', display: 'inline-flex', alignItems: 'center' }}
                   onMouseEnter={e => e.target.style.opacity = '0.9'}
                   onMouseLeave={e => e.target.style.opacity = '0.45'}
                 >
-                  <Icon.Copy size={10} />
+                  <Icon.Copy size={14} />
                 </span>
                 {isLastAI && (
                   <span
                     onClick={regenerateLastMessage}
                     title="重新生成"
-                    style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s', display: 'inline-flex', alignItems: 'center' }}
+                    style={{ cursor: 'pointer', opacity: 0.45, transition: 'opacity 0.2s', display: 'inline-flex', alignItems: 'center' }}
                     onMouseEnter={e => e.target.style.opacity = '0.9'}
                     onMouseLeave={e => e.target.style.opacity = '0.45'}
                   >
-                    <Icon.Refresh size={10} />
+                    <Icon.Refresh size={14} />
                   </span>
                 )}
               </>
             )}
-            <span>{formatTime(msg.created_at)}</span>
+            <span style={{ fontSize: '11px', color: 'var(--c-text-faint)', fontFamily: 'var(--font-accent)', letterSpacing: '1px' }}>
+              {formatTime(msg.created_at)}
+            </span>
           </div>
         </div>
       </div>
@@ -1178,7 +1191,20 @@ const regenerateLastMessage = async () => {
 </div>
 
             <div style={{ marginBottom: '26px' }}>
-              <div className="eyebrow" style={{ marginBottom: '12px' }}>Voice</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div className="eyebrow">Voice</div>
+                <span
+                  onClick={refreshVoices}
+                  style={{ cursor: 'pointer', fontSize: '11px', color: 'var(--c-accent)', opacity: 0.7, letterSpacing: '1px' }}
+                >
+                  刷新
+                </span>
+              </div>
+              {voices.length === 0 && (
+                <div style={{ fontSize: '12px', color: 'var(--c-text-faint)', marginBottom: '10px', lineHeight: 1.6 }}>
+                  未检测到可用音色。部分手机需要在系统设置中开启 TTS（文字转语音）功能。
+                </div>
+              )}
               <select
                 className="field-input"
                 value={selectedVoiceURI}
@@ -1190,7 +1216,7 @@ const regenerateLastMessage = async () => {
               >
                 <option value="">系统默认</option>
                 {voices.map(v => (
-                  <option key={v.voiceURI} value={v.voiceURI}>{v.name}</option>
+                  <option key={v.voiceURI} value={v.voiceURI}>{v.name || '未命名'} {v.lang ? `(${v.lang})` : ''}</option>
                 ))}
               </select>
             </div>
