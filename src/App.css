@@ -958,3 +958,30 @@ button { font-family: inherit; }
   .wordmark-lg .wordmark-amp { font-size: 30px; }
   .app-frame { inset: 7px; }
 }
+
+/* ---------- 打字机光标闪烁 ---------- */
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ---------- Markdown 基础样式 ---------- */
+.markdown-body p { margin: 0; }
+.markdown-body strong { font-weight: 600; color: var(--c-text); }
+.markdown-body em { font-style: italic; opacity: 0.9; }
+.markdown-body ul, .markdown-body ol { margin: 0; }
+.markdown-body blockquote { margin: 0; }
+.markdown-body a {
+  color: var(--c-accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-accent-soft);
+}
+.markdown-body a:hover { opacity: 0.8; }
+.markdown-body code {
+  background: rgba(0,0,0,0.25);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: SF Mono, Monaco, "Courier New", monospace;
+  font-size: 12.5px;
+  color: var(--c-accent);
+}

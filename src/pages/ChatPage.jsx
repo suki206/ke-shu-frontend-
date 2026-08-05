@@ -1,6 +1,130 @@
 import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 
+// ========== Markdown 轻量渲染器（0依赖） ==========
+const MarkdownText = ({ text }) => {
+  if (!text) return null
+
+  // 先提取代码块
+  const parts = []
+  const codeBlockRegex = /```([\s\S]*?)```/g
+  let lastIndex = 0
+  let match
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: text.slice(lastIndex, match.index) })
+    }
+    parts.push({ type: 'code', content: match[1].trim() })
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.slice(lastIndex) })
+  }
+
+  const renderInline = (str) => {
+    let html = str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    return <span dangerouslySetInnerHTML={{ __html: html }} />
+  }
+
+  const renderTextBlock = (content) => {
+    const lines = content.split('\n')
+    const result = []
+    let i = 0
+    while (i < lines.length) {
+      const line = lines[i]
+      // 无序列表
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+        const items = []
+        while (i < lines.length && (lines[i].trim().startsWith('- ') || lines[i].trim().startsWith('* '))) {
+          items.push(lines[i].trim().slice(2))
+          i++
+        }
+        result.push(
+          <ul key={`ul-${i}`} style={{ margin: '4px 0', paddingLeft: '18px' }}>
+            {items.map((item, idx) => <li key={idx} style={{ marginBottom: '2px' }}>{renderInline(item)}</li>)}
+          </ul>
+        )
+        continue
+      }
+      // 有序列表
+      if (/^\d+\.\s/.test(line.trim())) {
+        const items = []
+        while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
+          items.push(lines[i].trim().replace(/^\d+\.\s/, ''))
+          i++
+        }
+        result.push(
+          <ol key={`ol-${i}`} style={{ margin: '4px 0', paddingLeft: '18px' }}>
+            {items.map((item, idx) => <li key={idx} style={{ marginBottom: '2px' }}>{renderInline(item)}</li>)}
+          </ol>
+        )
+        continue
+      }
+      // 引用
+      if (line.trim().startsWith('> ')) {
+        const items = []
+        while (i < lines.length && lines[i].trim().startsWith('> ')) {
+          items.push(lines[i].trim().slice(2))
+          i++
+        }
+        result.push(
+          <blockquote key={`bq-${i}`} style={{
+            borderLeft: '2px solid var(--c-accent)',
+            paddingLeft: '10px',
+            margin: '4px 0',
+            color: 'var(--c-text-muted)',
+            fontStyle: 'italic'
+          }}>
+            {items.map((item, idx) => <div key={idx}>{renderInline(item)}</div>)}
+          </blockquote>
+        )
+        continue
+      }
+      // 空行 / 普通段落
+      if (line.trim() === '') {
+        result.push(<div key={`sp-${i}`} style={{ height: '6px' }} />)
+      } else {
+        result.push(<p key={`p-${i}`} style={{ margin: '2px 0' }}>{renderInline(line)}</p>)
+      }
+      i++
+    }
+    return result
+  }
+
+  return (
+    <div className="markdown-body">
+      {parts.map((part, idx) => {
+        if (part.type === 'code') {
+          return (
+            <pre key={idx} style={{
+              background: 'rgba(0,0,0,0.35)',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              overflowX: 'auto',
+              fontSize: '12.5px',
+              lineHeight: '1.6',
+              fontFamily: 'SF Mono, Monaco, "Courier New", monospace',
+              color: '#e8e6e3',
+              border: '1px solid rgba(255,255,255,0.06)',
+              margin: '8px 0'
+            }}>
+              <code>{part.content}</code>
+            </pre>
+          )
+        }
+        return <div key={idx}>{renderTextBlock(part.content)}</div>
+      })}
+    </div>
+  )
+}
+
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
 
 // 防缓存
@@ -330,7 +454,71 @@ const ChatPage = () => {
   }
 
   const messageBoxRef = useRef(null)
-  const renameInputRef = useRef(null)
+const renameInputRef = useRef(null)
+const typingRef = useRef(null)
+
+// 语音朗读
+const speakMessage = (text) => {
+  if (!window.speechSynthesis) { showToast('当前浏览器不支持语音朗读'); return }
+  const utter = new SpeechSynthesisUtterance(text)
+  utter.lang = 'zh-CN'
+  utter.rate = 0.9
+  utter.pitch = 1.05
+  window.speechSynthesis.cancel()
+  window.speechSynthesis.speak(utter)
+}
+
+// 复制消息
+const copyMessage = async (text) => {
+  try { await navigator.clipboard.writeText(text); showToast('已复制') }
+  catch { showToast('复制失败') }
+}
+
+// 导出对话
+const exportConversation = () => {
+  if (!activeSessionId || messages.length === 0) { showToast('没有可导出的对话'); return }
+  const sessionTitle = sessionList.find(s => s.id === activeSessionId)?.title || '对话'
+  const dateStr = new Date().toLocaleDateString('zh-CN')
+  let md = `# ${sessionTitle}\n\n> 导出时间：${dateStr}\n\n---\n\n`
+  const allMsgs = [...archivedList, ...messages]
+  allMsgs.forEach(msg => {
+    const time = formatTime(msg.created_at)
+    const role = msg.role === 'user' ? '**我**' : '**可树**'
+    md += `### ${role} · ${time}\n\n${msg.content}\n\n---\n\n`
+  })
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${sessionTitle}_${dateStr}.md`
+  a.click()
+  URL.revokeObjectURL(url)
+  showToast('对话已导出')
+}
+
+// 重新生成最后一条AI消息
+const regenerateLastMessage = async () => {
+  if (!activeSessionId || loading) return
+  setLoading(true)
+  try {
+    const res = await axios.post(`${API_BASE}/chat/regenerate`, { sessionId: activeSessionId })
+    const newReply = res.data.reply
+    setMessages(prev => {
+      const newMessages = [...prev]
+      for (let i = newMessages.length - 1; i >= 0; i--) {
+        if (newMessages[i].role === 'assistant') {
+          newMessages[i] = { ...newMessages[i], content: newReply }
+          break
+        }
+      }
+      return newMessages
+    })
+    showToast('已重新生成')
+  } catch (err) {
+    showToast('重新生成失败：' + err.message)
+  }
+  setLoading(false)
+}
 
   const handleSplashEnter = () => {
     sessionStorage.setItem('hasVisited', 'true')
@@ -367,6 +555,11 @@ const ChatPage = () => {
   }
 
   const switchSession = async (sid) => {
+      // 清除正在进行的打字机
+  if (typingRef.current) {
+    clearInterval(typingRef.current)
+    typingRef.current = null
+  }
     try {
       sessionStorage.setItem('activeSessionId', sid)
       setActiveSessionId(sid)
@@ -424,26 +617,75 @@ const ChatPage = () => {
     setDeleteModal({ show: false, sessionId: null, name: '' })
   }
 
-  const sendMessage = async () => {
-    if (!inputText.trim() || !activeSessionId || loading) return
-    const content = inputText.trim()
-    setInputText(''); setLoading(true)
-    const tempUserMsg = { role: 'user', content, created_at: new Date() }
-    setMessages(prev => [...prev, tempUserMsg]); scrollBottom()
-    try {
-      const res = await axios.post(`${API_BASE}/chat`, { sessionId: activeSessionId, content })
-      const aiReply = { role: 'assistant', content: res.data.reply, created_at: new Date() }
-      setMessages(prev => [...prev, aiReply])
-    } catch (err) {
-      setMessages(prev => prev.slice(0, -1))
-      showToast('请求失败：' + err.message)
-    }
-    setLoading(false); scrollBottom()
-    try {
-      const archiveRes = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?limit=1`)
-      setHasOlderArchive((archiveRes.data?.list?.length || 0) > 0)
-    } catch (e) { console.error('归档检测失败:', e.message) }
+ const sendMessage = async () => {
+  if (!inputText.trim() || !activeSessionId || loading) return
+  const content = inputText.trim()
+  setInputText(''); setLoading(true)
+
+  // 如果上一条AI还在打字，强制补全
+  if (typingRef.current) {
+    clearInterval(typingRef.current)
+    typingRef.current = null
+    setMessages(prev => prev.map(m => m.typing ? { ...m, typing: false } : m))
   }
+
+  const tempUserMsg = { role: 'user', content, created_at: new Date() }
+  setMessages(prev => [...prev, tempUserMsg]); scrollBottom()
+
+  try {
+    const res = await axios.post(`${API_BASE}/chat`, { sessionId: activeSessionId, content })
+    const fullText = res.data.reply
+    const autoTitle = res.data.autoTitle
+
+    // 如果后端自动生成了标题，更新侧边栏
+    if (autoTitle) {
+      setSessionList(prev => prev.map(s => s.id === activeSessionId ? { ...s, title: autoTitle } : s))
+    }
+
+    // 先插入一条空AI消息，标记打字中
+    const aiReply = { role: 'assistant', content: '', created_at: new Date(), typing: true, id: res.data.messageId }
+    setMessages(prev => [...prev, aiReply])
+    setLoading(false)
+    scrollBottom()
+
+    // 打字机效果：逐字出现
+    let index = 0
+    typingRef.current = setInterval(() => {
+      index++
+      setMessages(prev => {
+        const newMessages = [...prev]
+        const lastIdx = newMessages.length - 1
+        if (lastIdx >= 0 && newMessages[lastIdx].typing) {
+          newMessages[lastIdx] = { ...newMessages[lastIdx], content: fullText.slice(0, index) }
+        }
+        return newMessages
+      })
+      if (index >= fullText.length) {
+        clearInterval(typingRef.current)
+        typingRef.current = null
+        setMessages(prev => {
+          const newMessages = [...prev]
+          const lastIdx = newMessages.length - 1
+          if (lastIdx >= 0 && newMessages[lastIdx].typing) {
+            newMessages[lastIdx] = { ...newMessages[lastIdx], typing: false }
+          }
+          return newMessages
+        })
+      }
+    }, 28)
+
+  } catch (err) {
+    setMessages(prev => prev.slice(0, -1))
+    showToast('请求失败：' + err.message)
+    setLoading(false)
+  }
+
+  // 单独检测归档
+  try {
+    const archiveRes = await axios.get(`${API_BASE}/messages/archived/${activeSessionId}?limit=1`)
+    setHasOlderArchive((archiveRes.data?.list?.length || 0) > 0)
+  } catch (e) { console.error('归档检测失败:', e.message) }
+}
 
   const getSettings = async () => {
     try { const res = await axios.get(`${API_BASE}/settings`); setConfig(res.data) }
@@ -526,19 +768,76 @@ const ChatPage = () => {
 
   // ---------- 渲染消息项 ----------
   const renderMsgItem = (msg, key) => {
-    const isUser = msg.role === 'user'
-    return (
-      <div key={key} className="msg-row" style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '18px', padding: '0 18px' }}>
-        <div style={{ maxWidth: '80%', display: 'flex', flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '10px' }}>
-          {isUser ? <UserAvatar /> : <AIAvatar />}
-          <div className={`bubble-glass${isUser ? ' is-user' : ''}`} style={{ borderRadius: isUser ? '22px 22px 5px 22px' : '22px 22px 22px 5px' }}>
-            <div className="msg-text">{msg.content}</div>
-            <div className="msg-time">{formatTime(msg.created_at)}</div>
+  const isUser = msg.role === 'user'
+  // 判断是否是当前消息列表最后一条AI消息（给重新生成按钮用）
+  const lastAssistantId = messages.length > 0
+    ? [...messages].reverse().find(m => m.role === 'assistant')?.id
+    : null
+  const isLastAI = !isUser && msg.id && msg.id === lastAssistantId
+
+  return (
+    <div key={key} className="msg-row" style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '18px', padding: '0 18px' }}>
+      <div style={{ maxWidth: '80%', display: 'flex', flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '10px' }}>
+        {isUser ? <UserAvatar /> : <AIAvatar />}
+        <div className={`bubble-glass${isUser ? ' is-user' : ''}`} style={{ borderRadius: isUser ? '22px 22px 5px 22px' : '22px 22px 22px 5px' }}>
+          <div className="msg-text">
+            {isUser ? msg.content : <MarkdownText text={msg.content} />}
+            {msg.typing && (
+              <span style={{
+                display: 'inline-block',
+                width: '2px',
+                height: '1em',
+                background: 'var(--c-accent)',
+                marginLeft: '2px',
+                animation: 'cursorBlink 1s step-end infinite',
+                verticalAlign: 'text-bottom'
+              }} />
+            )}
+          </div>
+          <div style={{
+            fontSize: '11px',
+            marginTop: '6px',
+            color: 'var(--c-text-faint)',
+            textAlign: 'right',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            {!isUser && !msg.typing && (
+              <>
+                <span
+                  onClick={() => speakMessage(msg.content)}
+                  title="朗读"
+                  style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s' }}
+                  onMouseEnter={e => e.target.style.opacity = '0.9'}
+                  onMouseLeave={e => e.target.style.opacity = '0.45'}
+                >🔊</span>
+                <span
+                  onClick={() => copyMessage(msg.content)}
+                  title="复制"
+                  style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s' }}
+                  onMouseEnter={e => e.target.style.opacity = '0.9'}
+                  onMouseLeave={e => e.target.style.opacity = '0.45'}
+                >📋</span>
+                {isLastAI && (
+                  <span
+                    onClick={regenerateLastMessage}
+                    title="重新生成"
+                    style={{ cursor: 'pointer', opacity: 0.45, fontSize: '10px', transition: 'opacity 0.2s' }}
+                    onMouseEnter={e => e.target.style.opacity = '0.9'}
+                    onMouseLeave={e => e.target.style.opacity = '0.45'}
+                  >🔄</span>
+                )}
+              </>
+            )}
+            <span>{formatTime(msg.created_at)}</span>
           </div>
         </div>
       </div>
-    )
-  }
+    </div>
+  )
+}
 
   const groupedMessages = groupMessagesByDate(messages)
 
@@ -775,6 +1074,17 @@ const ChatPage = () => {
                 ))}
               </div>
             </div>
+
+<div style={{ marginBottom: '26px' }}>
+  <div className="eyebrow" style={{ marginBottom: '12px' }}>Data</div>
+  <button
+    onClick={exportConversation}
+    className="line-btn"
+    style={{ width: '100%', padding: '11px 0', borderRadius: '14px', fontSize: '12px', letterSpacing: '2px' }}
+  >
+    导出当前对话
+  </button>
+</div>
 
             <div style={{ marginBottom: '16px' }}>
               <div className="eyebrow" style={{ marginBottom: '8px' }}>System prompt</div>
