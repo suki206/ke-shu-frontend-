@@ -1,9 +1,12 @@
 /* ============================================================
-   ke&shu 精装高级梦幻版 (花藤 + 4层光晕 + 星辰汇聚)
+   ke&shu 精装高级梦幻版 v2
+   花藤 + 光晕呼吸 + 星尘粒子 + 精致微动效
    ============================================================ */
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap');
 
-/* -------- 主题变量 (含花藤专用色 & 磨砂透明) -------- */
+/* ================================================================
+   主题变量 (含花藤专用色 & 磨砂透明 & 粒子色)
+   ================================================================ */
 [data-theme="warm"] {
   --c-bg-solid: #F6EDE0;
   --c-bg-gradient: radial-gradient(ellipse 140% 80% at 50% -10%, #FCF5EB 0%, #F6EDE0 45%, #EDE0CE 100%);
@@ -17,8 +20,8 @@
   --c-accent-soft: #E9D9C6;
   --c-accent-text: #FFFBF6;
   
-  --c-glass-bg: rgba(255, 248, 240, 0.40);
-  --c-glass-border: rgba(169, 128, 93, 0.25);
+  --c-glass-bg: rgba(255, 248, 240, 0.35);
+  --c-glass-border: rgba(169, 128, 93, 0.22);
   
   --c-vine-main: #B28B6F;
   --c-vine-light: #E8D5C0;
@@ -36,6 +39,10 @@
   --c-highlight: rgba(255, 250, 244, 0.55);
   --c-toast-bg: rgba(62, 51, 42, 0.94);
   --c-toast-text: #FBF5EC;
+
+  --c-particle: rgba(169, 128, 93, 0.25);
+  --c-particle-glow: rgba(200, 160, 130, 0.15);
+  --c-input-focus: rgba(169, 128, 93, 0.35);
 }
 
 [data-theme="mist"] {
@@ -51,8 +58,8 @@
   --c-accent-soft: #DAE3E9;
   --c-accent-text: #FBFCFD;
   
-  --c-glass-bg: rgba(235, 240, 245, 0.45);
-  --c-glass-border: rgba(93, 122, 147, 0.20);
+  --c-glass-bg: rgba(235, 240, 245, 0.38);
+  --c-glass-border: rgba(93, 122, 147, 0.18);
   
   --c-vine-main: #7A8FA0;
   --c-vine-light: #CCD9E3;
@@ -70,6 +77,10 @@
   --c-highlight: rgba(255, 255, 255, 0.6);
   --c-toast-bg: rgba(40, 48, 56, 0.94);
   --c-toast-text: #F5F8FA;
+
+  --c-particle: rgba(93, 122, 147, 0.22);
+  --c-particle-glow: rgba(150, 180, 200, 0.12);
+  --c-input-focus: rgba(93, 122, 147, 0.35);
 }
 
 [data-theme="noir"] {
@@ -85,8 +96,8 @@
   --c-accent-soft: rgba(201, 173, 134, 0.18);
   --c-accent-text: #1B1712;
   
-  --c-glass-bg: rgba(40, 42, 48, 0.45);
-  --c-glass-border: rgba(201, 173, 134, 0.25);
+  --c-glass-bg: rgba(40, 42, 48, 0.40);
+  --c-glass-border: rgba(201, 173, 134, 0.22);
   
   --c-vine-main: #A0908A;
   --c-vine-light: #6B5E5A;
@@ -104,10 +115,16 @@
   --c-highlight: rgba(255, 255, 255, 0.07);
   --c-toast-bg: rgba(233, 229, 221, 0.95);
   --c-toast-text: #1B1712;
+
+  --c-particle: rgba(201, 173, 134, 0.30);
+  --c-particle-glow: rgba(180, 150, 200, 0.15);
+  --c-input-focus: rgba(201, 173, 134, 0.40);
 }
 
-/* -------- 基础重置 -------- */
-* { box-sizing: border-box; }
+/* ================================================================
+   基础重置
+   ================================================================ */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
   height: 100%; margin: 0; padding: 0;
   overflow: hidden; overscroll-behavior: none;
@@ -120,19 +137,51 @@ body {
   height: 100%; width: 100%; display: flex; flex-direction: column;
 }
 
-/* -------- 动效库 (含星星汇聚、文字淡入) -------- */
+/* ================================================================
+   动效库 v2
+   ================================================================ */
+
+/* --- 通用 --- */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+
+/* --- 花藤轻微摇曳 --- */
 @keyframes gentleFloat {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-10px) rotate(0.5deg); }
 }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes scaleIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
-@keyframes dotPulse {
-  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
-  30% { opacity: 1; transform: translateY(-3px); }
+
+/* --- 光晕呼吸（4层 blob 各自不同节奏） --- */
+@keyframes blobBreathe1 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
+  33% { transform: translate(20px, -15px) scale(1.08); opacity: 0.75; }
+  66% { transform: translate(-10px, 10px) scale(1.04); opacity: 0.88; }
+}
+@keyframes blobBreathe2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
+  40% { transform: translate(-18px, 12px) scale(1.12); opacity: 0.7; }
+  70% { transform: translate(15px, -8px) scale(0.95); opacity: 0.85; }
+}
+@keyframes blobBreathe3 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
+  50% { transform: translate(12px, 18px) scale(1.15); opacity: 0.65; }
+}
+@keyframes blobBreathe4 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
+  35% { transform: translate(-14px, -20px) scale(1.06); opacity: 0.8; }
+  75% { transform: translate(8px, 15px) scale(1.1); opacity: 0.72; }
 }
 
-/* 星星汇聚关键帧（不跟内联transform冲突） */
+/* --- 星尘粒子漂浮 --- */
+@keyframes particleDrift {
+  0%   { transform: translate(0, 0) scale(1); }
+  25%  { transform: translate(calc(var(--dx) * 0.6), calc(var(--dy) * -1)) scale(1.2); }
+  50%  { transform: translate(var(--dx), calc(var(--dy) * -0.5)) scale(0.8); }
+  75%  { transform: translate(calc(var(--dx) * -0.4), var(--dy)) scale(1.1); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+/* --- 星星汇聚（开屏页） --- */
 @keyframes convergeStar {
   0% {
     transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.08);
@@ -150,19 +199,61 @@ body {
   }
 }
 
-/* I am here 淡入 */
+/* --- I am here 淡入 --- */
 @keyframes textFadeUp {
   from { opacity: 0; transform: translateY(28px) scale(0.94); filter: blur(4px); }
   to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0px); }
 }
-
-/* 浮动呼吸 */
 @keyframes floatWord {
   0%, 100% { margin-bottom: 0px; text-shadow: 0 0 30px var(--c-accent-soft), 0 0 60px var(--c-accent-soft); }
   50% { margin-bottom: 10px; text-shadow: 0 0 50px var(--c-accent), 0 0 90px var(--c-accent-soft); }
 }
 
-/* -------- 4层光晕背景 -------- */
+/* --- 消息气泡滑入 --- */
+@keyframes msgSlideInLeft {
+  from { opacity: 0; transform: translateX(-16px) scale(0.97); filter: blur(3px); }
+  to { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+}
+@keyframes msgSlideInRight {
+  from { opacity: 0; transform: translateX(16px) scale(0.97); filter: blur(3px); }
+  to { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+}
+
+/* --- 侧边栏内容渐入 --- */
+@keyframes sidebarFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- 加载指示器（精致版） --- */
+@keyframes dotPulse {
+  0%, 60%, 100% { opacity: 0.15; transform: translateY(0) scale(0.7); }
+  30% { opacity: 1; transform: translateY(-5px) scale(1); }
+}
+
+/* --- 输入框聚焦光晕 --- */
+@keyframes inputGlow {
+  0%, 100% { box-shadow: 0 2px 8px var(--c-shadow); }
+  50% { box-shadow: 0 2px 8px var(--c-shadow), 0 0 0 3px var(--c-input-focus); }
+}
+
+/* --- 花藤轻微摇曳 --- */
+@keyframes vineSway {
+  0%, 100% { transform: rotate(0deg) translateX(0); }
+  25% { transform: rotate(0.3deg) translateX(1px); }
+  75% { transform: rotate(-0.3deg) translateX(-1px); }
+}
+
+/* --- Toast --- */
+@keyframes toastIn { from { opacity: 0; transform: translateY(-14px) scale(0.92); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(-10px) scale(0.95); } }
+
+/* --- 遮罩渐入 --- */
+@keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ================================================================
+   4层光晕背景 (带呼吸动画)
+   ================================================================ */
 .ambient-bg {
   position: fixed;
   inset: 0;
@@ -174,38 +265,73 @@ body {
   position: absolute;
   border-radius: 50%;
   filter: blur(80px);
-  transition: background 0.6s ease;
+  will-change: transform, opacity;
 }
 .ambient-bg .blob:nth-child(1) {
   width: 400px; height: 400px;
   top: -120px; right: -100px;
   background: var(--c-blob-1);
+  animation: blobBreathe1 18s ease-in-out infinite;
 }
 .ambient-bg .blob:nth-child(2) {
   width: 350px; height: 350px;
   bottom: -100px; left: -100px;
   background: var(--c-blob-2);
+  animation: blobBreathe2 22s ease-in-out infinite;
 }
 .ambient-bg .blob:nth-child(3) {
   width: 280px; height: 280px;
   top: 40%; left: 20%;
   background: var(--c-blob-3);
+  animation: blobBreathe3 25s ease-in-out infinite;
 }
 .ambient-bg .blob:nth-child(4) {
   width: 320px; height: 320px;
   bottom: 20%; right: 10%;
   background: var(--c-blob-4);
+  animation: blobBreathe4 20s ease-in-out infinite;
 }
 
-/* -------- 磨砂玻璃气泡 -------- */
+/* ================================================================
+   星尘粒子层
+   ================================================================ */
+.particle-field {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--c-particle);
+  box-shadow: 0 0 8px var(--c-particle-glow);
+  will-change: transform;
+  animation: particleDrift var(--dur, 20s) var(--delay, 0s) ease-in-out infinite;
+}
+
+/* ================================================================
+   磨砂玻璃气泡 (增强版)
+   ================================================================ */
 .bubble-glass {
   background: var(--c-glass-bg) !important;
-  backdrop-filter: blur(24px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(1.2) !important;
+  backdrop-filter: blur(28px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.3) !important;
   border: 1px solid var(--c-glass-border) !important;
-  box-shadow: 0 4px 24px var(--c-shadow), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+  box-shadow:
+    0 4px 24px var(--c-shadow),
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -1px 0 rgba(0,0,0,0.02) !important;
   border-radius: 24px !important;
   padding: 14px 20px !important;
+  transition: box-shadow 0.3s ease;
+}
+.bubble-glass:hover {
+  box-shadow:
+    0 6px 32px var(--c-shadow),
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -1px 0 rgba(0,0,0,0.02) !important;
 }
 .bubble-glass .msg-text {
   color: var(--c-text);
@@ -214,13 +340,25 @@ body {
   font-size: 14.5px;
 }
 
-/* -------- 侧边栏花藤 SVG 容器 -------- */
+/* 消息动画类 */
+.msg-animate-left {
+  animation: msgSlideInLeft 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.msg-animate-right {
+  animation: msgSlideInRight 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ================================================================
+   侧边栏花藤 SVG (带轻微摇曳)
+   ================================================================ */
 .vine-wrapper {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   pointer-events: none;
   z-index: 10;
   overflow: visible;
+  animation: vineSway 8s ease-in-out infinite;
+  transform-origin: top center;
 }
 .vine-wrapper svg {
   position: absolute;
@@ -249,7 +387,9 @@ body {
   opacity: 0.9;
 }
 
-/* -------- Toast -------- */
+/* ================================================================
+   Toast (增强版)
+   ================================================================ */
 .toast-wrap {
   position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
   z-index: 3000; pointer-events: none; display: flex; flex-direction: column;
@@ -257,16 +397,17 @@ body {
 }
 .toast-item {
   background: var(--c-toast-bg); color: var(--c-toast-text);
-  padding: 11px 20px; border-radius: 999px; font-size: 13px;
+  padding: 11px 22px; border-radius: 999px; font-size: 13px;
   font-family: var(--font-body); letter-spacing: 0.3px;
-  box-shadow: 0 8px 28px var(--c-shadow);
+  box-shadow: 0 8px 32px var(--c-shadow), 0 0 0 1px rgba(255,255,255,0.06);
   animation: toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1), toastOut 0.3s ease 2.2s forwards;
   white-space: nowrap;
+  backdrop-filter: blur(12px);
 }
-@keyframes toastIn { from { opacity: 0; transform: translateY(-12px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@keyframes toastOut { to { opacity: 0; transform: translateY(-8px) scale(0.96); } }
 
-/* -------- 品牌字标 -------- */
+/* ================================================================
+   品牌字标
+   ================================================================ */
 .wordmark {
   font-family: 'Cormorant Garamond', Georgia, serif;
   display: inline-flex; align-items: baseline; gap: 3px;
@@ -279,21 +420,151 @@ body {
 .wordmark-md { font-size: 22px; letter-spacing: 0.3px; }
 .wordmark-md .wordmark-amp { font-size: 20px; }
 
-/* -------- 其他组件样式 -------- */
-.session-item .session-actions { opacity: 0.55; transition: opacity 0.2s ease; }
+/* ================================================================
+   侧边栏会话列表 (增强)
+   ================================================================ */
+.session-item {
+  transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+}
+.session-item:hover {
+  background: var(--c-accent-soft) !important;
+  transform: translateX(3px);
+}
+.session-item .session-actions {
+  opacity: 0; transition: opacity 0.25s ease;
+}
 .session-item:hover .session-actions { opacity: 1; }
-.session-item { transition: background 0.2s ease, border-color 0.2s ease; }
-.theme-pill { transition: all 0.25s ease; }
-.icon-btn { transition: opacity 0.2s ease, transform 0.2s ease; }
+
+/* 侧边栏内容渐入 */
+.sidebar-animate-item {
+  animation: sidebarFadeUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ================================================================
+   按钮 & 交互元素 (增强)
+   ================================================================ */
+.icon-btn {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
 .icon-btn:hover { opacity: 0.7; }
-.icon-btn:active { transform: scale(0.92); }
-::-webkit-scrollbar { width: 4px; }
+.icon-btn:active { transform: scale(0.88); }
+
+.theme-pill { transition: all 0.25s ease; }
+.theme-pill:hover { transform: translateY(-1px); }
+.theme-pill:active { transform: scale(0.96); }
+
+/* 新建对话按钮悬停光效 */
+.btn-new-chat {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.btn-new-chat::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.2) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.btn-new-chat:hover::after { opacity: 1; }
+.btn-new-chat:active { transform: scale(0.97); }
+
+/* 发送按钮 */
+.btn-send {
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn-send:hover:not(:disabled) {
+  transform: scale(1.08);
+  box-shadow: 0 4px 20px var(--c-shadow), 0 0 30px var(--c-accent-soft);
+}
+.btn-send:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+/* ================================================================
+   输入区域 (增强)
+   ================================================================ */
+.chat-input {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.chat-input:focus {
+  border-color: var(--c-accent) !important;
+  box-shadow: 0 2px 8px var(--c-shadow), 0 0 0 3px var(--c-input-focus) !important;
+}
+.chat-input::placeholder {
+  color: var(--c-text-faint);
+  font-style: italic;
+}
+
+/* ================================================================
+   弹窗遮罩 (增强)
+   ================================================================ */
+.modal-overlay {
+  animation: overlayFadeIn 0.25s ease;
+}
+.modal-content {
+  animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ================================================================
+   设置弹窗输入框
+   ================================================================ */
+.settings-input {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.settings-input:focus {
+  border-color: var(--c-accent) !important;
+  box-shadow: 0 0 0 3px var(--c-input-focus) !important;
+  outline: none;
+}
+
+/* ================================================================
+   加载状态 (精致版三点)
+   ================================================================ */
+.loading-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  box-shadow: 0 0 6px var(--c-accent-soft);
+}
+
+/* ================================================================
+   日期分隔线 (增强)
+   ================================================================ */
+.date-divider {
+  font-size: 11px;
+  color: var(--c-text-faint);
+  background: var(--c-surface);
+  padding: 4px 16px;
+  border-radius: 999px;
+  letter-spacing: 1.2px;
+  border: 1px solid var(--c-border);
+  backdrop-filter: blur(8px);
+}
+
+/* ================================================================
+   滚动条 (极简)
+   ================================================================ */
+::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--c-scrollbar); border-radius: 4px; }
-textarea::placeholder { color: var(--c-text-faint); font-style: italic; }
-input::placeholder { color: var(--c-text-faint); }
+::-webkit-scrollbar-thumb:hover { background: var(--c-accent-soft); }
 
+/* ================================================================
+   响应式
+   ================================================================ */
 @media (max-width: 480px) {
   .wordmark-lg { font-size: 40px; }
   .wordmark-lg .wordmark-amp { font-size: 34px; }
+}
+
+/* 禁止 PWA 中长按选中（减少误触） */
+@media (display-mode: standalone) {
+  .session-item, .icon-btn, .theme-pill, .btn-send, .btn-new-chat {
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }

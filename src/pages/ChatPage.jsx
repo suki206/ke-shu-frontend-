@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import axios from 'axios'
 
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
@@ -62,7 +62,7 @@ const SettingsIcon = (p) => (
 
 // ========== 头像 ==========
 const UserAvatar = ({ size = 30 }) => (
-  <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, background: 'var(--c-bubble-user-bg)', border: '1px solid var(--c-bubble-user-border)', boxShadow: '0 2px 8px var(--c-shadow)' }} />
+  <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, background: 'var(--c-bubble-user-bg, var(--c-accent-soft))', border: '1px solid var(--c-bubble-user-border, var(--c-border))', boxShadow: '0 2px 8px var(--c-shadow)' }} />
 )
 const AIAvatar = ({ size = 30 }) => (
   <div style={{ position: 'relative', width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: 'radial-gradient(circle at 32% 28%, var(--c-accent-soft), var(--c-accent) 68%, var(--c-text) 150%)', boxShadow: '0 2px 10px var(--c-shadow), inset 0 0 0 1px var(--c-border)' }}>
@@ -80,7 +80,50 @@ const Wordmark = ({ size = 'md' }) => (
 )
 
 // ============================================================
-// 1. 开屏页：星辰汇聚 + I am here (无鲸鱼)
+// 星尘粒子层（全局背景装饰）
+// ============================================================
+const FloatingParticles = () => {
+  const particles = useMemo(() => Array.from({ length: 24 }).map((_, i) => {
+    const angle = Math.random() * Math.PI * 2
+    const dist = 30 + Math.random() * 60
+    return {
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: 1.5 + Math.random() * 2.5,
+      dur: 18 + Math.random() * 20,
+      delay: Math.random() * 12,
+      opacity: 0.12 + Math.random() * 0.22,
+      dx: Math.cos(angle) * dist,
+      dy: Math.sin(angle) * dist
+    }
+  }), [])
+
+  return (
+    <div className="particle-field">
+      {particles.map(p => (
+        <span
+          key={p.id}
+          className="particle"
+          style={{
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            width: p.size,
+            height: p.size,
+            opacity: p.opacity,
+            '--dur': `${p.dur}s`,
+            '--delay': `${p.delay}s`,
+            '--dx': `${p.dx}px`,
+            '--dy': `${p.dy}px`
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ============================================================
+// 1. 开屏页：星辰汇聚 + I am here
 // ============================================================
 const SplashScreen = ({ onEnter }) => {
   const [fadeOut, setFadeOut] = useState(false)
@@ -113,9 +156,10 @@ const SplashScreen = ({ onEnter }) => {
   return (
     <div className="splash-screen" style={{ position: 'fixed', inset: 0, background: 'var(--c-bg-gradient)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1000, transition: 'opacity 0.7s ease, transform 0.7s ease', opacity: fadeOut ? 0 : 1, transform: fadeOut ? 'scale(1.04)' : 'scale(1)' }}>
       <div className="ambient-bg"><div className="blob" /><div className="blob" /><div className="blob" /><div className="blob" /></div>
+      <FloatingParticles />
       <div style={{ position: 'relative', width: '220px', height: '140px', marginBottom: '16px' }}>
         {stars.map(s => (
-          <span key={s.id} style={{ position: 'absolute', left: '50%', top: '50%', width: s.size, height: s.size, borderRadius: '50%', background: 'var(--c-star)', boxShadow: '0 0 16px var(--c-star-bright)', '--tx': `${s.tx}px`, '--ty': `${s.ty}px`, animation: `convergeStar ${s.duration}s ${s.delay}s cubic-bezier(0.2, 0.9, 0.3, 1) forwards`, opacity: 0 }} />
+          <span key={s.id} style={{ position: 'absolute', left: '50%', top: '50%', width: s.size, height: s.size, borderRadius: '50%', background: 'var(--c-accent)', boxShadow: '0 0 16px var(--c-accent-soft)', '--tx': `${s.tx}px`, '--ty': `${s.ty}px`, animation: `convergeStar ${s.duration}s ${s.delay}s cubic-bezier(0.2, 0.9, 0.3, 1) forwards`, opacity: 0 }} />
         ))}
       </div>
       {showText && (
@@ -123,7 +167,7 @@ const SplashScreen = ({ onEnter }) => {
           I am here
         </div>
       )}
-      <button onClick={handleClick} style={{ position: 'relative', padding: '14px 52px', borderRadius: '999px', border: '1px solid var(--c-star-bright)', background: 'var(--c-surface)', backdropFilter: 'blur(16px) saturate(1.4)', color: 'var(--c-text)', fontSize: '13px', cursor: 'pointer', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '5px', transition: 'all 0.3s ease', boxShadow: '0 4px 28px var(--c-shadow), inset 0 1px 0 var(--c-highlight), 0 0 60px var(--c-accent-soft)', zIndex: 20, pointerEvents: 'auto' }}>
+      <button onClick={handleClick} style={{ position: 'relative', padding: '14px 52px', borderRadius: '999px', border: '1px solid var(--c-accent)', background: 'var(--c-surface)', backdropFilter: 'blur(16px) saturate(1.4)', color: 'var(--c-text)', fontSize: '13px', cursor: 'pointer', fontFamily: "'Cormorant Garamond', serif", letterSpacing: '5px', transition: 'all 0.3s ease', boxShadow: '0 4px 28px var(--c-shadow), inset 0 1px 0 var(--c-highlight), 0 0 60px var(--c-accent-soft)', zIndex: 20, pointerEvents: 'auto' }}>
         BEGIN
       </button>
     </div>
@@ -163,7 +207,7 @@ const SidebarVines = () => (
 )
 
 // ============================================================
-// 3. 主组件 ChatPage (状态、API、工具函数)
+// 3. 主组件 ChatPage
 // ============================================================
 const ChatPage = () => {
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('hasVisited'))
@@ -196,6 +240,8 @@ const ChatPage = () => {
 
   const messageBoxRef = useRef(null)
   const renameInputRef = useRef(null)
+  const textareaRef = useRef(null)
+  const inputAreaRef = useRef(null)
 
   const handleSplashEnter = () => {
     sessionStorage.setItem('hasVisited', 'true')
@@ -289,10 +335,22 @@ const ChatPage = () => {
     setDeleteModal({ show: false, sessionId: null, name: '' })
   }
 
+  // ---------- textarea 自适应高度 ----------
+  const handleInputChange = useCallback((e) => {
+    setInputText(e.target.value)
+    const el = e.target
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+  }, [])
+
   const sendMessage = async () => {
     if (!inputText.trim() || !activeSessionId || loading) return
     const content = inputText.trim()
     setInputText(''); setLoading(true)
+    // 重置 textarea 高度
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
     const tempUserMsg = { role: 'user', content, created_at: new Date() }
     setMessages(prev => [...prev, tempUserMsg]); scrollBottom()
     try {
@@ -318,6 +376,15 @@ const ChatPage = () => {
     try { await axios.post(`${API_BASE}/settings`, config); setShowSetting(false); showToast('配置已保存') } 
     catch (err) { console.error('保存设置失败:', err.message); showToast('保存失败：' + err.message) }
   }
+
+  // ---------- 新建按钮鼠标跟踪光效 ----------
+  const handleNewBtnMouseMove = useCallback((e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(0)
+    const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(0)
+    e.currentTarget.style.setProperty('--mx', x + '%')
+    e.currentTarget.style.setProperty('--my', y + '%')
+  }, [])
 
   // ---------- 生命周期 ----------
   useEffect(() => {
@@ -349,19 +416,43 @@ const ChatPage = () => {
     setTheme(THEMES[(idx + 1) % THEMES.length])
   }
 
-  // ---------- 视口适配 ----------
+  // ---------- 视口适配（PWA 键盘修复） ----------
   useEffect(() => {
     const root = document.documentElement
+    let ticking = false
+
     const updateHeight = () => {
-      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight
-      root.style.setProperty('--app-height', `${h}px`)
+      if (ticking) return
+      ticking = true
+      requestAnimationFrame(() => {
+        if (window.visualViewport) {
+          const vh = window.visualViewport.height
+          root.style.setProperty('--app-height', `${vh}px`)
+        } else {
+          root.style.setProperty('--app-height', `${window.innerHeight}px`)
+        }
+        ticking = false
+      })
     }
+
     updateHeight()
-    window.visualViewport?.addEventListener('resize', updateHeight)
+
+    // PWA standalone 模式下，visualViewport 事件是关键
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateHeight)
+      window.visualViewport.addEventListener('scroll', updateHeight)
+    }
     window.addEventListener('resize', updateHeight)
+    // 输入框聚焦/失焦时立即更新（比 resize 更快触发）
+    document.addEventListener('focusin', updateHeight)
+    document.addEventListener('focusout', updateHeight)
+
     return () => {
       window.visualViewport?.removeEventListener('resize', updateHeight)
+      window.visualViewport?.removeEventListener('scroll', updateHeight)
       window.removeEventListener('resize', updateHeight)
+      document.removeEventListener('focusin', updateHeight)
+      document.removeEventListener('focusout', updateHeight)
     }
   }, [])
 
@@ -386,30 +477,56 @@ const ChatPage = () => {
     return groups
   }
 
-  // ---------- 渲染消息项 ----------
-  const renderMsgItem = (msg, key) => (
-    <div key={key} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: '16px', padding: '0 16px' }}>
-      <div style={{ maxWidth: '78%', display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '8px' }}>
-        {msg.role === 'user' ? <UserAvatar /> : <AIAvatar />}
-        <div className="bubble-glass" style={{ borderRadius: msg.role === 'user' ? '24px 24px 6px 24px' : '24px 24px 24px 6px' }}>
-          <div className="msg-text">{msg.content}</div>
-          <div style={{ fontSize: '11px', marginTop: '6px', color: 'var(--c-text-faint)', textAlign: 'right' }}>{formatTime(msg.created_at)}</div>
+  // ---------- 渲染消息项（带动画） ----------
+  const renderMsgItem = (msg, key, idx, total) => {
+    // 只对最后几条新消息播放入场动画，归档消息不动画
+    const isRecent = idx >= total - 2
+    const animClass = isRecent
+      ? (msg.role === 'user' ? 'msg-animate-right' : 'msg-animate-left')
+      : ''
+    const animDelay = isRecent ? (idx === total - 1 ? '0s' : '0.05s') : '0s'
+
+    return (
+      <div
+        key={key}
+        className={animClass}
+        style={{
+          display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+          marginBottom: '16px', padding: '0 16px',
+          animationDelay: animDelay
+        }}
+      >
+        <div style={{ maxWidth: '78%', display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '8px' }}>
+          {msg.role === 'user' ? <UserAvatar /> : <AIAvatar />}
+          <div className="bubble-glass" style={{ borderRadius: msg.role === 'user' ? '24px 24px 6px 24px' : '24px 24px 24px 6px' }}>
+            <div className="msg-text">{msg.content}</div>
+            <div style={{ fontSize: '11px', marginTop: '6px', color: 'var(--c-text-faint)', textAlign: 'right' }}>{formatTime(msg.created_at)}</div>
+          </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
-  const groupedMessages = groupMessagesByDate(messages)  return (
+  const groupedMessages = groupMessagesByDate(messages)
+
+  return (
     <div data-theme={theme} style={{ flex: 1, display: 'flex', height: 'var(--app-height, 100dvh)', maxHeight: 'var(--app-height, 100dvh)', background: 'var(--c-bg-gradient)', color: 'var(--c-text)', fontFamily: 'var(--font-body)', overflow: 'hidden', position: 'relative' }}>
       
-      {/* 4层光晕背景 */}
+      {/* 4层呼吸光晕背景 */}
       <div className="ambient-bg"><div className="blob" /><div className="blob" /><div className="blob" /><div className="blob" /></div>
+
+      {/* 星尘粒子 */}
+      <FloatingParticles />
 
       {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
 
-      {/* 遮罩层 */}
+      {/* 侧边栏遮罩 */}
       {showSidebar && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(4px)', zIndex: 200, animation: 'fadeIn 0.3s ease' }} onClick={() => setShowSidebar(false)} />
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(4px)', zIndex: 200 }}
+          onClick={() => setShowSidebar(false)}
+        />
       )}
 
       {/* ====== 侧边栏 (含花藤) ====== */}
@@ -426,20 +543,36 @@ const ChatPage = () => {
         {showSidebar && <SidebarVines />}
         <div style={{ position: 'relative', zIndex: 20, display: 'flex', flexDirection: 'column', height: '100%' }}>
           <div style={{ padding: '26px 20px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+            <div className="sidebar-animate-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
               <Wordmark size="md" />
               <button className="icon-btn" onClick={cycleTheme} title={`当前主题：${THEME_LABELS[theme]}`} style={{ background: 'transparent', border: '1px solid var(--c-border)', borderRadius: '999px', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--c-text-muted)' }}>
                 <Icon.Moon size={13} />
               </button>
             </div>
-            <button onClick={createSession} style={{ width: '100%', padding: '12px', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', borderRadius: '16px', color: 'var(--c-accent-text)', cursor: 'pointer', marginBottom: '4px', fontSize: '13.5px', fontFamily: 'var(--font-body)', letterSpacing: '1px', transition: 'all 0.3s ease', boxShadow: '0 2px 10px var(--c-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                <Icon.Plus size={12} /> 新建对话
-              </button>
+            <button
+              className="btn-new-chat sidebar-animate-item"
+              style={{ animationDelay: '0.05s', width: '100%', padding: '12px', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', borderRadius: '16px', color: 'var(--c-accent-text)', cursor: 'pointer', marginBottom: '4px', fontSize: '13.5px', fontFamily: 'var(--font-body)', letterSpacing: '1px', boxShadow: '0 2px 10px var(--c-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              onClick={createSession}
+              onMouseMove={handleNewBtnMouseMove}
+            >
+              <Icon.Plus size={12} /> 新建对话
+            </button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--c-text-faint)', marginBottom: '8px', paddingLeft: '4px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>最近对话</div>
-            {sessionList.map(item => (
-              <div key={item.id} className="session-item" style={{ padding: '12px 14px', borderRadius: '14px', background: activeSessionId === item.id ? 'var(--c-accent-soft)' : 'transparent', cursor: 'pointer', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: activeSessionId === item.id ? '1px solid var(--c-border)' : '1px solid transparent' }} onClick={() => switchSession(item.id)}>
+            <div className="sidebar-animate-item" style={{ animationDelay: '0.1s', fontSize: '11px', color: 'var(--c-text-faint)', marginBottom: '8px', paddingLeft: '4px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>最近对话</div>
+            {sessionList.map((item, idx) => (
+              <div
+                key={item.id}
+                className={`session-item sidebar-animate-item`}
+                style={{
+                  animationDelay: `${0.12 + idx * 0.03}s`,
+                  padding: '12px 14px', borderRadius: '14px',
+                  background: activeSessionId === item.id ? 'var(--c-accent-soft)' : 'transparent',
+                  cursor: 'pointer', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  border: activeSessionId === item.id ? '1px solid var(--c-border)' : '1px solid transparent'
+                }}
+                onClick={() => switchSession(item.id)}
+              >
                 <span style={{ fontSize: '13.5px', color: 'var(--c-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
                 <div className="session-actions" style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
                   <button className="icon-btn" onClick={(e) => { e.stopPropagation(); handleRenameClick(item.id, item.title) }} style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}><Icon.Edit /></button>
@@ -449,7 +582,7 @@ const ChatPage = () => {
             ))}
           </div>
           <div style={{ padding: '16px', borderTop: '1px solid var(--c-border)', position: 'relative', zIndex: 20 }}>
-            <button onClick={() => { setShowSidebar(false); setShowSetting(true) }} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text-muted)', cursor: 'pointer', fontSize: '13px', fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <button className="icon-btn" onClick={() => { setShowSidebar(false); setShowSetting(true) }} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text-muted)', cursor: 'pointer', fontSize: '13px', fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <SettingsIcon size={14} /> 全局设置
             </button>
           </div>
@@ -458,7 +591,8 @@ const ChatPage = () => {
 
       {/* ====== 主聊天区域 ====== */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative' }}>
-        <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
+        {/* 顶栏 */}
+        <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--c-border)', flexShrink: 0, backdropFilter: 'blur(12px)', background: 'var(--c-surface)' }}>
           <button className="icon-btn" onClick={() => setShowSidebar(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-text-muted)', display: 'flex' }}><Icon.Menu /></button>
           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '15px', fontStyle: 'italic', color: 'var(--c-text-muted)', letterSpacing: '0.5px' }}>
             {activeSessionId ? (sessionList.find(s => s.id === activeSessionId)?.title || '对话中') : 'ke&shu'}
@@ -466,6 +600,7 @@ const ChatPage = () => {
           <div style={{ width: '20px' }} />
         </div>
 
+        {/* 消息列表 */}
         <div ref={messageBoxRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 0', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
           {!activeSessionId ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--c-text-faint)', gap: '14px' }}>
@@ -476,27 +611,27 @@ const ChatPage = () => {
             <>
               {hasOlderArchive && (
                 <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--c-text-faint)', fontSize: '12px' }}>
-                  <span onClick={loadOlderArchive} style={{ cursor: 'pointer', padding: '7px 16px', borderRadius: '999px', background: 'var(--c-surface)', border: '1px solid var(--c-border)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="icon-btn" onClick={loadOlderArchive} style={{ cursor: 'pointer', padding: '7px 16px', borderRadius: '999px', background: 'var(--c-surface)', border: '1px solid var(--c-border)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                     <Icon.ArrowUp size={11} /> 加载更早的历史
                   </span>
                 </div>
               )}
-              {archivedList.map((msg, idx) => renderMsgItem(msg, `arch-${idx}`))}
+              {archivedList.map((msg, idx) => renderMsgItem(msg, `arch-${idx}`, idx, archivedList.length))}
               {Object.entries(groupedMessages).map(([date, msgs]) => (
                 <div key={date}>
                   <div style={{ textAlign: 'center', margin: '20px 0 12px' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--c-text-faint)', background: 'var(--c-surface)', padding: '4px 14px', borderRadius: '999px', letterSpacing: '1px' }}>{date}</span>
+                    <span className="date-divider">{date}</span>
                   </div>
-                  {msgs.map((msg, idx) => renderMsgItem(msg, `live-${idx}`))}
+                  {msgs.map((msg, idx) => renderMsgItem(msg, `live-${idx}`, idx, msgs.length))}
                 </div>
               ))}
               {loading && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 20px', color: 'var(--c-text-muted)', fontSize: '13px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 20px', color: 'var(--c-text-muted)', fontSize: '13px' }}>
                   <AIAvatar />
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0s' }}>·</span>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.2s' }}>·</span>
-                    <span style={{ animation: 'dotPulse 1.4s ease-in-out infinite', animationDelay: '0.4s' }}>·</span>
+                  <div style={{ display: 'flex', gap: '6px', padding: '6px 0' }}>
+                    <span className="loading-dot" style={{ animation: 'dotPulse 1.4s ease-in-out infinite 0s' }} />
+                    <span className="loading-dot" style={{ animation: 'dotPulse 1.4s ease-in-out infinite 0.2s' }} />
+                    <span className="loading-dot" style={{ animation: 'dotPulse 1.4s ease-in-out infinite 0.4s' }} />
                   </div>
                 </div>
               )}
@@ -504,30 +639,92 @@ const ChatPage = () => {
           )}
         </div>
 
-        <div style={{ padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)', borderTop: '1px solid var(--c-border)', background: 'var(--c-surface)', backdropFilter: 'blur(10px)', flexShrink: 0 }}>
+        {/* 输入区域 */}
+        <div
+          ref={inputAreaRef}
+          style={{
+            padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)',
+            borderTop: '1px solid var(--c-border)',
+            background: 'var(--c-surface)',
+            backdropFilter: 'blur(16px)',
+            flexShrink: 0
+          }}
+        >
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-            <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.ctrlKey && e.key === 'Enter' && sendMessage()} placeholder="Tell me everything..." style={{ flex: 1, padding: '12px 16px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '18px', color: 'var(--c-text)', resize: 'none', fontFamily: 'inherit', fontSize: '14px', outline: 'none', lineHeight: '1.5', boxShadow: '0 2px 8px var(--c-shadow)', minHeight: '46px' }} rows={1} />
-            <button onClick={sendMessage} disabled={loading || !activeSessionId} style={{ width: '46px', height: '46px', borderRadius: '50%', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', color: 'var(--c-accent-text)', cursor: loading || !activeSessionId ? 'not-allowed' : 'pointer', opacity: loading || !activeSessionId ? 0.45 : 1, transition: 'all 0.3s ease', boxShadow: '0 2px 10px var(--c-shadow)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={handleInputChange}
+              onKeyDown={(e) => {
+                if (e.ctrlKey && e.key === 'Enter') sendMessage()
+                // 手机端回车发送（非 shift+enter 换行）
+                if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                  e.preventDefault()
+                  sendMessage()
+                }
+              }}
+              placeholder="Tell me everything..."
+              className="chat-input"
+              style={{
+                flex: 1, padding: '12px 16px',
+                background: 'var(--c-input-bg, var(--c-surface-solid))',
+                border: '1px solid var(--c-border)', borderRadius: '18px',
+                color: 'var(--c-text)', resize: 'none',
+                fontFamily: 'inherit', fontSize: '14px', outline: 'none',
+                lineHeight: '1.5', boxShadow: '0 2px 8px var(--c-shadow)',
+                minHeight: '46px', maxHeight: '120px'
+              }}
+              rows={1}
+            />
+            <button
+              className="btn-send"
+              onClick={sendMessage}
+              disabled={loading || !activeSessionId}
+              style={{
+                width: '46px', height: '46px', borderRadius: '50%',
+                background: 'var(--c-accent)', border: '1px solid var(--c-accent)',
+                color: 'var(--c-accent-text)',
+                cursor: loading || !activeSessionId ? 'not-allowed' : 'pointer',
+                opacity: loading || !activeSessionId ? 0.45 : 1,
+                boxShadow: '0 2px 10px var(--c-shadow)',
+                flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
               <Icon.ArrowUp size={18} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Toast 轻提示 */}
+      {/* Toast */}
       <div className="toast-wrap">
         {toasts.map(t => <div key={t.id} className="toast-item">{t.message}</div>)}
       </div>
 
       {/* 重命名弹窗 */}
       {renameModal.show && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, animation: 'fadeIn 0.2s ease' }} onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}>
-          <div style={{ background: 'var(--c-surface-solid)', borderRadius: '22px', padding: '26px 24px 20px', width: '300px', maxWidth: '86vw', boxShadow: '0 20px 60px var(--c-shadow)', border: '1px solid var(--c-border)', animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)' }} onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }}
+          onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })}
+        >
+          <div
+            className="modal-content"
+            style={{ background: 'var(--c-surface-solid)', borderRadius: '22px', padding: '26px 24px 20px', width: '300px', maxWidth: '86vw', boxShadow: '0 20px 60px var(--c-shadow)', border: '1px solid var(--c-border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={{ fontSize: '15px', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '14px' }}>重命名对话</div>
-            <input ref={renameInputRef} value={renameModal.value} onChange={(e) => setRenameModal(p => ({ ...p, value: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '14px', outline: 'none', marginBottom: '18px' }} />
+            <input
+              ref={renameInputRef}
+              className="settings-input"
+              value={renameModal.value}
+              onChange={(e) => setRenameModal(p => ({ ...p, value: e.target.value }))}
+              onKeyDown={(e) => e.key === 'Enter' && confirmRename()}
+              style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg, var(--c-surface-solid))', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '14px', marginBottom: '18px' }}
+            />
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)', background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px', cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
-              <button onClick={confirmRename} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)', background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
+              <button className="icon-btn" onClick={() => setRenameModal({ show: false, sessionId: null, value: '' })} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)', background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px', cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
+              <button className="icon-btn" onClick={confirmRename} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)', background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
             </div>
           </div>
         </div>
@@ -535,13 +732,19 @@ const ChatPage = () => {
 
       {/* 删除确认弹窗 */}
       {deleteModal.show && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease' }}>
-          <div style={{ background: 'var(--c-surface-solid)', borderRadius: '22px', padding: '28px 24px 20px', width: '300px', maxWidth: '86vw', textAlign: 'center', boxShadow: '0 20px 60px var(--c-shadow)', border: '1px solid var(--c-border)', animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}>
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+        >
+          <div
+            className="modal-content"
+            style={{ background: 'var(--c-surface-solid)', borderRadius: '22px', padding: '28px 24px 20px', width: '300px', maxWidth: '86vw', textAlign: 'center', boxShadow: '0 20px 60px var(--c-shadow)', border: '1px solid var(--c-border)' }}
+          >
             <div style={{ fontSize: '15px', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', color: 'var(--c-text)', marginBottom: '6px' }}>确定删除这段对话？</div>
-            <div style={{ fontSize: '12.5px', color: 'var(--c-text-muted)', marginBottom: '22px' }}>"{deleteModal.name}" 将被永久删除</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--c-text-muted)', marginBottom: '22px' }}>“{deleteModal.name}” 将被永久删除</div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)', background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px', cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
-              <button onClick={confirmDelete} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)', background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
+              <button className="icon-btn" onClick={() => setDeleteModal({ show: false, sessionId: null, name: '' })} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-border)', background: 'transparent', color: 'var(--c-text-muted)', fontSize: '13.5px', cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
+              <button className="icon-btn" onClick={confirmDelete} style={{ flex: 1, padding: '10px 0', borderRadius: '14px', border: '1px solid var(--c-accent)', background: 'var(--c-accent)', color: 'var(--c-accent-text)', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
             </div>
           </div>
         </div>
@@ -549,8 +752,14 @@ const ChatPage = () => {
 
       {/* 全局设置弹窗 */}
       {showSetting && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '20px' }}>
-          <div style={{ width: '480px', maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', background: 'var(--c-surface-solid)', padding: '28px', borderRadius: '22px', boxShadow: '0 8px 40px var(--c-shadow)', border: '1px solid var(--c-border)' }}>
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'var(--c-overlay)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: '20px' }}
+        >
+          <div
+            className="modal-content"
+            style={{ width: '480px', maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', background: 'var(--c-surface-solid)', padding: '28px', borderRadius: '22px', boxShadow: '0 8px 40px var(--c-shadow)', border: '1px solid var(--c-border)' }}
+          >
             <h3 style={{ marginTop: 0, fontWeight: 400, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontSize: '20px', color: 'var(--c-text)', marginBottom: '22px' }}>全局设置</h3>
             <div style={{ marginBottom: '22px' }}>
               <label style={{ fontSize: '11px', color: 'var(--c-text-faint)', display: 'block', marginBottom: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>外观</label>
@@ -560,23 +769,47 @@ const ChatPage = () => {
             </div>
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>系统人设提示词</label>
-              <textarea value={config.system_prompt} onChange={(e) => setConfig(p => ({ ...p, system_prompt: e.target.value }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} rows={3} />
+              <textarea
+                className="settings-input"
+                value={config.system_prompt}
+                onChange={(e) => setConfig(p => ({ ...p, system_prompt: e.target.value }))}
+                style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg, var(--c-surface-solid))', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px' }}
+                rows={3}
+              />
             </div>
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>Temperature（随机性）</label>
-              <input type="number" step="0.1" min="0" max="1.5" value={config.temperature} onChange={(e) => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} />
+              <input
+                className="settings-input"
+                type="number" step="0.1" min="0" max="1.5"
+                value={config.temperature}
+                onChange={(e) => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))}
+                style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg, var(--c-surface-solid))', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px' }}
+              />
             </div>
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>记忆压缩阈值 token</label>
-              <input type="number" value={config.compress_threshold} onChange={(e) => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} />
+              <input
+                className="settings-input"
+                type="number"
+                value={config.compress_threshold}
+                onChange={(e) => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))}
+                style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg, var(--c-surface-solid))', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px' }}
+              />
             </div>
             <div style={{ marginBottom: '22px' }}>
               <label style={{ fontSize: '13px', color: 'var(--c-text-muted)', display: 'block', marginBottom: '6px' }}>压缩后保留回合数</label>
-              <input type="number" value={config.compress_keep_rounds} onChange={(e) => setConfig(p => ({ ...p, compress_keep_rounds: Number(e.target.value) }))} style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg)', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }} />
+              <input
+                className="settings-input"
+                type="number"
+                value={config.compress_keep_rounds}
+                onChange={(e) => setConfig(p => ({ ...p, compress_keep_rounds: Number(e.target.value) }))}
+                style={{ width: '100%', padding: '10px 14px', background: 'var(--c-input-bg, var(--c-surface-solid))', border: '1px solid var(--c-border)', borderRadius: '12px', color: 'var(--c-text)', fontFamily: 'inherit', fontSize: '13px' }}
+              />
             </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowSetting(false)} style={{ padding: '10px 18px', background: 'transparent', border: '1px solid var(--c-border)', color: 'var(--c-text-muted)', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>取消</button>
-              <button onClick={saveSettings} style={{ padding: '10px 18px', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', color: 'var(--c-accent-text)', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>保存</button>
+              <button className="icon-btn" onClick={() => setShowSetting(false)} style={{ padding: '10px 18px', background: 'transparent', border: '1px solid var(--c-border)', color: 'var(--c-text-muted)', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>取消</button>
+              <button className="icon-btn" onClick={saveSettings} style={{ padding: '10px 18px', background: 'var(--c-accent)', border: '1px solid var(--c-accent)', color: 'var(--c-accent-text)', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>保存</button>
             </div>
           </div>
         </div>
