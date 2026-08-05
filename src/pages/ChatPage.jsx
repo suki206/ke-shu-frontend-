@@ -108,11 +108,13 @@ const Wordmark = ({ size = 'md' }) => (
 //    只播一次，成字后转为呼吸微光与常驻星尘；BEGIN 始终可点。
 // ============================================================
 const SPLASH_DUST_COUNT = 26
-const SplashScreen = ({ onEnter }) => {
+const SplashScreen = ({ onEnter, theme }) => {
   const [fadeOut, setFadeOut] = useState(false)
   const [visible, setVisible] = useState(true)
   const canvasRef = useRef(null)
   const rafRef = useRef(null)
+  const themeLabel = THEME_LABELS[theme] || 'Aurum'
+  const themeSub = THEME_SUB[theme] || '金烛'
   const [dust] = useState(() => Array.from({ length: SPLASH_DUST_COUNT }).map((_, i) => ({
     id: i,
     left: Math.random() * 100,
@@ -120,6 +122,14 @@ const SplashScreen = ({ onEnter }) => {
     delay: (Math.random() * 10).toFixed(2),
     duration: (11 + Math.random() * 10).toFixed(2),
     drift: Math.round((Math.random() - 0.5) * 80)
+  })))
+  const [twinkles] = useState(() => Array.from({ length: 46 }).map((_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    top: Math.random() * 100,
+    size: (0.6 + Math.random() * 1.4).toFixed(2),
+    delay: (Math.random() * 6).toFixed(2),
+    duration: (3 + Math.random() * 4).toFixed(2)
   })))
 
   useEffect(() => {
@@ -272,7 +282,27 @@ const SplashScreen = ({ onEnter }) => {
     >
       <PhotoBackdrop />
       <div className="splash-dim" />
+
+      {/* 满天细碎的常驻星光，作为最底层的氛围 */}
+      <div className="splash-twinkle-field" aria-hidden="true">
+        {twinkles.map(t => (
+          <span
+            key={t.id}
+            className="splash-twinkle"
+            style={{
+              left: `${t.left}%`,
+              top: `${t.top}%`,
+              width: `${t.size}px`,
+              height: `${t.size}px`,
+              '--tw-duration': `${t.duration}s`,
+              '--tw-delay': `${t.delay}s`
+            }}
+          />
+        ))}
+      </div>
+
       <div className="splash-glow" aria-hidden="true" />
+
       <div className="splash-dust-field" aria-hidden="true">
         {dust.map(d => (
           <span
@@ -289,10 +319,42 @@ const SplashScreen = ({ onEnter }) => {
           />
         ))}
       </div>
+
       <canvas ref={canvasRef} className="splash-canvas" />
+      {/* 星辰成字之后，一道柔光缓缓扫过文字，只出现一次 */}
+      <div className="splash-shimmer" aria-hidden="true" />
+
+      {/* 画框式四角装饰，缓缓收拢，呼应主界面的装裱质感 */}
+      <div className="splash-frame" aria-hidden="true">
+        <span className="splash-corner splash-corner-tl" />
+        <span className="splash-corner splash-corner-tr" />
+        <span className="splash-corner splash-corner-bl" />
+        <span className="splash-corner splash-corner-br" />
+      </div>
+
       <div className="splash-foot">
+        <div className="splash-ornament" aria-hidden="true">
+          <span className="splash-ornament-line" />
+          <span className="splash-ornament-dot" />
+          <span className="splash-ornament-line" />
+        </div>
         <div className="splash-rule" />
-        <button onClick={handleClick} className="splash-begin-btn">BEGIN</button>
+        <div className="splash-theme-tag">
+          {`${themeLabel} · ${themeSub}`.split('').map((ch, i) => (
+            <span
+              key={i}
+              className="splash-theme-char"
+              style={{ animationDelay: `${3.05 + i * 0.045}s` }}
+            >
+              {ch === ' ' ? '\u00A0' : ch}
+            </span>
+          ))}
+        </div>
+        <button onClick={handleClick} className="splash-begin-btn">
+          <span className="splash-begin-tick" />
+          <span className="splash-begin-label">BEGIN</span>
+          <span className="splash-begin-tick" />
+        </button>
       </div>
     </div>
   )
@@ -608,7 +670,7 @@ const ChatPage = () => {
       <div className="grain-overlay" />
       <div className="app-frame" />
 
-      {showSplash && <SplashScreen onEnter={handleSplashEnter} />}
+      {showSplash && <SplashScreen onEnter={handleSplashEnter} theme={theme} />}
 
       {/* 遮罩层 */}
       {showSidebar && (

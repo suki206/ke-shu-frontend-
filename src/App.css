@@ -628,6 +628,21 @@ body {
   -webkit-backdrop-filter: blur(2px);
 }
 
+/* 满天细碎的常驻星光，最底层的静谧氛围，从一开始就轻轻闪烁 */
+.splash-twinkle-field {
+  position: absolute; inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.splash-twinkle {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--c-star);
+  box-shadow: 0 0 5px var(--c-star-bright);
+  opacity: 0;
+  animation: splashTwinkle var(--tw-duration, 5s) ease-in-out var(--tw-delay, 0s) infinite;
+}
+
 /* 中心呼吸光晕，成字后缓缓亮起、缓缓收拢，像烛芯的呼吸 */
 .splash-glow {
   position: absolute;
@@ -640,7 +655,7 @@ body {
   opacity: 0;
   z-index: 3;
   pointer-events: none;
-  animation: splashGlowBreathe 6s ease-in-out 2.6s infinite;
+  animation: splashGlowBreathe 6s ease-in-out 2.8s infinite;
 }
 
 /* 常驻星尘：细碎光点自下而上缓缓飘升，营造梦幻纵深感 */
@@ -661,21 +676,118 @@ body {
 
 .splash-canvas { position: absolute; inset: 0; z-index: 5; }
 
+/* 星辰成字后，一道柔光只扫过一次，像绸缎上滑过的光 */
+.splash-shimmer {
+  position: absolute;
+  left: 50%; top: 28%;
+  width: min(80vw, 700px);
+  height: 180px;
+  transform: translate(-50%, 0);
+  background: linear-gradient(102deg, transparent 34%, rgba(255, 255, 255, 0.55) 50%, transparent 66%);
+  background-size: 260% 100%;
+  background-position: -60% 0;
+  mix-blend-mode: overlay;
+  opacity: 0;
+  z-index: 6;
+  pointer-events: none;
+  animation: splashShimmerSweep 2s ease-in-out 3.1s 1;
+}
+
+/* 画框式四角装饰，缓缓收拢，呼应主界面的装裱质感 */
+.splash-frame {
+  position: absolute; inset: 18px;
+  z-index: 15;
+  pointer-events: none;
+}
+.splash-corner {
+  position: absolute;
+  width: 42px; height: 42px;
+  opacity: 0;
+}
+.splash-corner-tl {
+  top: 0; left: 0;
+  border-top: var(--hair) solid var(--c-star-bright);
+  border-left: var(--hair) solid var(--c-star-bright);
+  transform-origin: top left;
+  animation: splashCornerDraw 1.3s var(--ease) 0.45s forwards;
+}
+.splash-corner-tr {
+  top: 0; right: 0;
+  border-top: var(--hair) solid var(--c-star-bright);
+  border-right: var(--hair) solid var(--c-star-bright);
+  transform-origin: top right;
+  animation: splashCornerDraw 1.3s var(--ease) 0.62s forwards;
+}
+.splash-corner-bl {
+  bottom: 0; left: 0;
+  border-bottom: var(--hair) solid var(--c-star-bright);
+  border-left: var(--hair) solid var(--c-star-bright);
+  transform-origin: bottom left;
+  animation: splashCornerDraw 1.3s var(--ease) 0.62s forwards;
+}
+.splash-corner-br {
+  bottom: 0; right: 0;
+  border-bottom: var(--hair) solid var(--c-star-bright);
+  border-right: var(--hair) solid var(--c-star-bright);
+  transform-origin: bottom right;
+  animation: splashCornerDraw 1.3s var(--ease) 0.8s forwards;
+}
+
 .splash-foot {
   position: relative; z-index: 20;
   display: flex; flex-direction: column; align-items: center;
-  gap: 26px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 13vh);
-  animation: riseIn 1.1s var(--ease) 0.3s both;
+  gap: 18px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12vh);
 }
+
+/* 小小的线—点—线花饰，最先浮现，为下方的仪式感开场 */
+.splash-ornament {
+  display: flex; align-items: center; gap: 9px;
+  opacity: 0;
+  animation: splashOrnamentIn 1s var(--ease) 2.55s forwards;
+}
+.splash-ornament-line {
+  width: 20px; height: 1px;
+  background: var(--c-star-bright);
+  opacity: 0.65;
+}
+.splash-ornament-dot {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--c-star-bright);
+  box-shadow: 0 0 7px var(--c-star-bright);
+}
+
 .splash-rule {
   width: 58px; height: 1px;
   background: linear-gradient(90deg, transparent, var(--c-star-bright), transparent);
   background-size: 200% 100%;
-  animation: splashRuleShimmer 3.4s ease-in-out infinite;
+  transform-origin: center;
+  opacity: 0;
+  animation:
+    splashRuleReveal 0.9s var(--ease) 2.75s forwards,
+    splashRuleShimmer 3.4s ease-in-out 3.7s infinite;
 }
+
+/* 主题名逐字浮现："Aurum · 金烛" 一类，像被轻轻念出来 */
+.splash-theme-tag {
+  display: flex;
+  font-family: var(--font-accent);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--c-star);
+}
+.splash-theme-char {
+  display: inline-block;
+  letter-spacing: 2.6px;
+  opacity: 0;
+  transform: translateY(5px);
+  animation: splashThemeCharIn 0.65s var(--ease) forwards;
+}
+
 .splash-begin-btn {
-  padding: 14px 52px;
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 40px;
   border-radius: 999px;
   border: var(--hair) solid rgba(255, 255, 255, 0.34);
   background: rgba(255, 255, 255, 0.06);
@@ -683,22 +795,38 @@ body {
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
   color: var(--c-star);
   font-family: var(--font-accent);
+  cursor: pointer;
+  opacity: 0;
+  box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  transition: background 0.3s var(--ease), transform 0.2s var(--ease), box-shadow 0.3s var(--ease);
+  animation: splashBeginIn 0.9s var(--ease) 3.85s forwards;
+}
+.splash-begin-tick {
+  width: 14px; height: 1px;
+  background: var(--c-star-bright);
+  opacity: 0.7;
+  transition: width 0.3s var(--ease);
+}
+.splash-begin-label {
   font-size: 13px;
   letter-spacing: 6px;
-  cursor: pointer;
-  transition: background 0.3s var(--ease), letter-spacing 0.3s var(--ease), transform 0.2s var(--ease), box-shadow 0.3s var(--ease);
-  box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  transition: letter-spacing 0.3s var(--ease);
 }
 .splash-begin-btn:hover {
   background: rgba(255, 255, 255, 0.13);
-  letter-spacing: 8px;
   box-shadow: 0 0 24px rgba(255, 255, 255, 0.18);
 }
+.splash-begin-btn:hover .splash-begin-tick { width: 24px; }
+.splash-begin-btn:hover .splash-begin-label { letter-spacing: 8px; }
 .splash-begin-btn:active { transform: scale(0.97); }
 
 @keyframes splashKenBurns {
   from { transform: scale(var(--c-photo-scale)); }
   to { transform: scale(calc(var(--c-photo-scale) + 0.045)); }
+}
+@keyframes splashTwinkle {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 0.85; }
 }
 @keyframes splashGlowBreathe {
   0%, 100% { opacity: 0.10; transform: translate(-50%, -50%) scale(1); }
@@ -710,9 +838,51 @@ body {
   55% { opacity: 0.45; }
   100% { transform: translate(var(--dust-drift, 0px), -112vh) scale(1); opacity: 0; }
 }
+@keyframes splashShimmerSweep {
+  0% { background-position: -60% 0; opacity: 0; }
+  18% { opacity: 0.9; }
+  55% { opacity: 0.9; }
+  100% { background-position: 160% 0; opacity: 0; }
+}
+@keyframes splashCornerDraw {
+  from { opacity: 0; transform: scale(0.55); }
+  to { opacity: 0.55; transform: scale(1); }
+}
+@keyframes splashOrnamentIn {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 0.85; transform: scale(1); }
+}
+@keyframes splashRuleReveal {
+  from { opacity: 0; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); }
+}
 @keyframes splashRuleShimmer {
   0%, 100% { background-position: 200% 0; }
   50% { background-position: -20% 0; }
+}
+@keyframes splashThemeCharIn {
+  to { opacity: 0.78; transform: translateY(0); }
+}
+@keyframes splashBeginIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-screen .photo-bg .photo-layer,
+  .splash-twinkle,
+  .splash-glow,
+  .splash-dust,
+  .splash-shimmer,
+  .splash-corner,
+  .splash-ornament,
+  .splash-rule,
+  .splash-theme-char,
+  .splash-begin-btn {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 /* ============================================================
