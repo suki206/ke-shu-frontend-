@@ -186,7 +186,6 @@ body {
 @keyframes dotPulse  { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }
 @keyframes toastIn   { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toastOut  { to { opacity: 0; transform: translateY(-6px); } }
-@keyframes cursorBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
 /* ============================================================
    胶片颗粒叠加层
@@ -255,14 +254,16 @@ body {
   word-break: break-word;
 }
 
-/* ── 流式打字光标 ── */
-.stream-cursor::after {
-  content: '▋';
-  font-size: .78em;
-  animation: cursorBlink .75s step-end infinite;
-  color: var(--c-accent);
-  margin-left: 1px;
-  vertical-align: baseline;
+/* ── 浮现效果（替代打字机逐字+光标）──────────────────────────
+   只给"正在写入"的尾部一小段文字做淡入+虚焦→清晰的动画，
+   已经稳定下来的正文保持静止，不整体闪烁。 */
+.reveal-tail {
+  display: inline;
+  animation: textEmerge .55s var(--ease) both;
+}
+@keyframes textEmerge {
+  from { opacity: 0;   filter: blur(3px); }
+  to   { opacity: 1;   filter: blur(0);   }
 }
 
 /* ============================================================
@@ -1346,4 +1347,94 @@ button { font-family: inherit; }
   padding-bottom: 10px;
   border-bottom: var(--hair) solid var(--c-line);
 }
+
+/* ============================================================
+   常数页 · 记忆敏感度三档
+   ============================================================ */
+.sensitivity-row { display: flex; gap: 8px; }
+.sensitivity-btn {
+  flex: 1; padding: 10px 0; border-radius: 12px;
+  font-size: 11.5px; letter-spacing: 1.5px;
+}
+.sensitivity-hint {
+  font-size: 10.5px; color: var(--c-text-faint); line-height: 1.7;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   常数页 · 模型切换
+   ============================================================ */
+.model-item {
+  position: relative;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: var(--hair) solid var(--c-line);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  transition: background .25s var(--ease), border-color .25s var(--ease);
+}
+.model-item + .model-item { margin-top: 8px; }
+.model-item:hover { background: var(--c-accent-soft); }
+.model-item.is-active { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.model-item-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.model-item-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: var(--c-text-faint); transition: background .25s var(--ease);
+}
+.model-item.is-active .model-item-dot { background: var(--c-accent); }
+.model-item-label { font-size: 13px; color: var(--c-text); letter-spacing: .3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-item-sub { font-size: 10px; color: var(--c-text-faint); letter-spacing: .5px; margin-top: 2px; }
+.model-add-form {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px; margin-top: 4px;
+  border: var(--hair) dashed var(--c-line-strong); border-radius: 14px;
+}
+.model-add-title { font-size: 10.5px; letter-spacing: 1.5px; color: var(--c-text-faint); font-family: var(--font-accent); }
+
+/* ============================================================
+   常数页 · Token 统计仪表盘（深藏，默认折叠）
+   ============================================================ */
+.token-stats-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; padding: 2px 0;
+}
+.token-stats-toggle-label { font-size: 10.5px; letter-spacing: 1.5px; color: var(--c-text-faint); font-family: var(--font-accent); }
+.token-stats-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+  margin-top: 12px;
+}
+.token-stat-item {
+  padding: 12px 14px; border-radius: 12px;
+  background: var(--c-input-bg); border: var(--hair) solid var(--c-line);
+}
+.token-stat-label { font-size: 9.5px; letter-spacing: 1.5px; color: var(--c-text-faint); font-family: var(--font-accent); }
+.token-stat-value { font-size: 15px; color: var(--c-text); margin-top: 6px; letter-spacing: .3px; }
+.token-model-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; font-size: 11.5px; color: var(--c-text-muted);
+  border-bottom: var(--hair) solid var(--c-line);
+}
+.token-model-row:last-child { border-bottom: 0; }
+.token-trend-wrap { margin-top: 14px; }
+
+/* ============================================================
+   常数页 · 信标（便签）
+   ============================================================ */
+.beacon-add-row { display: flex; gap: 8px; }
+.beacon-add-row .field-input { flex: 1; }
+.beacon-list { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.beacon-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 2px; border-bottom: var(--hair) solid var(--c-line);
+}
+.beacon-item:last-child { border-bottom: 0; }
+.beacon-check {
+  width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+  border: var(--hair) solid var(--c-line-strong);
+  cursor: pointer; transition: background .25s var(--ease), border-color .25s var(--ease);
+}
+.beacon-check.is-done { background: var(--c-accent); border-color: var(--c-accent); }
+.beacon-text { flex: 1; font-size: 13px; color: var(--c-text); letter-spacing: .2px; word-break: break-word; }
+.beacon-text.is-done { color: var(--c-text-faint); text-decoration: line-through; }
+.beacon-empty { font-size: 11.5px; color: var(--c-text-faint); padding: 10px 2px; font-style: italic; }
 

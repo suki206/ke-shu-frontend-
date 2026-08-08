@@ -73,6 +73,55 @@ const MarkdownText = ({ text }) => {
 }
 
 // ============================================================
+// 流式浮现渲染（替代打字机效果）
+// 已经"稳定"的正文交给 MarkdownText 正常解析、静止不动；
+// 只把最新收到的一小段尾巴（TAIL_WINDOW 个字符）用纯文本包一层
+// .reveal-tail 做淡入+虚焦变清晰的动画，随着后面文字持续到达，
+// 这段尾巴不断往后滑动、不断重新播放动画——视觉上像文字不断从
+// 雾气里浮现出来，而不是逐字蹦出来的打字机。
+// 代价：尾巴窗口内如果正好卡在一个 markdown 符号中间（比如 **加粗**
+// 被切成两半），会有极短暂的原始符号闪现，等这段文字滑入稳定区、
+// 被 MarkdownText 完整解析后就会恢复正常——原来的逐字打字机效果
+// 本就有同样的局限，这里没有变得更差。
+// ============================================================
+const TAIL_WINDOW = 26
+const StreamingText = ({ text }) => {
+  if (!text) return null
+  let splitAt = Math.max(0, text.length - TAIL_WINDOW)
+  // 避免把 UTF-16 代理对（比如某些 emoji）从中间切开
+  if (splitAt > 0 && /[\uD800-\uDBFF]/.test(text[splitAt - 1] || '')) splitAt -= 1
+  const settled = text.slice(0, splitAt)
+  const tail    = text.slice(splitAt)
+  return (
+    <>
+      {settled && <MarkdownText text={settled} />}
+      <span key={text.length} className="reveal-tail">{tail}</span>
+    </>
+  )
+}
+
+// ============================================================
+// Token 7日趋势 · 极简 SVG 折线图（0依赖，深藏于常数页）
+// ============================================================
+const TokenTrendChart = ({ trend }) => {
+  if (!trend?.length) return null
+  const W = 280, H = 64, PAD = 4
+  const maxVal = Math.max(1, ...trend.map(d => d.input + d.output))
+  const stepX = (W - PAD * 2) / Math.max(1, trend.length - 1)
+  const pointsFor = (key) => trend.map((d, i) => {
+    const x = PAD + i * stepX
+    const y = H - PAD - (d[key] / maxVal) * (H - PAD * 2)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
+      <polyline points={pointsFor('input')}  fill="none" stroke="var(--c-text-faint)" strokeWidth="1.2" opacity=".7" />
+      <polyline points={pointsFor('output')} fill="none" stroke="var(--c-accent)"     strokeWidth="1.4" />
+    </svg>
+  )
+}
+
+// ============================================================
 // 常量 & 配置
 // ============================================================
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
@@ -147,6 +196,33 @@ const THEMES       = ['noir', 'warm']
 const THEME_LABELS = { noir: 'Deep Space', warm: 'Day Dream' }
 const THEME_SUB    = { noir: '深空',  warm: '昼梦' }
 const THEME_META   = { noir: '#000002', warm: '#060300' }
+
+// ============================================================
+// 信标（便签，C级）—— 纯前端增删改查，零 AI 调用
+// 与后端保持一致，用固定 +8h 偏移换算北京日历日，不依赖系统时区，
+// 用来判断"是否跨天了"，从而在打开应用时自动清空前一天已完成的项。
+// ============================================================
+const BEACON_STORAGE = 'ks_beacons'
+const beaconTodayStr = () => {
+  const bj = new Date(Date.now() + 8 * 3600 * 1000)
+  return `${bj.getUTCFullYear()}-${String(bj.getUTCMonth() + 1).padStart(2, '0')}-${String(bj.getUTCDate()).padStart(2, '0')}`
+}
+function loadBeacons() {
+  let saved
+  try { saved = JSON.parse(localStorage.getItem(BEACON_STORAGE) || 'null') } catch { saved = null }
+  const today = beaconTodayStr()
+  if (!saved || saved.date !== today) {
+    // 跨天了：清空"已完成"的项，未完成的项继续保留
+    const kept = (saved?.items || []).filter(it => !it.done)
+    const next = { date: today, items: kept }
+    localStorage.setItem(BEACON_STORAGE, JSON.stringify(next))
+    return next.items
+  }
+  return saved.items || []
+}
+function saveBeacons(items) {
+  localStorage.setItem(BEACON_STORAGE, JSON.stringify({ date: beaconTodayStr(), items }))
+}
 
 // Tab 定义
 const TABS = [
@@ -539,8 +615,45 @@ const StardustPage = ({ memories, memoriesLoading, onFetch, onDream }) => (
 // ============================================================
 // 常数 · 设置页
 // ============================================================
+const SENSITIVITY_LEVELS = ['low', 'medium', 'high']
+const SENSITIVITY_LABELS = { low: '低', medium: '中', high: '高' }
+const SENSITIVITY_HINTS = {
+  low:    '只有同时满足"明确事实"且"情绪波动强烈"才会自动记住，平淡的陈述不会存。',
+  medium: '默认档位：用户明确说出的具体事实会自动记住，闲聊、提问不会存。',
+  high:   '判断标准与"中"档一致，作为最宽松的一档预留（后续可以再放宽）。',
+}
+
 const ConstantPage = ({ config, setConfig, theme, setTheme, voices, selectedVoiceURI, setSelectedVoiceURI,
-  onSave, onExport, onRefreshVoices, showToast }) => {
+  onSave, onExport, onRefreshVoices, showToast,
+  beacons, beaconText, setBeaconText, onAddBeacon, onToggleBeacon, onDeleteBeacon,
+  tokenStatsOpen, onToggleTokenStats, tokenStats, tokenStatsLoading }) => {
+
+  // 模型切换 · 新增模型的表单（纯本地 UI 状态，提交后写进 config.models）
+  const [showAddModel, setShowAddModel] = useState(false)
+  const [modelForm, setModelForm] = useState({ label: '', baseUrl: '', requestModel: '', apiKey: '' })
+  const modelList = config.models || []
+  const activeModelId = config.model || 'deepseek-chat'
+
+  const submitAddModel = () => {
+    const label = modelForm.label.trim()
+    const baseUrl = modelForm.baseUrl.trim()
+    if (!label || !baseUrl) { showToast('至少要填名称和接口地址'); return }
+    const id = `custom-${Date.now()}`
+    const entry = { id, label, baseUrl, requestModel: modelForm.requestModel.trim() || id, apiKey: modelForm.apiKey.trim() }
+    const next = { ...config, models: [...modelList, entry], model: id }
+    setConfig(next); onSave(next)
+    setModelForm({ label: '', baseUrl: '', requestModel: '', apiKey: '' })
+    setShowAddModel(false)
+  }
+  const removeModel = (id) => {
+    const next = { ...config, models: modelList.filter(m => m.id !== id), model: activeModelId === id ? 'deepseek-chat' : activeModelId }
+    setConfig(next); onSave(next)
+  }
+  const selectModel = (id) => {
+    const next = { ...config, model: id }
+    setConfig(next); onSave(next)
+  }
+
   return (
     <div className="tab-page">
       <div style={{ padding: '28px 22px 14px', flexShrink: 0, borderBottom: '1px solid var(--c-line)' }}>
@@ -583,6 +696,88 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, voices, selectedVoic
           </div>
         </div>
 
+        {/* 记忆敏感度 + 记忆暂停 */}
+        <div className="constant-section">
+          <div className="constant-section-title">Memory · 记忆</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: 'var(--c-text-faint)', marginBottom: 8, fontFamily: 'var(--font-accent)' }}>敏感度</div>
+              <div className="sensitivity-row">
+                {SENSITIVITY_LEVELS.map(lv => (
+                  <button key={lv}
+                    className={`sensitivity-btn ${(config.memory_sensitivity || 'medium') === lv ? 'solid-btn' : 'line-btn'}`}
+                    onClick={() => { const next = { ...config, memory_sensitivity: lv }; setConfig(next); onSave(next) }}
+                  >{SENSITIVITY_LABELS[lv]}</button>
+                ))}
+              </div>
+              <div className="sensitivity-hint">{SENSITIVITY_HINTS[config.memory_sensitivity || 'medium']}</div>
+            </div>
+            <div className="const-switch-row" style={{ marginTop: 4 }}>
+              <div>
+                <div className="const-switch-label">记忆暂停</div>
+                <div className="const-switch-sub">开启后跳过所有自动存入星尘，只保留手动"存入星尘"</div>
+              </div>
+              <button
+                className={`const-switch${config.memory_paused ? ' is-on' : ''}`}
+                onClick={() => { const next = { ...config, memory_paused: !config.memory_paused }; setConfig(next); onSave(next) }}
+              >
+                <span className="const-switch-knob" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 模型切换 */}
+        <div className="constant-section">
+          <div className="constant-section-title">Model · 模型</div>
+          <div>
+            <div
+              className={`model-item${activeModelId === 'deepseek-chat' ? ' is-active' : ''}`}
+              onClick={() => selectModel('deepseek-chat')}
+            >
+              <div className="model-item-main">
+                <span className="model-item-dot" />
+                <div>
+                  <div className="model-item-label">DeepSeek</div>
+                  <div className="model-item-sub">内置默认 · 无需填 key</div>
+                </div>
+              </div>
+            </div>
+            {modelList.map(m => (
+              <div key={m.id} className={`model-item${activeModelId === m.id ? ' is-active' : ''}`} onClick={() => selectModel(m.id)}>
+                <div className="model-item-main">
+                  <span className="model-item-dot" />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="model-item-label">{m.label}</div>
+                    <div className="model-item-sub">{m.apiKey ? '已填 key' : '未填 key，走环境变量'}</div>
+                  </div>
+                </div>
+                <span className="icon-btn" onClick={e => { e.stopPropagation(); removeModel(m.id) }} style={{ cursor: 'pointer', color: 'var(--c-text-faint)', padding: '4px', flexShrink: 0 }}>
+                  <Icon.Trash />
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {showAddModel ? (
+            <div className="model-add-form">
+              <div className="model-add-title">新增模型</div>
+              <input className="field-input" placeholder="名称（如 Claude）" value={modelForm.label} onChange={e => setModelForm(p => ({ ...p, label: e.target.value }))} />
+              <input className="field-input" placeholder="接口地址 baseUrl（OpenAI 兼容 /chat/completions）" value={modelForm.baseUrl} onChange={e => setModelForm(p => ({ ...p, baseUrl: e.target.value }))} />
+              <input className="field-input" placeholder="请求用的模型名（不填则用名称）" value={modelForm.requestModel} onChange={e => setModelForm(p => ({ ...p, requestModel: e.target.value }))} />
+              <input className="field-input" type="password" placeholder="API Key" value={modelForm.apiKey} onChange={e => setModelForm(p => ({ ...p, apiKey: e.target.value }))} />
+              <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                <button onClick={() => setShowAddModel(false)} className="line-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>取消</button>
+                <button onClick={submitAddModel} className="solid-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>保存</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowAddModel(true)} className="line-btn" style={{ width: '100%', marginTop: 10, padding: '10px 0', borderRadius: '12px', fontSize: '11px', letterSpacing: '1.5px' }}>
+              + 新增模型
+            </button>
+          )}
+        </div>
+
         {/* 语音 */}
         <div className="constant-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -622,6 +817,83 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, voices, selectedVoic
           </div>
         </div>
 
+        {/* 信标（便签）*/}
+        <div className="constant-section">
+          <div className="constant-section-title">Beacon · 信标</div>
+          <div className="beacon-add-row">
+            <input
+              className="field-input"
+              placeholder="记一件小事…"
+              value={beaconText}
+              onChange={e => setBeaconText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && onAddBeacon()}
+            />
+            <button onClick={onAddBeacon} className="line-btn" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '13px' }}>+</button>
+          </div>
+          <div className="beacon-list">
+            {(!beacons || beacons.length === 0) && <div className="beacon-empty">暂无信标</div>}
+            {beacons?.map(b => (
+              <div key={b.id} className="beacon-item">
+                <span className={`beacon-check${b.done ? ' is-done' : ''}`} onClick={() => onToggleBeacon(b.id)} />
+                <span className={`beacon-text${b.done ? ' is-done' : ''}`} onClick={() => onToggleBeacon(b.id)}>{b.text}</span>
+                <span className="icon-btn" onClick={() => onDeleteBeacon(b.id)} style={{ cursor: 'pointer', color: 'var(--c-text-faint)', padding: '4px', flexShrink: 0 }}>
+                  <Icon.Trash />
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="sensitivity-hint" style={{ marginTop: 2 }}>次日自动清空已完成项，未完成的项会保留</div>
+        </div>
+
+        {/* Token 统计仪表盘（深藏，默认折叠，不打扰前台） */}
+        <div className="constant-section">
+          <div className="token-stats-toggle" onClick={onToggleTokenStats}>
+            <span className="token-stats-toggle-label">Tokens · 用量统计</span>
+            <Icon.Chevron size={9} open={tokenStatsOpen} />
+          </div>
+          {tokenStatsOpen && (
+            tokenStatsLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}><div className="breath-dot" /></div>
+            ) : !tokenStats ? (
+              <div className="sensitivity-hint">暂无统计数据</div>
+            ) : (
+              <>
+                <div className="token-stats-grid">
+                  <div className="token-stat-item">
+                    <div className="token-stat-label">TODAY</div>
+                    <div className="token-stat-value">↑{tokenStats.today?.input ?? 0} ↓{tokenStats.today?.output ?? 0}</div>
+                  </div>
+                  <div className="token-stat-item">
+                    <div className="token-stat-label">WEEK</div>
+                    <div className="token-stat-value">↑{tokenStats.week?.input ?? 0} ↓{tokenStats.week?.output ?? 0}</div>
+                  </div>
+                  <div className="token-stat-item">
+                    <div className="token-stat-label">ALL</div>
+                    <div className="token-stat-value">↑{tokenStats.all?.input ?? 0} ↓{tokenStats.all?.output ?? 0}</div>
+                  </div>
+                  <div className="token-stat-item">
+                    <div className="token-stat-label">SESSION</div>
+                    <div className="token-stat-value">{tokenStats.session ? `↑${tokenStats.session.input} ↓${tokenStats.session.output}` : '—'}</div>
+                  </div>
+                </div>
+                {tokenStats.byModel && Object.keys(tokenStats.byModel).length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    {Object.entries(tokenStats.byModel).map(([m, v]) => (
+                      <div key={m} className="token-model-row">
+                        <span>{m}</span>
+                        <span>↑{v.input} ↓{v.output}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="token-trend-wrap">
+                  <TokenTrendChart trend={tokenStats.trend7d} />
+                </div>
+              </>
+            )
+          )}
+        </div>
+
         {/* 数据 */}
         <div className="constant-section">
           <div className="constant-section-title">Data · 数据</div>
@@ -659,7 +931,13 @@ const ChatPage = () => {
   const [messages,      setMessages]      = useState([])
   const [inputText,     setInputText]     = useState('')
   const [loading,       setLoading]       = useState(false)
-  const [config,        setConfig]        = useState({ system_prompt: '你是温柔贴心的AI伴侣，简短自然回复', temperature: 0.7, compress_threshold: 3000, compress_keep_rounds: 4, show_reasoning: false })
+  const [config,        setConfig]        = useState({
+    system_prompt: '你是温柔贴心的AI伴侣，简短自然回复', temperature: 0.7, compress_threshold: 3000, compress_keep_rounds: 4, show_reasoning: false,
+    memory_sensitivity: 'medium',   // 记忆敏感度（C级）：low / medium / high
+    memory_paused: false,           // 记忆暂停开关（C级）
+    model: 'deepseek-chat',         // 当前选中的模型 id（C级 模型切换）
+    models: [],                     // 用户自己添加的模型列表（C级 模型切换）
+  })
   const [archivedList,  setArchivedList]  = useState([])
   const [hasOlderArchive, setHasOlderArchive] = useState(false)
   const [archiveCursor, setArchiveCursor] = useState(null)
@@ -677,6 +955,42 @@ const ChatPage = () => {
   const [memoryPulse,   setMemoryPulse]   = useState(false)
   // 侧边会话列表（星轨内部展开）
   const [showSessionList, setShowSessionList] = useState(false)
+
+  // ── C级：信标（便签）── 纯前端，零 AI 调用
+  const [beacons,    setBeacons]    = useState(() => loadBeacons())
+  const [beaconText, setBeaconText] = useState('')
+  const addBeacon = () => {
+    const text = beaconText.trim()
+    if (!text) return
+    const next = [...beacons, { id: `${Date.now()}-${Math.random()}`, text, done: false }]
+    setBeacons(next); saveBeacons(next); setBeaconText('')
+  }
+  const toggleBeacon = (id) => {
+    const next = beacons.map(b => b.id === id ? { ...b, done: !b.done } : b)
+    setBeacons(next); saveBeacons(next)
+  }
+  const deleteBeacon = (id) => {
+    const next = beacons.filter(b => b.id !== id)
+    setBeacons(next); saveBeacons(next)
+  }
+
+  // ── C级：Token 统计仪表盘（深藏，展开时才拉取）
+  const [tokenStatsOpen, setTokenStatsOpen] = useState(false)
+  const [tokenStats,     setTokenStats]     = useState(null)
+  const [tokenStatsLoading, setTokenStatsLoading] = useState(false)
+  const fetchTokenStats = async () => {
+    setTokenStatsLoading(true)
+    try {
+      const res = await axios.get(`${API_BASE}/stats/tokens`, { params: activeSessionId ? { sessionId: activeSessionId } : {} })
+      setTokenStats(res.data)
+    } catch { setTokenStats(null) }
+    setTokenStatsLoading(false)
+  }
+  const toggleTokenStats = () => {
+    const next = !tokenStatsOpen
+    setTokenStatsOpen(next)
+    if (next) fetchTokenStats()
+  }
 
   // ── A级：星轨交互补全 相关状态 ──────────────────────────
   const [msgMenu,       setMsgMenu]       = useState(null)   // { x, y, msg, key }
@@ -1198,7 +1512,7 @@ const ChatPage = () => {
                 {isWaiting
                   ? <div className="breath-dot" style={{ margin: '2px auto' }} />
                   : isStreaming
-                    ? <><MarkdownText text={body} /><span className="stream-cursor" /></>
+                    ? <StreamingText text={body} />
                     : <MarkdownText text={body} />
                 }
               </div>
@@ -1427,6 +1741,10 @@ const ChatPage = () => {
               voices={voices} selectedVoiceURI={selectedVoiceURI} setSelectedVoiceURI={setSelectedVoiceURI}
               onSave={saveSettings} onExport={exportConversation}
               onRefreshVoices={refreshVoices} showToast={showToast}
+              beacons={beacons} beaconText={beaconText} setBeaconText={setBeaconText}
+              onAddBeacon={addBeacon} onToggleBeacon={toggleBeacon} onDeleteBeacon={deleteBeacon}
+              tokenStatsOpen={tokenStatsOpen} onToggleTokenStats={toggleTokenStats}
+              tokenStats={tokenStats} tokenStatsLoading={tokenStatsLoading}
             />
           )}
 
