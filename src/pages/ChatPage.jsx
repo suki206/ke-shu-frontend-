@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import axios from 'axios'
 import StarCanvas from './StarCanvas'
 import MemoryDeepSpace from './MemoryDeepSpace'
 import ConstellationMap from './ConstellationMap'
+import GravityPage from './GravityPage'
 
 // ============================================================
 // Markdown 轻量渲染器（0依赖，保留原有实现）
@@ -228,9 +229,9 @@ function saveBeacons(items) {
 
 // Tab 定义
 const TABS = [
-  { id: 'orbit',     label: 'ORBIT',     labelCN: '星轨' },
+  { id: 'gravity',   label: 'GRAVITY',   labelCN: '引力' },
   { id: 'stardust',  label: 'DUST',      labelCN: '星尘' },
-  { id: 'origin',    label: '',          labelCN: '' },   // 中央"归"按钮占位
+  { id: 'orbit',     label: 'CHAT',      labelCN: '对话' },   // 中央星核按钮，非常规 nav-tab
   { id: 'chronicle', label: 'LOG',       labelCN: '星历' },
   { id: 'constant',  label: 'CONST',     labelCN: '常数' },
 ]
@@ -240,6 +241,7 @@ const TABS = [
 // ============================================================
 const Icon = {
   Orbit:     (p) => (<svg width={p.size||18} height={p.size||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-30 12 12)"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>),
+  Gravity:   (p) => (<svg width={p.size||18} height={p.size||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.1"><circle cx="12" cy="12" r="9.2"/><circle cx="12" cy="12" r="5.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>),
   Stardust:  (p) => (<svg width={p.size||18} height={p.size||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="5"  cy="6"  r="1"   fill="currentColor" stroke="none" opacity=".6"/><circle cx="19" cy="5"  r="0.8" fill="currentColor" stroke="none" opacity=".5"/><circle cx="7"  cy="18" r="1.2" fill="currentColor" stroke="none" opacity=".7"/><circle cx="18" cy="17" r="0.9" fill="currentColor" stroke="none" opacity=".55"/><circle cx="14" cy="7"  r="0.7" fill="currentColor" stroke="none" opacity=".4"/><circle cx="9"  cy="13" r="0.6" fill="currentColor" stroke="none" opacity=".45"/></svg>),
   Chronicle: (p) => (<svg width={p.size||18} height={p.size||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>),
   Constant:  (p) => (<svg width={p.size||18} height={p.size||18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>),
@@ -386,61 +388,11 @@ const SplashScreen = ({ onEnter, theme }) => {
 }
 
 // ============================================================
-// 坠入空白模式
-// ============================================================
-const VOID_DRIFTS = [
-  { w:3, h:3, top:'22%', left:'18%', dur:20, delay:0,  x0:-10, y0:0,   x1:25,  y1:-20, oa:0.09, om:0.19, ob:0.06 },
-  { w:2, h:2, top:'55%', left:'72%', dur:26, delay:3,  x0:15,  y0:5,   x1:-20, y1:18,  oa:0.07, om:0.15, ob:0.05 },
-  { w:4, h:4, top:'38%', left:'88%', dur:18, delay:7,  x0:0,   y0:-15, x1:18,  y1:10,  oa:0.11, om:0.22, ob:0.07 },
-  { w:2, h:2, top:'70%', left:'12%', dur:22, delay:2,  x0:-8,  y0:12,  x1:14,  y1:-8,  oa:0.06, om:0.13, ob:0.05 },
-  { w:3, h:3, top:'15%', left:'55%', dur:30, delay:10, x0:20,  y0:-5,  x1:-15, y1:22,  oa:0.08, om:0.16, ob:0.05 },
-  { w:2, h:2, top:'82%', left:'44%', dur:24, delay:5,  x0:-12, y0:8,   x1:10,  y1:-14, oa:0.07, om:0.14, ob:0.05 },
-]
-
-const VoidScreen = ({ onWake }) => (
-  <div className="void-screen" onClick={onWake}>
-    {VOID_DRIFTS.map((d, i) => (
-      <div key={i} className="void-drift" style={{
-        width: d.w, height: d.h,
-        top: d.top, left: d.left,
-        '--vd-dur':   `${d.dur}s`,
-        '--vd-delay': `${d.delay}s`,
-        '--vd-x0': `${d.x0}px`, '--vd-y0': `${d.y0}px`,
-        '--vd-x1': `${d.x1}px`, '--vd-y1': `${d.y1}px`,
-        '--vd-oa': d.oa, '--vd-om': d.om, '--vd-ob': d.ob,
-      }} />
-    ))}
-  </div>
-)
-
-// ============================================================
-// 归 · 弹出菜单
-// ============================================================
-const OriginMenu = ({ onNavigate, onVoid, onClose }) => (
-  <>
-    <div className="origin-menu-veil" onClick={onClose} />
-    <div className="origin-menu">
-      <button className="origin-menu-item" onClick={() => { onNavigate('orbit');     onClose() }}>
-        <span className="origin-menu-dot" /> ORBIT · 星轨
-      </button>
-      <button className="origin-menu-item" onClick={() => { onNavigate('stardust'); onClose() }}>
-        <span className="origin-menu-dot" /> DUST · 星尘
-      </button>
-      <button className="origin-menu-item" onClick={() => { onNavigate('chronicle'); onClose() }}>
-        <span className="origin-menu-dot" /> LOG · 星历
-      </button>
-      <button className="origin-menu-item is-void" onClick={() => { onVoid(); onClose() }}>
-        坠入空白
-      </button>
-    </div>
-  </>
-)
-
-// ============================================================
 // 星尘专属：右下角悬浮毛玻璃圆点 → 扇形导航
 // 只在 activeTab === 'stardust' 时挂载，离开星尘随卸载自动复位
 // ============================================================
 const DUST_FAB_ITEMS = [
+  { id: 'gravity',   label: '引力', icon: 'Gravity' },
   { id: 'orbit',     label: '对话', icon: 'Orbit' },
   { id: 'stardust',  label: '星尘', icon: 'Stardust' },
   { id: 'chronicle', label: '日记', icon: 'Chronicle' },
@@ -566,7 +518,7 @@ const ChroniclePage = () => {
       <div style={{ padding: '22px 20px 14px', flexShrink: 0, borderBottom: '1px solid var(--c-line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '15px', letterSpacing: '4px', color: 'var(--c-text)' }}>CHRONICLE</div>
-          <div style={{ fontSize: '11px', letterSpacing: '1px', color: 'var(--c-text-faint)', marginTop: 6, fontFamily: 'var(--font-accent)', fontStyle: 'italic' }}>不属于你的日记本</div>
+          <div style={{ fontSize: '11px', letterSpacing: '1px', color: 'var(--c-text-faint)', marginTop: 6, fontFamily: 'var(--font-accent)', fontStyle: 'italic' }}>枢的日记本</div>
         </div>
         <button onClick={generateToday} disabled={generating} className="line-btn" style={{ padding: '9px 16px', borderRadius: '999px', fontSize: '10.5px', letterSpacing: '1.5px', whiteSpace: 'nowrap' }}>
           {generating ? '生长中…' : '✦ 写今日'}
@@ -733,7 +685,6 @@ const SENSITIVITY_HINTS = {
 
 const ConstantPage = ({ config, setConfig, theme, setTheme, voices, selectedVoiceURI, setSelectedVoiceURI,
   onSave, onExport, onRefreshVoices, showToast,
-  beacons, beaconText, setBeaconText, onAddBeacon, onToggleBeacon, onDeleteBeacon,
   tokenStatsOpen, onToggleTokenStats, tokenStats, tokenStatsLoading }) => {
 
   // 模型切换 · 新增模型的表单（纯本地 UI 状态，提交后写进 config.models）
@@ -925,35 +876,15 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, voices, selectedVoic
           </div>
         </div>
 
-        {/* 信标（便签）*/}
+        {/* 数据 */}
         <div className="constant-section">
-          <div className="constant-section-title">Beacon · 信标</div>
-          <div className="beacon-add-row">
-            <input
-              className="field-input"
-              placeholder="记一件小事…"
-              value={beaconText}
-              onChange={e => setBeaconText(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && onAddBeacon()}
-            />
-            <button onClick={onAddBeacon} className="line-btn" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '13px' }}>+</button>
-          </div>
-          <div className="beacon-list">
-            {(!beacons || beacons.length === 0) && <div className="beacon-empty">暂无信标</div>}
-            {beacons?.map(b => (
-              <div key={b.id} className="beacon-item">
-                <span className={`beacon-check${b.done ? ' is-done' : ''}`} onClick={() => onToggleBeacon(b.id)} />
-                <span className={`beacon-text${b.done ? ' is-done' : ''}`} onClick={() => onToggleBeacon(b.id)}>{b.text}</span>
-                <span className="icon-btn" onClick={() => onDeleteBeacon(b.id)} style={{ cursor: 'pointer', color: 'var(--c-text-faint)', padding: '4px', flexShrink: 0 }}>
-                  <Icon.Trash />
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="sensitivity-hint" style={{ marginTop: 2 }}>次日自动清空已完成项，未完成的项会保留</div>
+          <div className="constant-section-title">Data · 数据</div>
+          <button onClick={onExport} className="line-btn" style={{ width: '100%', padding: '12px 0', borderRadius: '14px', fontSize: '11.5px', letterSpacing: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Icon.Export size={13} /> 导出当前对话
+          </button>
         </div>
 
-        {/* Token 统计仪表盘（深藏，默认折叠，不打扰前台） */}
+        {/* Token 统计仪表盘（藏在最深处，默认折叠，不打扰前台；引力·数据罗盘的详细前置展示留待后续批次） */}
         <div className="constant-section">
           <div className="token-stats-toggle" onClick={onToggleTokenStats}>
             <span className="token-stats-toggle-label">Tokens · 用量统计</span>
@@ -1002,14 +933,6 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, voices, selectedVoic
           )}
         </div>
 
-        {/* 数据 */}
-        <div className="constant-section">
-          <div className="constant-section-title">Data · 数据</div>
-          <button onClick={onExport} className="line-btn" style={{ width: '100%', padding: '12px 0', borderRadius: '14px', fontSize: '11.5px', letterSpacing: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Icon.Export size={13} /> 导出当前对话
-          </button>
-        </div>
-
         {/* 保存 */}
         <button onClick={() => onSave()} className="solid-btn" style={{ width: '100%', padding: '14px 0', borderRadius: '14px', fontSize: '12px', letterSpacing: '3px', marginTop: 8 }}>
           SAVE
@@ -1026,8 +949,6 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, voices, selectedVoic
 const ChatPage = () => {
   // ── Tab 导航状态
   const [activeTab,     setActiveTab]     = useState('orbit')
-  const [showOriginMenu, setShowOriginMenu] = useState(false)
-  const [voidMode,      setVoidMode]      = useState(false)
 
   // ── 密码锁（B级）
   const [unlocked, setUnlocked] = useState(() => !!localStorage.getItem(ACCESS_KEY_STORAGE))
@@ -1084,6 +1005,99 @@ const ChatPage = () => {
   const deleteBeacon = (id) => {
     const next = beacons.filter(b => b.id !== id)
     setBeacons(next); saveBeacons(next)
+  }
+
+  // ── CHAT 星核：脉动亮度/频率 —— 纯前端根据已加载消息推算 ──────
+  // 今日消息越多越亮越快；距最近一条消息越久越暗越慢，不产生任何新请求。
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 60000)
+    return () => clearInterval(t)
+  }, [])
+
+  const coreVisual = useMemo(() => {
+    const todayStr = beaconTodayStr()
+    const all = [...archivedList, ...messages]
+    let todayCount = 0, lastTs = null
+    all.forEach(m => {
+      if (!m.created_at) return
+      const t = new Date(m.created_at).getTime()
+      if (Number.isNaN(t)) return
+      if (!lastTs || t > lastTs) lastTs = t
+      const bj = new Date(t + 8 * 3600 * 1000)
+      const ds = `${bj.getUTCFullYear()}-${String(bj.getUTCMonth() + 1).padStart(2, '0')}-${String(bj.getUTCDate()).padStart(2, '0')}`
+      if (ds === todayStr) todayCount++
+    })
+    let activity = Math.min(1, todayCount / 24)
+    if (lastTs) {
+      const idleMin = (nowTick - lastTs) / 60000
+      const idleFactor = idleMin <= 30 ? 1 : Math.max(0.12, 1 - (idleMin - 30) / 600)
+      activity *= idleFactor
+    } else {
+      activity = 0.1
+    }
+    return {
+      period:   (5.6 - activity * 3.4).toFixed(2),
+      glowMax:  (0.35 + activity * 0.55).toFixed(2),
+      glowMin:  (0.10 + activity * 0.12).toFixed(2),
+      scaleMax: (1.05 + activity * 0.16).toFixed(3),
+    }
+  }, [messages, archivedList, nowTick])
+
+  // ── CHAT 星核 · 长按 1.5s 触发"星核低语" ─────────────────────
+  const CORE_WHISPER_FALLBACKS = ['光需要时间才能到达', '有些沉默，也是一种在场', '你不在的时候，轨道仍在']
+  const [coreWhisper, setCoreWhisper] = useState(null)
+  const extractSentence = (text) => {
+    if (!text) return null
+    const raw = text.replace(/\n+/g, '。').split(/[。！？.!?]/).map(s => s.trim()).filter(s => s.length >= 4)
+    if (!raw.length) return text.trim().slice(0, 60)
+    return raw[Math.floor(Math.random() * raw.length)]
+  }
+  const fetchTodayDiaryLine = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/diary/list`)
+      const todayStr = beaconTodayStr()
+      const today = (res.data || []).find(d => d.date === todayStr)
+      if (today?.content) return extractSentence(today.content)
+    } catch {}
+    return null
+  }
+  const triggerCoreWhisper = async () => {
+    if (coreWhisper) return
+    let line = await fetchTodayDiaryLine()
+    if (!line) {
+      const pool = memories.length ? memories : await fetchMemories()
+      const highEmotion = pool.filter(m => (m.valence != null && Math.abs(m.valence) > 0.7) || (m.arousal != null && m.arousal > 0.8))
+      if (highEmotion.length) {
+        const pick = highEmotion[Math.floor(Math.random() * highEmotion.length)]
+        line = extractSentence(pick.summary) || pick.summary
+      }
+    }
+    if (!line) line = CORE_WHISPER_FALLBACKS[Math.floor(Math.random() * CORE_WHISPER_FALLBACKS.length)]
+    setCoreWhisper(line)
+    setTimeout(() => setCoreWhisper(null), 5200)
+  }
+
+  // ── CHAT 星核 · 单击进星轨 / 长按触发低语 的按压判定 ──────────
+  const CORE_LONGPRESS_MS = 1500
+  const corePressTimerRef  = useRef(null)
+  const corePressFiredRef  = useRef(false)
+  const corePressMovedRef  = useRef(false)
+  const onCorePressStart = () => {
+    corePressFiredRef.current = false
+    corePressMovedRef.current = false
+    corePressTimerRef.current = setTimeout(() => {
+      if (corePressMovedRef.current) return
+      corePressFiredRef.current = true
+      if (navigator.vibrate) navigator.vibrate(12)
+      triggerCoreWhisper()
+    }, CORE_LONGPRESS_MS)
+  }
+  const onCorePressMove = () => { corePressMovedRef.current = true; clearTimeout(corePressTimerRef.current) }
+  const onCorePressCancel = () => clearTimeout(corePressTimerRef.current)
+  const onCorePressEnd = () => {
+    clearTimeout(corePressTimerRef.current)
+    if (!corePressFiredRef.current && !corePressMovedRef.current) setActiveTab('orbit')
   }
 
   // ── C级：Token 统计仪表盘（深藏，展开时才拉取）
@@ -1211,11 +1225,14 @@ const ChatPage = () => {
   // ── 记忆（D级：结构化目录，供 Three.js 深空 / SVG 星图共用）────
   const fetchMemories = async () => {
     setMemoriesLoading(true)
+    let list = []
     try {
       const res = await axios.get(`${API_BASE}/memories/catalog`)
-      setMemories(res.data.memories || [])
+      list = res.data.memories || []
+      setMemories(list)
     } catch { setMemories([]) }
     setMemoriesLoading(false)
+    return list
   }
 
   const triggerDream = async () => {
@@ -1839,29 +1856,30 @@ const ChatPage = () => {
       {/* 开屏 */}
       {unlocked && showSplash && <SplashScreen onEnter={handleSplashEnter} theme={theme} />}
 
-      {/* 坠入空白模式 */}
-      {voidMode && <VoidScreen onWake={() => { setVoidMode(false); setActiveTab('orbit') }} />}
-
       {/* 长按消息菜单 */}
       {msgMenu && (
         <MsgContextMenu x={msgMenu.x} y={msgMenu.y} items={msgMenu.items} onClose={() => setMsgMenu(null)} />
       )}
 
-      {/* 归弹出菜单 */}
-      {showOriginMenu && (
-        <OriginMenu
-          onNavigate={(tab) => setActiveTab(tab)}
-          onVoid={() => setVoidMode(true)}
-          onClose={() => setShowOriginMenu(false)}
-        />
+      {/* CHAT 星核低语：长按星核触发，全屏大字浮现后消散 */}
+      {coreWhisper && (
+        <div className="core-whisper-overlay" aria-hidden="true">
+          <span className="core-whisper-text">{coreWhisper}</span>
+        </div>
       )}
 
       {/* 主内容区 */}
-      {!voidMode && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', zIndex: 1 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', zIndex: 1 }}>
 
           {/* Tab 页面 */}
           {orbitPageContent}
+          {activeTab === 'gravity' && (
+            <GravityPage key="gravity"
+              beacons={beacons} beaconText={beaconText} setBeaconText={setBeaconText}
+              onAddBeacon={addBeacon} onToggleBeacon={toggleBeacon} onDeleteBeacon={deleteBeacon}
+              showToast={showToast}
+            />
+          )}
           {activeTab === 'stardust' && (
             <StardustPage key="stardust"
               memories={memories} memoriesLoading={memoriesLoading}
@@ -1880,8 +1898,6 @@ const ChatPage = () => {
               voices={voices} selectedVoiceURI={selectedVoiceURI} setSelectedVoiceURI={setSelectedVoiceURI}
               onSave={saveSettings} onExport={exportConversation}
               onRefreshVoices={refreshVoices} showToast={showToast}
-              beacons={beacons} beaconText={beaconText} setBeaconText={setBeaconText}
-              onAddBeacon={addBeacon} onToggleBeacon={toggleBeacon} onDeleteBeacon={deleteBeacon}
               tokenStatsOpen={tokenStatsOpen} onToggleTokenStats={toggleTokenStats}
               tokenStats={tokenStats} tokenStatsLoading={tokenStatsLoading}
             />
@@ -1892,10 +1908,10 @@ const ChatPage = () => {
             <DustFab activeTab={activeTab} onNavigate={(tab) => setActiveTab(tab)} />
           ) : (
             <nav className="bottom-nav">
-              {/* 星轨 */}
-              <button className={`nav-tab${activeTab==='orbit'?' is-active':''}`} onClick={() => setActiveTab('orbit')}>
-                <span className="nav-tab-icon"><Icon.Orbit size={19} /></span>
-                <span className="nav-tab-label">ORBIT</span>
+              {/* 引力 */}
+              <button className={`nav-tab${activeTab==='gravity'?' is-active':''}`} onClick={() => setActiveTab('gravity')}>
+                <span className="nav-tab-icon"><Icon.Gravity size={19} /></span>
+                <span className="nav-tab-label">GRAVITY</span>
               </button>
 
               {/* 星尘 */}
@@ -1904,12 +1920,21 @@ const ChatPage = () => {
                 <span className="nav-tab-label">DUST</span>
               </button>
 
-              {/* 归（中央凸起） */}
+              {/* CHAT（中央星核）：单击直达星轨，长按 1.5s 触发星核低语 */}
               <div className="nav-origin-wrap">
-                <button className="nav-origin-btn" onClick={() => setShowOriginMenu(p => !p)} title="归">
-                  <Icon.Origin size={20} />
-                </button>
-                <span className="nav-origin-label">归</span>
+                <button
+                  className="nav-core-btn"
+                  style={{
+                    '--core-period':   `${coreVisual.period}s`,
+                    '--core-glow-max': coreVisual.glowMax,
+                    '--core-glow-min': coreVisual.glowMin,
+                    '--core-scale-max': coreVisual.scaleMax,
+                  }}
+                  onTouchStart={onCorePressStart} onTouchMove={onCorePressMove} onTouchEnd={onCorePressEnd} onTouchCancel={onCorePressCancel}
+                  onMouseDown={onCorePressStart} onMouseMove={onCorePressMove} onMouseUp={onCorePressEnd} onMouseLeave={onCorePressCancel}
+                  title="CHAT"
+                />
+                <span className="nav-core-label">CHAT</span>
               </div>
 
               {/* 星历 */}
@@ -1926,7 +1951,6 @@ const ChatPage = () => {
             </nav>
           )}
         </div>
-      )}
 
       {/* Toast */}
       <div className="toast-wrap">
