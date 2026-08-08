@@ -437,6 +437,56 @@ const OriginMenu = ({ onNavigate, onVoid, onClose }) => (
 )
 
 // ============================================================
+// 星尘专属：右下角悬浮毛玻璃圆点 → 扇形导航
+// 只在 activeTab === 'stardust' 时挂载，离开星尘随卸载自动复位
+// ============================================================
+const DUST_FAB_ITEMS = [
+  { id: 'orbit',     label: '对话', icon: 'Orbit' },
+  { id: 'stardust',  label: '星尘', icon: 'Stardust' },
+  { id: 'chronicle', label: '日记', icon: 'Chronicle' },
+  { id: 'constant',  label: '设置', icon: 'Constant' },
+]
+const DustFab = ({ activeTab, onNavigate }) => {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      {open && <div className="dust-fab-veil" onClick={() => setOpen(false)} />}
+      <div className="dust-fab-wrap">
+        {DUST_FAB_ITEMS.map((item, i) => {
+          const IconComp = Icon[item.icon]
+          // 90° 扇形：从正上方摆到正左方，4 个点沿圆弧均匀展开
+          const angle  = (i / (DUST_FAB_ITEMS.length - 1)) * 90
+          const rad    = (angle * Math.PI) / 180
+          const radius = 92
+          const tx = open ? -Math.sin(rad) * radius : 0
+          const ty = open ? -Math.cos(rad) * radius : 0
+          return (
+            <button
+              key={item.id}
+              className={`dust-fab-item${activeTab === item.id ? ' is-current' : ''}`}
+              style={{
+                transform: `translate(${tx}px, ${ty}px) scale(${open ? 1 : 0.3})`,
+                opacity: open ? 1 : 0,
+                transitionDelay: open ? `${i * 0.03}s` : '0s',
+                pointerEvents: open ? 'auto' : 'none',
+              }}
+              onClick={() => { onNavigate(item.id); setOpen(false) }}
+              aria-label={item.label}
+            >
+              <IconComp size={13} />
+              <span className="dust-fab-item-label">{item.label}</span>
+            </button>
+          )
+        })}
+        <button className="dust-fab-dot" onClick={() => setOpen(p => !p)} title="导航">
+          <span className={`dust-fab-dot-inner${open ? ' is-open' : ''}`} />
+        </button>
+      </div>
+    </>
+  )
+}
+
+// ============================================================
 // 长按消息菜单（A级）
 // items: [{ key, label, icon, onClick }]
 // ============================================================
@@ -657,7 +707,7 @@ const StardustPage = ({
       )}
     </div>
 
-    <div className="hairline-top" style={{ padding: '12px 18px', flexShrink: 0, display: 'flex', gap: 10 }}>
+    <div className="hairline-top" style={{ padding: '12px 18px calc(env(safe-area-inset-bottom, 0px) + 16px)', flexShrink: 0, display: 'flex', gap: 10 }}>
       <button onClick={onFetch} className="line-btn" style={{ flex: 1, padding: '10px', borderRadius: '999px', fontSize: '11px', color: 'var(--c-text-muted)', borderColor: 'var(--c-line)', letterSpacing: '2px' }}>
         ↻ 刷新
       </button>
@@ -1070,10 +1120,14 @@ const ChatPage = () => {
   const pressTimerRef   = useRef(null)
   const pressMovedRef   = useRef(false)
 
-  const showToast = (message) => {
+  // message: 文案；opts.action: { label, onClick } 在 Toast 里附一个可点的按钮（如"重试"）
+  // opts.duration: 自定义存活时长（默认无按钮 2500ms，带按钮 5000ms，给用户留出点击时间）
+  const showToast = (message, opts = {}) => {
+    const { action, duration } = opts
     const id = Date.now() + Math.random()
-    setToasts(prev => [...prev, { id, message }])
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 2500)
+    const life = duration || (action ? 5000 : 2500)
+    setToasts(prev => [...prev, { id, message, action }])
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), life)
   }
 
   // ── 语音 ─────────────────────────────────────────────────
@@ -1113,17 +1167,26 @@ const ChatPage = () => {
   // ── 导出 ─────────────────────────────────────────────────
   const exportConversation = () => {
     if (!activeSessionId || messages.length === 0) { showToast('没有可导出的对话'); return }
-    const sessionTitle = sessionList.find(s => s.id === activeSessionId)?.title || '对话'
-    const dateStr = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
-    let md = `# ${sessionTitle}\n\n> 导出时间：${dateStr}\n\n---\n\n`
-    ;[...archivedList, ...messages].forEach(msg => {
-      const time = formatTime(msg.created_at)
-      md += `### ${msg.role === 'user' ? '**我**' : '**在场**'} · ${time}\n\n${msg.content}\n\n---\n\n`
-    })
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a'); a.href = url; a.download = `presence_${dateStr}.md`; a.click()
-    URL.revokeObjectURL(url); showToast('已导出')
+    let filename = ''
+    try {
+      const sessionTitle = sessionList.find(s => s.id === activeSessionId)?.title || '对话'
+      const dateStr = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
+      let md = `# ${sessionTitle}\n\n> 导出时间：${dateStr}\n\n---\n\n`
+      ;[...archivedList, ...messages].forEach(msg => {
+        const time = formatTime(msg.created_at)
+        md += `### ${msg.role === 'user' ? '**我**' : '**在场**'} · ${time}\n\n${msg.content}\n\n---\n\n`
+      })
+      filename = `presence_${dateStr}.md`
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a'); a.href = url; a.download = filename; a.click()
+      URL.revokeObjectURL(url)
+      // 浏览器/PWA 不会把真实的绝对路径暴露给页面（安全限制），
+      // 只能确定文件去向的是"下载"目录 + 文件名，如实告知即可
+      showToast(`已导出至下载目录 · ${filename}`)
+    } catch (err) {
+      showToast('导出失败，请重试', { action: { label: '重试', onClick: exportConversation } })
+    }
   }
 
   // ── 重新生成 ─────────────────────────────────────────────
@@ -1459,8 +1522,15 @@ const ChatPage = () => {
     const root = document.documentElement
     const upH  = () => root.style.setProperty('--app-height', `${window.visualViewport ? window.visualViewport.height : window.innerHeight}px`)
     upH()
-    window.visualViewport?.addEventListener('resize', upH); window.addEventListener('resize', upH)
-    return () => { window.visualViewport?.removeEventListener('resize', upH); window.removeEventListener('resize', upH) }
+    // resize 覆盖大多数场景；scroll 是安卓上部分机型键盘弹出时唯一会触发的事件，两个都要接
+    window.visualViewport?.addEventListener('resize', upH)
+    window.visualViewport?.addEventListener('scroll', upH)
+    window.addEventListener('resize', upH)
+    return () => {
+      window.visualViewport?.removeEventListener('resize', upH)
+      window.visualViewport?.removeEventListener('scroll', upH)
+      window.removeEventListener('resize', upH)
+    }
   }, [])
 
   // 切到星尘时自动拉取记忆
@@ -1732,7 +1802,7 @@ const ChatPage = () => {
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             onKeyDown={e => e.ctrlKey && e.key === 'Enter' && sendMessage()}
-            onFocus={() => setInputFocused(true)}
+            onFocus={() => { setInputFocused(true); setTimeout(() => { if (messageBoxRef.current) messageBoxRef.current.scrollTop = messageBoxRef.current.scrollHeight }, 300) }}
             onBlur={() => setInputFocused(false)}
             placeholder={editingMsg ? '编辑消息…' : '在这里说...'}
             rows={1}
@@ -1760,9 +1830,8 @@ const ChatPage = () => {
       {/* 星空 Canvas */}
       <StarCanvas ref={starCanvasRef} theme={theme} interactive={false} />
 
-      {/* 颗粒 & 相框 */}
+      {/* 颗粒 */}
       <div className="grain-overlay" />
-      <div className="app-frame" />
 
       {/* 密码锁：未解锁前遮住一切交互 */}
       {!unlocked && <AccessGate onUnlock={() => setUnlocked(true)} />}
@@ -1818,46 +1887,62 @@ const ChatPage = () => {
             />
           )}
 
-          {/* 底部导航栏 */}
-          <nav className="bottom-nav">
-            {/* 星轨 */}
-            <button className={`nav-tab${activeTab==='orbit'?' is-active':''}`} onClick={() => setActiveTab('orbit')}>
-              <span className="nav-tab-icon"><Icon.Orbit size={19} /></span>
-              <span className="nav-tab-label">ORBIT</span>
-            </button>
-
-            {/* 星尘 */}
-            <button className={`nav-tab${activeTab==='stardust'?' is-active':''}`} onClick={() => setActiveTab('stardust')}>
-              <span className="nav-tab-icon"><Icon.Stardust size={19} /></span>
-              <span className="nav-tab-label">DUST</span>
-            </button>
-
-            {/* 归（中央凸起） */}
-            <div className="nav-origin-wrap">
-              <button className="nav-origin-btn" onClick={() => setShowOriginMenu(p => !p)} title="归">
-                <Icon.Origin size={20} />
+          {/* 底部导航栏：星尘页替换为右下角悬浮扇形导航，离开星尘自动恢复 */}
+          {activeTab === 'stardust' ? (
+            <DustFab activeTab={activeTab} onNavigate={(tab) => setActiveTab(tab)} />
+          ) : (
+            <nav className="bottom-nav">
+              {/* 星轨 */}
+              <button className={`nav-tab${activeTab==='orbit'?' is-active':''}`} onClick={() => setActiveTab('orbit')}>
+                <span className="nav-tab-icon"><Icon.Orbit size={19} /></span>
+                <span className="nav-tab-label">ORBIT</span>
               </button>
-              <span className="nav-origin-label">归</span>
-            </div>
 
-            {/* 星历 */}
-            <button className={`nav-tab${activeTab==='chronicle'?' is-active':''}`} onClick={() => setActiveTab('chronicle')}>
-              <span className="nav-tab-icon"><Icon.Chronicle size={19} /></span>
-              <span className="nav-tab-label">LOG</span>
-            </button>
+              {/* 星尘 */}
+              <button className={`nav-tab${activeTab==='stardust'?' is-active':''}`} onClick={() => setActiveTab('stardust')}>
+                <span className="nav-tab-icon"><Icon.Stardust size={19} /></span>
+                <span className="nav-tab-label">DUST</span>
+              </button>
 
-            {/* 常数 */}
-            <button className={`nav-tab${activeTab==='constant'?' is-active':''}`} onClick={() => setActiveTab('constant')}>
-              <span className="nav-tab-icon"><Icon.Constant size={19} /></span>
-              <span className="nav-tab-label">CONST</span>
-            </button>
-          </nav>
+              {/* 归（中央凸起） */}
+              <div className="nav-origin-wrap">
+                <button className="nav-origin-btn" onClick={() => setShowOriginMenu(p => !p)} title="归">
+                  <Icon.Origin size={20} />
+                </button>
+                <span className="nav-origin-label">归</span>
+              </div>
+
+              {/* 星历 */}
+              <button className={`nav-tab${activeTab==='chronicle'?' is-active':''}`} onClick={() => setActiveTab('chronicle')}>
+                <span className="nav-tab-icon"><Icon.Chronicle size={19} /></span>
+                <span className="nav-tab-label">LOG</span>
+              </button>
+
+              {/* 常数 */}
+              <button className={`nav-tab${activeTab==='constant'?' is-active':''}`} onClick={() => setActiveTab('constant')}>
+                <span className="nav-tab-icon"><Icon.Constant size={19} /></span>
+                <span className="nav-tab-label">CONST</span>
+              </button>
+            </nav>
+          )}
         </div>
       )}
 
       {/* Toast */}
       <div className="toast-wrap">
-        {toasts.map(t => <div key={t.id} className="toast-item">{t.message}</div>)}
+        {toasts.map(t => (
+          <div key={t.id} className={`toast-item${t.action ? ' has-action' : ''}`}>
+            <span>{t.message}</span>
+            {t.action && (
+              <button
+                className="toast-action"
+                onClick={() => { t.action.onClick(); setToasts(prev => prev.filter(x => x.id !== t.id)) }}
+              >
+                {t.action.label}
+              </button>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* 重命名弹窗 */}
