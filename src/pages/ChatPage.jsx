@@ -1238,7 +1238,14 @@ const ChatPage = () => {
   const groupedMessages = groupMessagesByDate(messages)
 
   // ── 星轨页面 ─────────────────────────────────────────────
-  const OrbitPage = () => (
+  // 注意：这里故意不写成 `const OrbitPage = () => (...)` 再 <OrbitPage />。
+  // 之前那样写，因为 OrbitPage 定义在 ChatPage 组件函数体内部，
+  // 每次 ChatPage 重新渲染（哪怕只是输入框打一个字）都会生成一个全新的
+  // 函数引用，React 会把它当成一个全新的组件类型，导致整棵子树被
+  // 卸载再重新挂载——这正是"打字只能进一个字就失焦"、
+  // "收发消息时画面一闪一闪"的根因。改成下面这样的纯 JSX 表达式后，
+  // React 按标签/位置做正常的差异对比，不会整体重挂载。
+  const orbitPageContent = activeTab !== 'orbit' ? null : (
     <div className="tab-page">
       {/* 顶栏 */}
       <div className="hairline-bottom" style={{ padding: '16px 18px 13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -1405,7 +1412,7 @@ const ChatPage = () => {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', zIndex: 1 }}>
 
           {/* Tab 页面 */}
-          {activeTab === 'orbit' && <OrbitPage key="orbit" />}
+          {orbitPageContent}
           {activeTab === 'stardust' && (
             <StardustPage key="stardust"
               memories={memories} memoriesLoading={memoriesLoading}
