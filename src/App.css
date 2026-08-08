@@ -214,6 +214,12 @@ body {
   box-shadow: 0 8px 32px var(--c-shadow), inset 0 1px 0 var(--c-highlight);
   border-radius: 22px;
   padding: 14px 19px 11px;
+  /* Android 上长按文字会触发系统原生"选择文本"呼出菜单（放大镜+复制/分享），
+     和自定义的长按菜单抢手势，往往表现为自定义菜单不出现。这里禁用原生长按
+     呼出和文本选择——应用本身已有专门的"复制"菜单项，不影响可用性。 */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .bubble-glass.is-user { background: var(--c-glass-bg-user); }
 .bubble-glass::after {

@@ -29,7 +29,18 @@ const BODIES = [
 ]
 
 const DRAG_ARM_MS  = 380   // 按住超过这个时长才允许进入拖拽
-const MOVE_THRESH  = 6     // px，超过视为移动（用于取消"点击"判定）
+// 真机手指按住不动时天然会有几像素的抖动（触屏采样噪声），原来 6px 的容差太紧，
+// 稍微一抖就被当成"移动"，导致 endPress 里 !d.moved 恒为 false、点击永远不触发——
+// 这就是"信标点不了"的根因（电脑鼠标悬停不动没有这种抖动，所以桌面端一直正常）。
+// 放宽到 10px，和 ChatPage.jsx 里长按判定用的容差保持一致。
+const MOVE_THRESH  = 10    // px，超过视为移动（用于取消"点击"判定）
+// 触屏松手（touchend）后，浏览器通常会紧接着补发一整套"合成鼠标事件"
+// （mousedown→mouseup→click），用来兼容只监听鼠标事件的老页面。这里同一个
+// 天体上同时绑了触摸和鼠标两套事件，如果不拦掉合成事件，一次真实点击会被
+// 触摸路径和鼠标路径各处理一遍，表现为 toast 弹两次——这是"点其他项弹两次
+// 提示"的根因。GHOST_EVENT_WINDOW_MS 内紧跟在一次真实触摸后到来的鼠标事件，
+// 一律当成幽灵事件丢弃。
+const GHOST_EVENT_WINDOW_MS = 600
 
 function loadPositions() {
   try {
@@ -51,6 +62,7 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
   const containerRef = useRef(null)
   const dragRef       = useRef(null)   // { id, startX, startY, dragging, moved }
   const armTimerRef   = useRef(null)
+  const lastTouchRef  = useRef(0)      // 最近一次真实触摸时间戳，用于识别并丢弃触摸后补发的幽灵鼠标事件
 
   const persistPositions = (next) => {
     setPositions(next)
@@ -72,6 +84,14 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
   }
 
   const startPress = (id, e) => {
+    if (e.type === 'touchstart') {
+      lastTouchRef.current = Date.now()
+      // 阻止浏览器为这次触摸补发合成鼠标事件（部分安卓机型/webview上即使
+      // preventDefault 也拦不住，下面的时间窗口判断作为第二重保险）
+      if (e.cancelable) e.preventDefault()
+    } else if (Date.now() - lastTouchRef.current < GHOST_EVENT_WINDOW_MS) {
+      return // 紧跟在真实触摸后到来的鼠标事件，是浏览器补发的幽灵事件，直接丢弃
+    }
     const pt = e.touches ? e.touches[0] : e
     dragRef.current = { id, startX: pt.clientX, startY: pt.clientY, dragging: false, moved: false }
     armTimerRef.current = setTimeout(() => {

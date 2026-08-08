@@ -1080,12 +1080,20 @@ const ChatPage = () => {
 
   // ── CHAT 星核 · 单击进星轨 / 长按触发低语 的按压判定 ──────────
   const CORE_LONGPRESS_MS = 1500
-  const corePressTimerRef  = useRef(null)
-  const corePressFiredRef  = useRef(false)
-  const corePressMovedRef  = useRef(false)
-  const onCorePressStart = () => {
+  // 真机触屏按住不动时，手指仍会有 1~3px 的自然抖动，每一次都会触发 touchmove；
+  // 原逻辑只要 touchmove 就立刻取消长按计时，导致在真机上长按几乎永远不会触发
+  // （鼠标静止按住不会产生 mousemove，所以电脑上没问题）。这里改为设置移动容差，
+  // 只有位移超过 CORE_PRESS_MOVE_TOLERANCE(px) 才视为真正的滑动/取消。
+  const CORE_PRESS_MOVE_TOLERANCE = 10
+  const corePressTimerRef    = useRef(null)
+  const corePressFiredRef    = useRef(false)
+  const corePressMovedRef    = useRef(false)
+  const corePressStartPosRef = useRef({ x: 0, y: 0 })
+  const onCorePressStart = (e) => {
     corePressFiredRef.current = false
     corePressMovedRef.current = false
+    const pt = e.touches ? e.touches[0] : e
+    corePressStartPosRef.current = { x: pt.clientX, y: pt.clientY }
     corePressTimerRef.current = setTimeout(() => {
       if (corePressMovedRef.current) return
       corePressFiredRef.current = true
@@ -1093,7 +1101,16 @@ const ChatPage = () => {
       triggerCoreWhisper()
     }, CORE_LONGPRESS_MS)
   }
-  const onCorePressMove = () => { corePressMovedRef.current = true; clearTimeout(corePressTimerRef.current) }
+  const onCorePressMove = (e) => {
+    const pt = e.touches ? e.touches[0] : e
+    const start = corePressStartPosRef.current
+    if (start && pt) {
+      const dx = pt.clientX - start.x, dy = pt.clientY - start.y
+      if (Math.hypot(dx, dy) < CORE_PRESS_MOVE_TOLERANCE) return // 抖动幅度内，不取消
+    }
+    corePressMovedRef.current = true
+    clearTimeout(corePressTimerRef.current)
+  }
   const onCorePressCancel = () => clearTimeout(corePressTimerRef.current)
   const onCorePressEnd = () => {
     clearTimeout(corePressTimerRef.current)
@@ -1131,8 +1148,9 @@ const ChatPage = () => {
   const abortControllerRef = useRef(null)
   const pendingRef      = useRef([])      // 输入合并防抖：待合并发送的原始文本
   const mergeTimerRef   = useRef(null)
-  const pressTimerRef   = useRef(null)
-  const pressMovedRef   = useRef(false)
+  const pressTimerRef     = useRef(null)
+  const pressMovedRef     = useRef(false)
+  const pressStartPosRef  = useRef({ x: 0, y: 0 }) // 长按起点坐标，用于移动容差判定（见下方 onPressMove）
 
   // message: 文案；opts.action: { label, onClick } 在 Toast 里附一个可点的按钮（如"重试"）
   // opts.duration: 自定义存活时长（默认无按钮 2500ms，带按钮 5000ms，给用户留出点击时间）
@@ -1618,18 +1636,32 @@ const ChatPage = () => {
       return next
     })
 
-    // 长按检测（触屏 + 鼠标），移动或松开即取消；桌面端右键直接打开
+    // 长按检测（触屏 + 鼠标），移动超过容差或松开即取消；桌面端右键直接打开
+    // 真机触屏按住不动时手指仍有 1~3px 自然抖动，每次都会触发 touchmove——
+    // 原逻辑一有 touchmove 就取消计时器，导致真机上长按基本不会触发（PC 用鼠标
+    // 静止按住不产生 mousemove，所以电脑上一直是正常的）。这里加移动容差修复。
+    const PRESS_MOVE_TOLERANCE = 10
     const onPressStart = (e) => {
       pressMovedRef.current = false
       const pt = e.touches ? e.touches[0] : e
       const x = pt.clientX, y = pt.clientY
+      pressStartPosRef.current = { x, y }
       pressTimerRef.current = setTimeout(() => {
         if (pressMovedRef.current) return
         if (navigator.vibrate) navigator.vibrate(8)
         openMsgMenu(x, y, msg, key, isUser, isLastAI, isArchived, body)
       }, 480)
     }
-    const onPressMove = () => { pressMovedRef.current = true; clearTimeout(pressTimerRef.current) }
+    const onPressMove = (e) => {
+      const pt = e.touches ? e.touches[0] : e
+      const start = pressStartPosRef.current
+      if (start && pt) {
+        const dx = pt.clientX - start.x, dy = pt.clientY - start.y
+        if (Math.hypot(dx, dy) < PRESS_MOVE_TOLERANCE) return // 抖动幅度内，不取消
+      }
+      pressMovedRef.current = true
+      clearTimeout(pressTimerRef.current)
+    }
     const onPressEnd  = () => clearTimeout(pressTimerRef.current)
     const onCtxMenu   = (e) => { e.preventDefault(); clearTimeout(pressTimerRef.current); openMsgMenu(e.clientX, e.clientY, msg, key, isUser, isLastAI, isArchived, body) }
 
