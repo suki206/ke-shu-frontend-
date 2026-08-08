@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import axios from 'axios'
 import StarCanvas from './StarCanvas'
+import MemoryDeepSpace from './MemoryDeepSpace'
+import ConstellationMap from './ConstellationMap'
 
 // ============================================================
 // Markdown 轻量渲染器（0依赖，保留原有实现）
@@ -560,45 +562,99 @@ const ChroniclePage = () => {
 }
 
 // ============================================================
-// 星尘 · 占位页（后续接入 Three.js 3D 粒子）
+// 星尘 · D级：Three.js 3D 粒子记忆库 + SVG 星图，两个视图态
 // ============================================================
-const StardustPage = ({ memories, memoriesLoading, onFetch, onDream }) => (
+const STARDUST_TABS = [
+  { key: 'reverie',        label: 'REVERIE' },
+  { key: 'constellations', label: 'CONSTELLATIONS' },
+]
+const STARDUST_BG = { warm: '#060300', mist: '#010208', noir: '#000002' }
+
+const MemoryDetailCard = ({ mem, onClose }) => (
+  <div className="modal-veil" style={{ zIndex: 2000 }} onClick={onClose}>
+    <div className="modal-card modal-card-solid" style={{ padding: '28px 26px 22px', width: '320px', maxWidth: '88vw' }} onClick={e => e.stopPropagation()}>
+      <div className="modal-title" style={{ marginBottom: 16 }}>一段记忆</div>
+      <div style={{ fontSize: 13, lineHeight: 1.85, color: 'var(--c-text)', marginBottom: 18, whiteSpace: 'pre-wrap' }}>
+        {mem.summary || '（无法解析出文字内容）'}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px 16px', fontSize: '10.5px', color: 'var(--c-text-faint)', fontFamily: 'var(--font-accent)', letterSpacing: '1px', marginBottom: 20 }}>
+        {mem.domain && <span>域 · {mem.domain}</span>}
+        <span>效价 · {mem.valence !== null && mem.valence !== undefined ? mem.valence.toFixed(2) : '未知'}</span>
+        <span>唤醒度 · {mem.arousal !== null && mem.arousal !== undefined ? mem.arousal.toFixed(2) : '未知'}</span>
+        {mem.importance !== null && mem.importance !== undefined && <span>重要度 · {mem.importance}</span>}
+        {mem.daysSinceActive !== null && mem.daysSinceActive !== undefined && <span>{mem.daysSinceActive} 天前活跃</span>}
+        {mem.resolved === true && <span>已解决</span>}
+        {mem.pinned === true && <span>已置顶</span>}
+      </div>
+      <button onClick={onClose} className="line-btn" style={{ padding: '9px 20px', borderRadius: '999px', fontSize: '11px', letterSpacing: '2px', color: 'var(--c-text-muted)', borderColor: 'var(--c-line)' }}>
+        关闭
+      </button>
+    </div>
+  </div>
+)
+
+const StardustPage = ({
+  memories, memoriesLoading, onFetch, onDream,
+  activeSubTab, onSubTabChange, searchQuery, onSearchChange,
+  selectedMemory, onSelectMemory, onCloseMemory, theme,
+}) => (
   <div className="tab-page">
     {/* 顶部标签栏 */}
-    <div style={{ padding: '22px 20px 0', display: 'flex', gap: 14, overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid var(--c-line)' }}>
-      {['REVERIE', 'CONSTELLATIONS'].map((label, i) => (
-        <button key={label} style={{
-          background: 'transparent', border: 'none',
-          fontFamily: 'var(--font-accent)', fontSize: '10px', letterSpacing: '2.5px',
-          color: i === 0 ? 'var(--c-accent)' : 'var(--c-text-faint)',
-          paddingBottom: '12px', cursor: 'pointer',
-          borderBottom: i === 0 ? '1px solid var(--c-accent)' : 'none',
-          whiteSpace: 'nowrap', transition: 'color 0.2s',
-        }}>{label}</button>
+    <div className="stardust-tabbar">
+      {STARDUST_TABS.map(({ key, label }) => (
+        <button
+          key={key}
+          className={`stardust-tab${activeSubTab === key ? ' is-active' : ''}`}
+          onClick={() => onSubTabChange(key)}
+        >{label}</button>
       ))}
-      {['TRACES','BREATH','DRIFT','ECHOES','NOON','FRAGMENTS','AXIS'].map(label => (
-        <button key={label} style={{ background: 'transparent', border: 'none', fontFamily: 'var(--font-accent)', fontSize: '10px', letterSpacing: '2.5px', color: 'var(--c-text-faint)', paddingBottom: '12px', cursor: 'default', whiteSpace: 'nowrap', opacity: .4 }}>{label}</button>
+      {['TRACES', 'BREATH', 'DRIFT', 'ECHOES', 'NOON', 'FRAGMENTS', 'AXIS'].map(label => (
+        <button key={label} className="stardust-tab is-disabled" disabled>{label}</button>
       ))}
     </div>
 
-    {/* 记忆列表 */}
-    <div style={{ flex: 1, overflowY: 'auto', padding: '18px 0' }}>
+    {/* 搜索：纯前端过滤 catalog 已拉取的数据，命中的记忆在深空/星图中都会浮出 */}
+    <div style={{ padding: '14px 18px 0', flexShrink: 0 }}>
+      <input
+        className="field-input"
+        placeholder="搜索记忆…"
+        value={searchQuery}
+        onChange={e => onSearchChange(e.target.value)}
+        style={{ fontSize: '12px', letterSpacing: '.5px' }}
+      />
+    </div>
+
+    {/* 主体：深空(Three.js) 或 星图(SVG)，由顶部标签切换 */}
+    <div style={{ flex: 1, minHeight: 0, position: 'relative', margin: '14px 0' }}>
       {memoriesLoading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
           <div className="breath-dot" />
         </div>
       )}
       {!memoriesLoading && memories.length === 0 && (
-        <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--c-text-faint)', fontSize: '12px', lineHeight: 1.8, fontFamily: 'var(--font-accent)', letterSpacing: '.5px', fontStyle: 'italic' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '0 24px', textAlign: 'center', color: 'var(--c-text-faint)', fontSize: '12px', lineHeight: 1.8, fontFamily: 'var(--font-accent)', letterSpacing: '.5px', fontStyle: 'italic' }}>
           记忆池尚空<br />对话中会自然沉积
         </div>
       )}
-      {!memoriesLoading && memories.map((mem, i) => (
-        <div key={i} className="memory-card">
-          <div className="memory-dot" />
-          <div className="memory-text">{mem}</div>
+      {!memoriesLoading && memories.length > 0 && activeSubTab === 'reverie' && (
+        <MemoryDeepSpace
+          memories={memories}
+          searchQuery={searchQuery}
+          selectedBucketId={selectedMemory?.bucketId || null}
+          onSelect={onSelectMemory}
+          bg={STARDUST_BG[theme] || STARDUST_BG.noir}
+        />
+      )}
+      {!memoriesLoading && memories.length > 0 && activeSubTab === 'constellations' && (
+        <div style={{ padding: '4px 20px', height: '100%' }}>
+          <ConstellationMap
+            memories={memories}
+            searchQuery={searchQuery}
+            selectedBucketId={selectedMemory?.bucketId || null}
+            onSelect={onSelectMemory}
+          />
         </div>
-      ))}
+      )}
     </div>
 
     <div className="hairline-top" style={{ padding: '12px 18px', flexShrink: 0, display: 'flex', gap: 10 }}>
@@ -609,6 +665,8 @@ const StardustPage = ({ memories, memoriesLoading, onFetch, onDream }) => (
         ✦ 让记忆沉淀
       </button>
     </div>
+
+    {selectedMemory && <MemoryDetailCard mem={selectedMemory} onClose={onCloseMemory} />}
   </div>
 )
 
@@ -950,9 +1008,13 @@ const ChatPage = () => {
   const [isSpeakingPaused, setIsSpeakingPaused] = useState(false)
   const [voices,        setVoices]        = useState([])
   const [selectedVoiceURI, setSelectedVoiceURI] = useState(() => localStorage.getItem('ks_voice') || '')
-  const [memories,      setMemories]      = useState([])
+  const [memories,      setMemories]      = useState([])   // D级起：结构化记忆目录（catalog），不再是纯文本数组
   const [memoriesLoading, setMemoriesLoading] = useState(false)
   const [memoryPulse,   setMemoryPulse]   = useState(false)
+  // ── D级：星尘 3D 粒子记忆库 ──────────────────────────────
+  const [stardustTab,      setStardustTab]      = useState('reverie') // 'reverie' | 'constellations'
+  const [stardustSearch,   setStardustSearch]   = useState('')
+  const [selectedMemory,   setSelectedMemory]   = useState(null)       // 单条展开
   // 侧边会话列表（星轨内部展开）
   const [showSessionList, setShowSessionList] = useState(false)
 
@@ -1083,11 +1145,11 @@ const ChatPage = () => {
     setLoading(false)
   }
 
-  // ── 记忆 ─────────────────────────────────────────────────
+  // ── 记忆（D级：结构化目录，供 Three.js 深空 / SVG 星图共用）────
   const fetchMemories = async () => {
     setMemoriesLoading(true)
     try {
-      const res = await axios.get(`${API_BASE}/memories/list?q=用户 喜欢 是`)
+      const res = await axios.get(`${API_BASE}/memories/catalog`)
       setMemories(res.data.memories || [])
     } catch { setMemories([]) }
     setMemoriesLoading(false)
@@ -1344,7 +1406,11 @@ const ChatPage = () => {
 
   // ── 长按消息菜单 → 存入星尘 ──────────────────────────────────
   const holdToStardust = async (bodyText) => {
-    try { await axios.post(`${API_BASE}/memories/hold`, { content: bodyText }); showToast('已存入星尘') }
+    try {
+      await axios.post(`${API_BASE}/memories/hold`, { content: bodyText })
+      showToast('已存入星尘')
+      if (activeTab === 'stardust') fetchMemories()
+    }
     catch (err) { showToast('存入失败：' + err.message) }
   }
 
@@ -1731,6 +1797,10 @@ const ChatPage = () => {
             <StardustPage key="stardust"
               memories={memories} memoriesLoading={memoriesLoading}
               onFetch={fetchMemories} onDream={triggerDream}
+              activeSubTab={stardustTab} onSubTabChange={setStardustTab}
+              searchQuery={stardustSearch} onSearchChange={setStardustSearch}
+              selectedMemory={selectedMemory} onSelectMemory={setSelectedMemory} onCloseMemory={() => setSelectedMemory(null)}
+              theme={theme}
             />
           )}
           {activeTab === 'chronicle' && <ChroniclePage key="chronicle" />}

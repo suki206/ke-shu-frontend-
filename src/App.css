@@ -927,6 +927,27 @@ body {
 }
 
 /* ============================================================
+   星尘 · D级：顶部标签栏（REVERIE / CONSTELLATIONS 切换）
+   ============================================================ */
+.stardust-tabbar {
+  padding: 22px 20px 0;
+  display: flex; gap: 14px;
+  overflow-x: auto; flex-shrink: 0;
+  border-bottom: var(--hair) solid var(--c-line);
+}
+.stardust-tab {
+  background: transparent; border: none;
+  font-family: var(--font-accent); font-size: 10px; letter-spacing: 2.5px;
+  color: var(--c-text-faint);
+  padding-bottom: 12px; cursor: pointer;
+  border-bottom: 1px solid transparent;
+  white-space: nowrap; transition: color .2s ease, border-color .2s ease;
+}
+.stardust-tab:hover:not(.is-disabled) { color: var(--c-text-muted); }
+.stardust-tab.is-active { color: var(--c-accent); border-bottom-color: var(--c-accent); }
+.stardust-tab.is-disabled { cursor: default; opacity: .4; }
+
+/* ============================================================
    星历 · 日记条目
    ============================================================ */
 .diary-item {
