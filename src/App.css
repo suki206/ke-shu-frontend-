@@ -2030,7 +2030,16 @@ button { font-family: inherit; }
   border: var(--hair) solid var(--c-line-strong);
   box-shadow: inset 0 1px 0 var(--c-highlight);
   display: flex; flex-direction: column; align-items: center; gap: 14px;
-  animation: sundialReadoutIn .7s var(--ease) both;
+  animation: tokenDashHeroIn .7s var(--ease) both;
+}
+/* 独立关键帧：.token-dash-hero 是普通 flex 卡片，不是像
+   .gravity-sundial-readout 那样 position:absolute;left:50% 的元素，
+   不需要（也不能用）sundialReadoutIn 里那个用来抵消居中定位的
+   translateX(-50%)——误用会在动画结束后（animation:...both）把卡片
+   永久左移自身宽度的一半，导致卡片被切掉一半、贴在屏幕左边 */
+@keyframes tokenDashHeroIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .token-dash-hero-row {
   display: flex; align-items: center; justify-content: center; gap: 22px;
