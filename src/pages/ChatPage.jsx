@@ -1000,7 +1000,13 @@ const ChatPage = () => {
         ? {
             ...prev,
             entries: [...prev.entries, res.data],
-            note: { ...prev.note, content: (prev.note.content || '') + content, draft_content: null, draft_mode: null },
+            note: {
+              ...prev.note,
+              // 后端追加正文走的是 appendWithBreak（会补一个段落换行），
+              // 本地乐观更新也补上，字数统计才不会跟刷新后对不上
+              content: (prev.note.content ? `${prev.note.content}\n\n` : '') + content,
+              draft_content: null, draft_mode: null,
+            },
           }
         : prev)
       setInkNotes(prev => prev.map(n => n.id === noteId ? { ...n, hasDraft: false } : n))
@@ -1032,13 +1038,20 @@ const ChatPage = () => {
               if (!prev || prev.note?.id !== noteId) return prev
               const newEntry = {
                 id: ev.entryId, author: 'shu', mode, content: ev.content,
-                decision: ev.decision, tokens_input: ev.tokens?.input, tokens_output: ev.tokens?.output,
+                // truncated：撞到模型输出长度上限被切断了，界面会给
+                // 一个「让他接着写完」的入口
+                truncated: !!ev.truncated,
+                tokens_input: ev.tokens?.input, tokens_output: ev.tokens?.output,
                 created_at: new Date().toISOString(),
               }
               return {
                 ...prev,
                 entries: [...prev.entries, newEntry],
-                note: { ...prev.note, content: (prev.note.content || '') + ev.content, updated_at: new Date().toISOString() },
+                note: {
+                  ...prev.note,
+                  content: (prev.note.content ? `${prev.note.content}\n\n` : '') + ev.content,
+                  updated_at: new Date().toISOString(),
+                },
               }
             })
             setInkNotes(nPrev => nPrev.map(n => n.id === noteId ? { ...n, updated_at: new Date().toISOString() } : n))

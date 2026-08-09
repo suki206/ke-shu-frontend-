@@ -2285,14 +2285,28 @@ button { font-family: inherit; }
    点开的居中弹层，选一次立即执行，不会在生成完之后又自动弹一轮。
    ============================================================ */
 .ink-page {
-  position: fixed; inset: 0;
-  z-index: 2300;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  /* 键盘弹出时这一页自己变矮：光标居中的计算才拿得到正确的可视高度 */
+  bottom: var(--kb-height, 0px);
+  z-index: 2400;
   display: flex; flex-direction: column;
   overflow: hidden;
   background: var(--c-bg-solid);
   padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
   padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+  transition: bottom .18s var(--ease);
   animation: inkPageIn .32s var(--ease) both;
+}
+/* 键盘顶上来时底部安全区那条留白纯属浪费，收掉能多露一行字 */
+.kb-open .ink-page { padding-bottom: 0; }
+
+/* 合墨打开期间整条收起底部导航——写字的时候底部什么都不该有。
+   （JSX 里给 <html> 加 .ink-open；InkPage 本身还 Portal 到 body，
+   跳出 .tab-page 的层叠上下文，两道保险） */
+.ink-open .bottom-nav {
+  transform: translateY(120%);
+  pointer-events: none;
 }
 @keyframes inkPageIn {
   from { opacity: 0; transform: translateY(14px); }
@@ -2351,6 +2365,25 @@ button { font-family: inherit; }
   overflow-y: auto;
   padding: 6px 20px calc(28px + env(safe-area-inset-bottom, 0px));
 }
+/* 写作视图底部留半屏空白：没有这块空白，最后一行物理上就滚不到
+   屏幕中间，只能贴在最底下等着被键盘挡住 */
+.ink-page-body.is-writing {
+  padding-bottom: min(48vh, 420px);
+  overscroll-behavior: contain;
+}
+/* 量光标 Y 坐标用的镜像层：跟输入框同宽同排版，但看不见也不占位 */
+.ink-caret-mirror {
+  position: absolute;
+  top: 0; left: -9999px;
+  visibility: hidden;
+  pointer-events: none;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+/* 头部右侧三个图标：保存 / 交给枢 / 更多 */
+.ink-head-actions { display: flex; align-items: center; gap: 2px; }
 .ink-page-content {
   display: flex; flex-direction: column; gap: 14px;
   max-width: 480px;
