@@ -161,7 +161,26 @@
 /* ============================================================
    基础
    ============================================================ */
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  /* 清掉安卓 WebView 默认的点击高亮闪烁。原来只有 .nav-tab（底部导航）
+     单独设过这条，所以只有底部导航点击不会闪蓝——现在提到全局，
+     其余按钮/卡片点击也不再有蓝色闪一下 */
+  -webkit-tap-highlight-color: transparent;
+  /* 关掉系统原生的长按选中 + 呼出菜单（复制/共享/网络搜索）。
+     配合 index.html 里全局拦截的 contextmenu 事件，PWA 摸起来
+     才不像一个网页。.bubble-glass 原来单独设过这条，现在提到全局 */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 输入框 / 文本域例外：用户需要能选中、长按粘贴 */
+input, textarea, [contenteditable="true"] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
 
 html, body {
   height: 100%; margin: 0; padding: 0;

@@ -55,5 +55,22 @@
         })
       }
     </script>
+
+    <!--
+      全局拦截浏览器原生右键/长按菜单（复制/共享/全选/网络搜索）。
+      写在 index.html 里而不是某个页面组件里，是因为它要在 GRAVITY /
+      DUST / CHAT / LOG / CONST 所有页面上都生效，而不只是对话页。
+      输入框 / 文本域排除在外，否则长按粘贴会失效。
+      CSS 里的 user-select: none 已经让大部分元素没有可选文本了，
+      这里是双保险，兼顾长按图片、链接等场景。
+    -->
+    <script>
+      document.addEventListener('contextmenu', (e) => {
+        const el = e.target
+        const tag = el && el.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (el && el.isContentEditable)) return
+        e.preventDefault()
+      })
+    </script>
   </body>
 </html>
