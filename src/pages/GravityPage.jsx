@@ -3,6 +3,7 @@ import ChronosPage from './ChronosPage'
 import TokenDashboardPage from './TokenDashboardPage'
 import BeaconPage from './BeaconPage'
 import EchoPage from './EchoPage'
+import InkPage from './InkPage'
 
 // ============================================================
 // 引力 · 五天体固定布局 —— 功能星系
@@ -17,8 +18,11 @@ import EchoPage from './EchoPage'
 // 留给下一批。
 // 信标（脉冲星）：本批从弹窗改为全屏跃迁（BeaconPage），并把设置页
 // 里的「备忘」整块一并迁来，与原有的便签清单合并展示。
-// 目前时轨 / 信标 / 回声 / 数据罗盘四个功能天体点开均为全屏子页，
-// 视觉与交互统一；仅星历速览仍是占位。
+// 合墨（原彗星 · 星历速览占位）：本批升级为功能天体，点开是全屏
+// 共笔空间（InkPage）——柯与枢在同一条时间流里轮流落笔，不分左右。
+// 视觉也从彗星换成墨滴+光丝，呼应笔记里"新"模式段落之间的分隔线。
+// 目前时轨 / 信标 / 回声 / 数据罗盘 / 合墨五个功能天体点开均为全屏
+// 子页，视觉与交互统一，五天体全部点亮。
 // ============================================================
 
 const FIXED_POSITIONS = {
@@ -26,7 +30,7 @@ const FIXED_POSITIONS = {
   pulsar:  { x: 22, y: 33 },
   giant:   { x: 78, y: 30 },
   binary:  { x: 19, y: 75 },
-  comet:   { x: 81, y: 77 },
+  ink:     { x: 81, y: 77 },
 }
 
 const BODIES = [
@@ -34,14 +38,17 @@ const BODIES = [
   { id: 'pulsar',  label: '信标',     kind: 'pulsar',  size: 58,  functional: true  },
   { id: 'giant',   label: '回声',     kind: 'giant',   size: 74,  functional: true  },
   { id: 'binary',  label: '数据罗盘', kind: 'binary',  size: 54,  functional: true  },
-  { id: 'comet',   label: '星历速览', kind: 'comet',   size: 44,  functional: false },
+  { id: 'ink',     label: '合墨',     kind: 'ink',     size: 44,  functional: true  },
 ]
 
 const daysBetween = (a, b) => Math.round((b.getTime() - a.getTime()) / 86400000)
 
 const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggleBeacon, onDeleteBeacon, showToast,
   config, setConfig, onSaveConfig, onEnablePush,
-  tokenStats, tokenStatsLoading, onFetchTokenStats }) => {
+  tokenStats, tokenStatsLoading, onFetchTokenStats,
+  inkNotes, inkNotesLoading, onFetchInkNotes, onCreateInkNote, onUpdateInkNote, onDeleteInkNote,
+  activeInkNote, activeInkNoteLoading, onOpenInkNote,
+  onSaveInkDraft, onFinalizeInkEntry, onGenerateInkEntry, onStopInkGenerate, inkGenerating }) => {
   const [openBody, setOpenBody] = useState(null)
 
   const anchorDate = config?.anchor_date || ''
@@ -52,6 +59,8 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
     setOpenBody(body.id)
     // 数据罗盘：每次打开都拉一次最新用量，跟原设置页里"展开即拉取"的行为一致
     if (body.id === 'binary') onFetchTokenStats?.()
+    // 合墨：每次打开都刷一遍笔记列表，拿到最新的"待续"标记和预览
+    if (body.id === 'ink') onFetchInkNotes?.()
   }
 
   const onAnchorChange = (d) => {
@@ -138,10 +147,10 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
                   <span className="gravity-binary-orbit" />
                 </>
               )}
-              {body.kind === 'comet' && (
+              {body.kind === 'ink' && (
                 <>
-                  <span className="gravity-comet-tail" />
-                  <span className="gravity-comet-sparkle" />
+                  <span className="gravity-ink-thread" />
+                  <span className="gravity-ink-drip" />
                 </>
               )}
               {body.kind !== 'binary' && body.kind !== 'sundial' && <span className="gravity-body-orb" />}
@@ -190,6 +199,23 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
           stats={tokenStats}
           loading={tokenStatsLoading}
           onRefresh={onFetchTokenStats}
+          onClose={() => setOpenBody(null)}
+        />
+      )}
+
+      {/* 合墨子页面：全屏共笔空间——笔记列表 + 单篇时间流两级视图都在
+          InkPage 内部自行切换，这里只负责数据的进出 */}
+      {openBody === 'ink' && (
+        <InkPage
+          notes={inkNotes} notesLoading={inkNotesLoading}
+          onFetchNotes={onFetchInkNotes} onCreateNote={onCreateInkNote}
+          onUpdateNote={onUpdateInkNote} onDeleteNote={onDeleteInkNote}
+          activeNote={activeInkNote} activeNoteLoading={activeInkNoteLoading}
+          onOpenNote={onOpenInkNote}
+          onSaveDraft={onSaveInkDraft} onFinalizeEntry={onFinalizeInkEntry}
+          onGenerateEntry={onGenerateInkEntry} onStopGenerate={onStopInkGenerate}
+          generating={inkGenerating}
+          showToast={showToast}
           onClose={() => setOpenBody(null)}
         />
       )}

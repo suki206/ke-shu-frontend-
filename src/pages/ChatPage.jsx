@@ -933,6 +933,146 @@ const ChatPage = () => {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), life)
   }
 
+  // ── 合墨（共笔）：引力·右下角天体。数据同样统一由 ChatPage 持有，
+  //    GravityPage → InkPage 只管展示，不直接掉接口，跟信标/数据
+  //    罗盘是同一套约定 ─────────────────────────────────────────
+  const [inkNotes,        setInkNotes]        = useState([])
+  const [inkNotesLoading, setInkNotesLoading] = useState(false)
+  const [activeInkNote,        setActiveInkNote]        = useState(null) // { note, entries }
+  const [activeInkNoteLoading, setActiveInkNoteLoading] = useState(false)
+  const [inkGenerating,   setInkGenerating]   = useState(false)
+  const inkAbortRef = useRef(null)
+
+  const fetchInkNotes = async () => {
+    setInkNotesLoading(true)
+    try { const res = await axios.get(`${API_BASE}/notes`); setInkNotes(res.data || []) }
+    catch { showToast('合墨：加载笔记列表失败') }
+    setInkNotesLoading(false)
+  }
+
+  const fetchInkEntries = async (noteId) => {
+    setActiveInkNoteLoading(true)
+    try { const res = await axios.get(`${API_BASE}/notes/${noteId}/entries`); setActiveInkNote(res.data) }
+    catch { showToast('合墨：加载这篇笔记失败') }
+    setActiveInkNoteLoading(false)
+  }
+
+  const createInkNote = async () => {
+    try {
+      const res = await axios.post(`${API_BASE}/notes/new`, {})
+      setInkNotes(prev => [res.data, ...prev])
+      return res.data
+    } catch { showToast('新建失败'); return null }
+  }
+
+  const updateInkNote = async (noteId, patch) => {
+    try {
+      const res = await axios.put(`${API_BASE}/notes/${noteId}`, patch)
+      setActiveInkNote(prev => (prev && prev.note?.id === noteId) ? { ...prev, note: res.data } : prev)
+      setInkNotes(prev => prev.map(n => n.id === noteId ? { ...n, ...res.data } : n))
+    } catch { showToast('保存失败') }
+  }
+
+  const deleteInkNote = async (noteId) => {
+    try {
+      await axios.delete(`${API_BASE}/notes/${noteId}`)
+      setInkNotes(prev => prev.filter(n => n.id !== noteId))
+      setActiveInkNote(prev => (prev?.note?.id === noteId) ? null : prev)
+    } catch { showToast('删除失败') }
+  }
+
+  const saveInkDraft = async (noteId, { content, mode }) => {
+    try {
+      const res = await axios.post(`${API_BASE}/notes/${noteId}/draft`, { content, mode })
+      setActiveInkNote(prev => (prev && prev.note?.id === noteId) ? { ...prev, note: res.data } : prev)
+      setInkNotes(prev => prev.map(n => n.id === noteId ? { ...n, hasDraft: !!content?.trim() } : n))
+    } catch { showToast('待续保存失败') }
+  }
+
+  const finalizeInkEntry = async (noteId, { content, mode }) => {
+    try {
+      const res = await axios.post(`${API_BASE}/notes/${noteId}/entries`, { content, mode })
+      setActiveInkNote(prev => (prev && prev.note?.id === noteId)
+        ? { ...prev, entries: [...prev.entries, res.data], note: { ...prev.note, draft_content: null, draft_mode: null } }
+        : prev)
+    } catch { showToast('落笔失败') }
+  }
+
+  // 枢续写/另写：SSE 流式，读法跟主对话 readSSEStream 一致，只是结果
+  // 落在 activeInkNote.entries 上，不是 messages
+  const readInkSSEStream = async (res, noteId) => {
+    const reader  = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buf = '', done = false
+
+    while (!done) {
+      const { value, done: rd } = await reader.read()
+      done = rd
+      if (value) buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() || ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          const ev = JSON.parse(line.slice(6))
+          if (ev.error) { showToast('枢写不下去了：' + ev.error); done = true; break }
+          if (ev.token) {
+            setActiveInkNote(prev => {
+              if (!prev || prev.note?.id !== noteId) return prev
+              const list = [...prev.entries]
+              const last = list[list.length - 1]
+              if (last?.streaming) list[list.length - 1] = { ...last, content: last.content + ev.token }
+              return { ...prev, entries: list }
+            })
+          }
+          if (ev.done) {
+            setActiveInkNote(prev => {
+              if (!prev || prev.note?.id !== noteId) return prev
+              const list = [...prev.entries]
+              const last = list[list.length - 1]
+              if (last?.streaming) list[list.length - 1] = { ...last, streaming: false, id: ev.entryId }
+              return { ...prev, entries: list }
+            })
+            setInkNotes(nPrev => nPrev.map(n => n.id === noteId ? { ...n, updated_at: new Date().toISOString() } : n))
+          }
+        } catch {}
+      }
+    }
+  }
+
+  const generateInkEntry = async (noteId, mode) => {
+    setInkGenerating(true)
+    setActiveInkNote(prev => (prev && prev.note?.id === noteId)
+      ? { ...prev, entries: [...prev.entries, { author: 'shu', mode, content: '', streaming: true }] }
+      : prev)
+
+    const controller = new AbortController()
+    inkAbortRef.current = controller
+    try {
+      const res = await fetch(`${API_BASE}/notes/${noteId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Access-Key': localStorage.getItem(ACCESS_KEY_STORAGE) || '' },
+        body: JSON.stringify({ mode }),
+        signal: controller.signal,
+      })
+      if (res.status === 401) { localStorage.removeItem(ACCESS_KEY_STORAGE); window.location.reload(); return }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await readInkSSEStream(res, noteId)
+    } catch (err) {
+      if (err.name !== 'AbortError') showToast('生成失败：' + err.message)
+      setActiveInkNote(prev => {
+        if (!prev || prev.note?.id !== noteId) return prev
+        const list = [...prev.entries]
+        if (list[list.length - 1]?.streaming) list.pop()
+        return { ...prev, entries: list }
+      })
+    }
+    inkAbortRef.current = null
+    setInkGenerating(false)
+  }
+
+  const stopInkGenerate = () => { inkAbortRef.current?.abort() }
+
   // ── 语音 ─────────────────────────────────────────────────
   const startSpeak = (text, msgKey) => {
     const utter = new SpeechSynthesisUtterance(text)
@@ -1796,6 +1936,11 @@ const ChatPage = () => {
               config={config} setConfig={setConfig} onSaveConfig={saveSettings}
               tokenStats={tokenStats} tokenStatsLoading={tokenStatsLoading} onFetchTokenStats={fetchTokenStats}
               onEnablePush={enablePushReminders}
+              inkNotes={inkNotes} inkNotesLoading={inkNotesLoading} onFetchInkNotes={fetchInkNotes}
+              onCreateInkNote={createInkNote} onUpdateInkNote={updateInkNote} onDeleteInkNote={deleteInkNote}
+              activeInkNote={activeInkNote} activeInkNoteLoading={activeInkNoteLoading} onOpenInkNote={fetchInkEntries}
+              onSaveInkDraft={saveInkDraft} onFinalizeInkEntry={finalizeInkEntry}
+              onGenerateInkEntry={generateInkEntry} onStopInkGenerate={stopInkGenerate} inkGenerating={inkGenerating}
             />
           )}
           {activeTab === 'stardust' && (
