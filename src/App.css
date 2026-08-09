@@ -1918,25 +1918,6 @@ button { font-family: inherit; }
   font-size: 11.5px; letter-spacing: 1px; color: var(--c-text-faint);
 }
 
-/* 信标子页面：单击脉冲星「跃迁」（缩放 + 淡入）进入 */
-.gravity-subpage-veil { animation: fadeIn 0.24s ease; }
-.gravity-subpage-card {
-  width: 330px;
-  max-width: 88vw;
-  padding: 28px 24px 24px;
-  animation: gravityZoomIn 0.4s var(--ease) both;
-}
-@keyframes gravityZoomIn {
-  from { opacity: 0; transform: scale(0.82); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-/* 调频面板：内容比信标多得多，需要一个可滚动的内层容器；
-   放在 .gravity-subpage-card 后面声明，才能让这里的 width 盖过
-   它的默认 330px（同优先级选择器，后声明的赢） */
-.gravity-attune-card { width: 340px; max-width: 90vw; max-height: 82vh; display: flex; flex-direction: column; }
-.gravity-attune-body { flex: 1; overflow-y: auto; padding-right: 2px; }
-
 
 /* ============================================================
    数据罗盘 · TOKEN DASHBOARD —— 全屏子页面，纯展示。
@@ -2213,6 +2194,89 @@ button { font-family: inherit; }
 }
 
 /* ============================================================
+   回声 · ECHO —— 全屏子页面（原为弹窗，本批改为全屏跃迁）。
+   与 .beacon-page / .token-dash-page 同一套骨架：fixed 全屏 +
+   头部返回键 + 可滚动 body + 毛玻璃卡片，人格 / 模型 / 温度
+   三块各占一张 .echo-page-card。model-item / model-add-form 等
+   模型列表相关样式沿用既有的全局定义，未改动。
+   ============================================================ */
+.echo-page {
+  position: fixed; inset: 0;
+  z-index: 2300;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--c-bg-solid);
+  padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
+  padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+  animation: echoPageIn .32s var(--ease) both;
+}
+@keyframes echoPageIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.echo-page-header {
+  position: relative;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px 10px;
+}
+.echo-page-iconbtn {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  color: var(--c-text-muted);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: color .25s var(--ease), transform .2s ease;
+}
+.echo-page-iconbtn:hover  { color: var(--c-text); }
+.echo-page-iconbtn:active { transform: scale(0.88); }
+.echo-page-title {
+  font-family: var(--font-display);
+  font-size: 13px; letter-spacing: 3px;
+  color: var(--c-text);
+}
+.echo-page-header-spacer { width: 32px; flex-shrink: 0; }
+
+.echo-page-body {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+}
+.echo-page-content {
+  display: flex; flex-direction: column; gap: 14px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.echo-page-eyebrow {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10px; letter-spacing: 2.5px; color: var(--c-text-faint);
+  text-align: center;
+}
+.echo-page-card {
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: var(--c-panel);
+  backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
+  -webkit-backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
+  border: var(--hair) solid var(--c-line);
+  animation: echoCardIn .5s var(--ease) both;
+}
+.echo-page-card:nth-child(2) { animation-delay: .05s; }
+.echo-page-card:nth-child(3) { animation-delay: .1s; }
+.echo-page-card:nth-child(4) { animation-delay: .15s; }
+@keyframes echoCardIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.echo-page-card-label {
+  font-family: var(--font-accent);
+  font-size: 9.5px; letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+/* ============================================================
    时轨 · CHRONOS —— 全屏子页面，纯展示的星轨场景。
    锚点＝恒星，倒计时＝环绕行星，经期预测＝月相圆盘，
    经期历史＝光带。所有输入都是点场景里的天体弹出 .chronos-sheet-*
@@ -2438,6 +2502,10 @@ button { font-family: inherit; }
 }
 
 /* ── 小面板：锚点 / 新增倒计时 / 倒计时详情 / 经期记录 ──────── */
+@keyframes gravityZoomIn {
+  from { opacity: 0; transform: scale(0.82); }
+  to   { opacity: 1; transform: scale(1); }
+}
 .chronos-sheet-veil { z-index: 2400; animation: fadeIn .22s ease; }
 .chronos-sheet-card {
   width: 320px; max-width: 88vw;
