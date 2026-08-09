@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ChronosPage from './ChronosPage'
 import TokenDashboardPage from './TokenDashboardPage'
+import BeaconPage from './BeaconPage'
 
 // ============================================================
 // 引力 · 五天体固定布局 —— 功能星系
@@ -13,6 +14,8 @@ import TokenDashboardPage from './TokenDashboardPage'
 // Token 仪表盘（TokenDashboardPage）——原本折叠在设置页最深处的
 // 用量统计整体搬到这里。星历速览本批仍是视觉占位，点击给 toast，
 // 留给下一批。
+// 信标（脉冲星）：本批从弹窗改为全屏跃迁（BeaconPage），并把设置页
+// 里的「备忘」整块一并迁来，与原有的便签清单合并展示。
 // ============================================================
 
 const FIXED_POSITIONS = {
@@ -166,7 +169,7 @@ const AttunementPanel = ({ config, setConfig, onSaveConfig, showToast, onClose }
 }
 
 const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggleBeacon, onDeleteBeacon, showToast,
-  config, setConfig, onSaveConfig,
+  config, setConfig, onSaveConfig, onEnablePush,
   tokenStats, tokenStatsLoading, onFetchTokenStats }) => {
   const [openBody, setOpenBody] = useState(null)
 
@@ -299,39 +302,15 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
         />
       )}
 
-      {/* 信标子页面：跃迁（缩放+淡入） */}
+      {/* 信标子页面：全屏跃迁（与数据罗盘一致），并入原设置页的备忘 */}
       {openBody === 'pulsar' && (
-        <div className="modal-veil gravity-subpage-veil" style={{ zIndex: 2200 }} onClick={() => setOpenBody(null)}>
-          <div className="modal-card gravity-subpage-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-title" style={{ marginBottom: 16 }}>BEACON · 信标</div>
-            <div className="beacon-add-row">
-              <input
-                className="field-input"
-                placeholder="记一件小事…"
-                value={beaconText}
-                onChange={e => setBeaconText(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && onAddBeacon()}
-              />
-              <button onClick={onAddBeacon} className="line-btn" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '13px' }}>+</button>
-            </div>
-            <div className="beacon-list" style={{ maxHeight: '44vh', overflowY: 'auto' }}>
-              {(!beacons || beacons.length === 0) && <div className="beacon-empty">暂无信标</div>}
-              {beacons?.map(b => (
-                <div key={b.id} className="beacon-item">
-                  <span className={`beacon-check${b.done ? ' is-done' : ''}`} onClick={() => onToggleBeacon(b.id)} />
-                  <span className={`beacon-text${b.done ? ' is-done' : ''}`} onClick={() => onToggleBeacon(b.id)}>{b.text}</span>
-                  <span className="icon-btn" onClick={() => onDeleteBeacon(b.id)} style={{ cursor: 'pointer', color: 'var(--c-text-faint)', padding: '4px', flexShrink: 0 }}>
-                    <TrashIcon />
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="sensitivity-hint" style={{ marginTop: 10 }}>次日自动清空已完成项，未完成的项会保留</div>
-            <button onClick={() => setOpenBody(null)} className="line-btn" style={{ width: '100%', marginTop: 18, padding: '11px 0', borderRadius: '999px', fontSize: '11.5px', letterSpacing: '2px', color: 'var(--c-text-muted)' }}>
-              关闭
-            </button>
-          </div>
-        </div>
+        <BeaconPage
+          beacons={beacons} beaconText={beaconText} setBeaconText={setBeaconText}
+          onAddBeacon={onAddBeacon} onToggleBeacon={onToggleBeacon} onDeleteBeacon={onDeleteBeacon}
+          config={config} setConfig={setConfig} onSaveConfig={onSaveConfig} onEnablePush={onEnablePush}
+          showToast={showToast}
+          onClose={() => setOpenBody(null)}
+        />
       )}
 
       {/* 数据罗盘子页面：全屏 Token 仪表盘（原设置页用量统计整体迁至此） */}

@@ -572,7 +572,7 @@ const SENSITIVITY_HINTS = {
 
 const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontScale,
   voices, selectedVoiceURI, setSelectedVoiceURI,
-  onSave, onExport, onRefreshVoices, showToast, onEnablePush }) => {
+  onSave, onExport, onRefreshVoices, showToast }) => {
 
   return (
     <div className="tab-page">
@@ -680,16 +680,6 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
             <option value="">系统默认</option>
             {voices.map(v => <option key={v.voiceURI} value={v.voiceURI}>{v.name||'未命名'} {v.lang?`(${v.lang})`:''}</option>)}
           </select>
-        </div>
-
-        {/* 备忘 */}
-        <div className="constant-section">
-          <div className="constant-section-title">Memo · 备忘</div>
-          <textarea className="field-input" placeholder="记点什么，比如「明天下午3点买药」「周五交房租」…" value={config.memo || ''} onChange={e => setConfig(p => ({ ...p, memo: e.target.value }))} rows={4} style={{ resize: 'vertical', lineHeight: 1.7, fontSize: '13px' }} />
-          <div className="sensitivity-hint" style={{ marginTop: 8 }}>会拼进对话背景，AI 记得住；保存后带具体时间的句子会自动识别，到点通知你</div>
-          <button onClick={onEnablePush} className="line-btn" style={{ width: '100%', marginTop: 12, padding: '11px 0', borderRadius: '14px', fontSize: '11.5px', letterSpacing: '2px' }}>
-            开启到点提醒通知
-          </button>
         </div>
 
         {/* 参数 */}
@@ -1805,6 +1795,7 @@ const ChatPage = () => {
               showToast={showToast}
               config={config} setConfig={setConfig} onSaveConfig={saveSettings}
               tokenStats={tokenStats} tokenStatsLoading={tokenStatsLoading} onFetchTokenStats={fetchTokenStats}
+              onEnablePush={enablePushReminders}
             />
           )}
           {activeTab === 'stardust' && (
@@ -1826,7 +1817,6 @@ const ChatPage = () => {
               voices={voices} selectedVoiceURI={selectedVoiceURI} setSelectedVoiceURI={setSelectedVoiceURI}
               onSave={saveSettings} onExport={exportConversation}
               onRefreshVoices={refreshVoices} showToast={showToast}
-              onEnablePush={enablePushReminders}
             />
           )}
 
