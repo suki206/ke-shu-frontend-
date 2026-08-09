@@ -593,7 +593,7 @@ const SENSITIVITY_HINTS = {
 
 const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontScale,
   voices, selectedVoiceURI, setSelectedVoiceURI,
-  onSave, onExport, onRefreshVoices, showToast,
+  onSave, onExport, onRefreshVoices, showToast, onEnablePush,
   tokenStatsOpen, onToggleTokenStats, tokenStats, tokenStatsLoading }) => {
 
   // 模型切换 · 新增模型的表单（纯本地 UI 状态，提交后写进 config.models）
@@ -785,6 +785,16 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
         <div className="constant-section">
           <div className="constant-section-title">Persona · 人格</div>
           <textarea className="field-input" value={config.system_prompt} onChange={e => setConfig(p => ({ ...p, system_prompt: e.target.value }))} rows={4} style={{ resize: 'vertical', lineHeight: 1.7, fontSize: '13px' }} />
+        </div>
+
+        {/* 备忘 */}
+        <div className="constant-section">
+          <div className="constant-section-title">Memo · 备忘</div>
+          <textarea className="field-input" placeholder="记点什么，比如「明天下午3点买药」「周五交房租」…" value={config.memo || ''} onChange={e => setConfig(p => ({ ...p, memo: e.target.value }))} rows={4} style={{ resize: 'vertical', lineHeight: 1.7, fontSize: '13px' }} />
+          <div className="sensitivity-hint" style={{ marginTop: 8 }}>会拼进对话背景，AI 记得住；保存后带具体时间的句子会自动识别，到点通知你</div>
+          <button onClick={onEnablePush} className="line-btn" style={{ width: '100%', marginTop: 12, padding: '11px 0', borderRadius: '14px', fontSize: '11.5px', letterSpacing: '2px' }}>
+            开启到点提醒通知
+          </button>
         </div>
 
         {/* 参数 */}
@@ -1449,6 +1459,36 @@ const ChatPage = () => {
   const getSettings  = async () => { try { const res = await axios.get(`${API_BASE}/settings`); setConfig(prev => ({ ...prev, ...res.data })) } catch {} }
   const saveSettings = async (overrideConfig) => { try { await axios.post(`${API_BASE}/settings`, overrideConfig || config); if (!overrideConfig) showToast('已保存') } catch (err) { showToast('保存失败：' + err.message) } }
 
+  // ── 到点提醒：Web Push 订阅 ──────────────────────────────────
+  // VAPID 公钥是 base64url 字符串，pushManager.subscribe 要的是
+  // Uint8Array，这个转换是标准写法，别处也这么写
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const raw = atob(base64)
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  }
+  const enablePushReminders = async () => {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        showToast('这台设备/浏览器不支持推送通知'); return
+      }
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') { showToast('没有获得通知权限，提醒推不出去'); return }
+      const reg = await navigator.serviceWorker.ready
+      let sub = await reg.pushManager.getSubscription()
+      if (!sub) {
+        const { data } = await axios.get(`${API_BASE}/push/vapid-public-key`)
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(data.key),
+        })
+      }
+      await axios.post(`${API_BASE}/push/subscribe`, sub.toJSON())
+      showToast('到点提醒通知已开启')
+    } catch (err) { showToast('开启失败：' + err.message) }
+  }
+
   // ── 生命周期 ─────────────────────────────────────────────
   useEffect(() => {
     if (!unlocked) return
@@ -1949,6 +1989,7 @@ const ChatPage = () => {
               onRefreshVoices={refreshVoices} showToast={showToast}
               tokenStatsOpen={tokenStatsOpen} onToggleTokenStats={toggleTokenStats}
               tokenStats={tokenStats} tokenStatsLoading={tokenStatsLoading}
+              onEnablePush={enablePushReminders}
             />
           )}
 

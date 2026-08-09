@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ChronosPage from './ChronosPage'
 
 // ============================================================
 // 引力 · 五天体固定布局
@@ -19,7 +20,7 @@ const FIXED_POSITIONS = {
 }
 
 const BODIES = [
-  { id: 'sundial', label: '时轨',     kind: 'sundial', size: 96, functional: false },
+  { id: 'sundial', label: '时轨',     kind: 'sundial', size: 96, functional: true  },
   { id: 'pulsar',  label: '信标',     kind: 'pulsar',  size: 58, functional: true  },
   { id: 'giant',   label: '回声',     kind: 'giant',   size: 74, functional: false },
   { id: 'binary',  label: '数据罗盘', kind: 'binary',  size: 54, functional: false },
@@ -115,6 +116,11 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
           </div>
         )
       })}
+
+      {/* 时轨子页面：全屏跃迁，不用 modal-veil 那套居中小卡片 */}
+      {openBody === 'sundial' && (
+        <ChronosPage onClose={() => setOpenBody(null)} showToast={showToast} />
+      )}
 
       {/* 信标子页面：跃迁（缩放+淡入） */}
       {openBody === 'pulsar' && (

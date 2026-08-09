@@ -57,3 +57,33 @@ self.addEventListener('fetch', (event) => {
     })
   )
 })
+
+// ── Web Push：到点提醒的系统级通知 ─────────────────────────────
+// 后端 checkDueReminders 推过来的 payload 形如
+// { title, body, tag }，见 server.js 里的 sendPushToAll
+self.addEventListener('push', (event) => {
+  let data = {}
+  try { data = event.data ? event.data.json() : {} } catch {}
+  const title = data.title || '在场'
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192x192.png',
+    badge: '/icon-192x192.png',
+    tag: data.tag || 'presence-reminder',
+    data: { url: '/' },
+  }
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+// 点通知：已经开着就把那个窗口拉到前台，没开就新开一个
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) return client.focus()
+      }
+      if (self.clients.openWindow) return self.clients.openWindow('/')
+    })
+  )
+})
