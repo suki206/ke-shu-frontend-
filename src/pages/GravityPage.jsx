@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import ChronosPage from './ChronosPage'
+import TokenDashboardPage from './TokenDashboardPage'
 
 // ============================================================
 // 引力 · 五天体固定布局 —— 功能星系
-// 本批：时轨（日晷）不再是纯装饰枢纽，锚点"在一起天数"从设置里
-// 彻底迁出，作为常驻读数悬在日晷上方，构成整页唯一的视觉重心；
-// 回声（气态巨行星）从占位升级为功能天体，点开是"调频面板"——
-// 人格 Persona（system prompt）、模型切换、Temperature，原本塞在
-// 设置页 ConstantPage 里的这三块整体搬到这里。数据罗盘 / 星历速览
-// 本批仍是视觉占位，点击给 toast，留给下一批。
+// 时轨（日晷）：锚点"在一起天数"作为常驻读数悬在日晷上方，构成
+// 整页唯一的视觉重心。
+// 回声（气态巨行星）：点开是"调频面板"——人格 Persona（system
+// prompt）、模型切换、Temperature，原本塞在设置页 ConstantPage
+// 里的这三块整体搬到这里。
+// 数据罗盘（双星系统）：本批从占位升级为功能天体，点开是全屏
+// Token 仪表盘（TokenDashboardPage）——原本折叠在设置页最深处的
+// 用量统计整体搬到这里。星历速览本批仍是视觉占位，点击给 toast，
+// 留给下一批。
 // ============================================================
 
 const FIXED_POSITIONS = {
@@ -23,7 +27,7 @@ const BODIES = [
   { id: 'sundial', label: '时轨',     kind: 'sundial', size: 112, functional: true  },
   { id: 'pulsar',  label: '信标',     kind: 'pulsar',  size: 58,  functional: true  },
   { id: 'giant',   label: '回声',     kind: 'giant',   size: 74,  functional: true  },
-  { id: 'binary',  label: '数据罗盘', kind: 'binary',  size: 54,  functional: false },
+  { id: 'binary',  label: '数据罗盘', kind: 'binary',  size: 54,  functional: true  },
   { id: 'comet',   label: '星历速览', kind: 'comet',   size: 44,  functional: false },
 ]
 
@@ -162,15 +166,18 @@ const AttunementPanel = ({ config, setConfig, onSaveConfig, showToast, onClose }
 }
 
 const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggleBeacon, onDeleteBeacon, showToast,
-  config, setConfig, onSaveConfig }) => {
+  config, setConfig, onSaveConfig,
+  tokenStats, tokenStatsLoading, onFetchTokenStats }) => {
   const [openBody, setOpenBody] = useState(null)
 
   const anchorDate = config?.anchor_date || ''
   const anchorDays = anchorDate ? daysBetween(new Date(anchorDate), new Date()) + 1 : null
 
   const handleBodyClick = (body) => {
-    if (body.functional) setOpenBody(body.id)
-    else showToast?.('即将抵达 · 敬请期待')
+    if (!body.functional) { showToast?.('即将抵达 · 敬请期待'); return }
+    setOpenBody(body.id)
+    // 数据罗盘：每次打开都拉一次最新用量，跟原设置页里"展开即拉取"的行为一致
+    if (body.id === 'binary') onFetchTokenStats?.()
   }
 
   const onAnchorChange = (d) => {
@@ -325,6 +332,16 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
             </button>
           </div>
         </div>
+      )}
+
+      {/* 数据罗盘子页面：全屏 Token 仪表盘（原设置页用量统计整体迁至此） */}
+      {openBody === 'binary' && (
+        <TokenDashboardPage
+          stats={tokenStats}
+          loading={tokenStatsLoading}
+          onRefresh={onFetchTokenStats}
+          onClose={() => setOpenBody(null)}
+        />
       )}
     </div>
   )

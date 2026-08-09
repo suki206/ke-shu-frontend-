@@ -103,27 +103,6 @@ const StreamingText = ({ text }) => {
 }
 
 // ============================================================
-// Token 7日趋势 · 极简 SVG 折线图（0依赖，深藏于常数页）
-// ============================================================
-const TokenTrendChart = ({ trend }) => {
-  if (!trend?.length) return null
-  const W = 280, H = 64, PAD = 4
-  const maxVal = Math.max(1, ...trend.map(d => d.input + d.output))
-  const stepX = (W - PAD * 2) / Math.max(1, trend.length - 1)
-  const pointsFor = (key) => trend.map((d, i) => {
-    const x = PAD + i * stepX
-    const y = H - PAD - (d[key] / maxVal) * (H - PAD * 2)
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
-  return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
-      <polyline points={pointsFor('input')}  fill="none" stroke="var(--c-text-faint)" strokeWidth="1.2" opacity=".7" />
-      <polyline points={pointsFor('output')} fill="none" stroke="var(--c-accent)"     strokeWidth="1.4" />
-    </svg>
-  )
-}
-
-// ============================================================
 // 常量 & 配置
 // ============================================================
 const API_BASE = 'https://ke-shu-backend.onrender.com/api'
@@ -593,8 +572,7 @@ const SENSITIVITY_HINTS = {
 
 const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontScale,
   voices, selectedVoiceURI, setSelectedVoiceURI,
-  onSave, onExport, onRefreshVoices, showToast, onEnablePush,
-  tokenStatsOpen, onToggleTokenStats, tokenStats, tokenStatsLoading }) => {
+  onSave, onExport, onRefreshVoices, showToast, onEnablePush }) => {
 
   return (
     <div className="tab-page">
@@ -735,55 +713,6 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
           <button onClick={onExport} className="line-btn" style={{ width: '100%', padding: '12px 0', borderRadius: '14px', fontSize: '11.5px', letterSpacing: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <Icon.Export size={13} /> 导出当前对话
           </button>
-        </div>
-
-        {/* Token 统计仪表盘（藏在最深处，默认折叠，不打扰前台；引力·数据罗盘的详细前置展示留待后续批次） */}
-        <div className="constant-section">
-          <div className="token-stats-toggle" onClick={onToggleTokenStats}>
-            <span className="token-stats-toggle-label">Tokens · 用量统计</span>
-            <Icon.Chevron size={9} open={tokenStatsOpen} />
-          </div>
-          {tokenStatsOpen && (
-            tokenStatsLoading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}><div className="breath-dot" /></div>
-            ) : !tokenStats ? (
-              <div className="sensitivity-hint">暂无统计数据</div>
-            ) : (
-              <>
-                <div className="token-stats-grid">
-                  <div className="token-stat-item">
-                    <div className="token-stat-label">TODAY</div>
-                    <div className="token-stat-value">↑{tokenStats.today?.input ?? 0} ↓{tokenStats.today?.output ?? 0}</div>
-                  </div>
-                  <div className="token-stat-item">
-                    <div className="token-stat-label">WEEK</div>
-                    <div className="token-stat-value">↑{tokenStats.week?.input ?? 0} ↓{tokenStats.week?.output ?? 0}</div>
-                  </div>
-                  <div className="token-stat-item">
-                    <div className="token-stat-label">ALL</div>
-                    <div className="token-stat-value">↑{tokenStats.all?.input ?? 0} ↓{tokenStats.all?.output ?? 0}</div>
-                  </div>
-                  <div className="token-stat-item">
-                    <div className="token-stat-label">SESSION</div>
-                    <div className="token-stat-value">{tokenStats.session ? `↑${tokenStats.session.input} ↓${tokenStats.session.output}` : '—'}</div>
-                  </div>
-                </div>
-                {tokenStats.byModel && Object.keys(tokenStats.byModel).length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    {Object.entries(tokenStats.byModel).map(([m, v]) => (
-                      <div key={m} className="token-model-row">
-                        <span>{m}</span>
-                        <span>↑{v.input} ↓{v.output}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="token-trend-wrap">
-                  <TokenTrendChart trend={tokenStats.trend7d} />
-                </div>
-              </>
-            )
-          )}
         </div>
 
         {/* 保存 */}
@@ -974,8 +903,8 @@ const ChatPage = () => {
     if (!corePressFiredRef.current && !corePressMovedRef.current) setActiveTab('orbit')
   }
 
-  // ── C级：Token 统计仪表盘（深藏，展开时才拉取）
-  const [tokenStatsOpen, setTokenStatsOpen] = useState(false)
+  // ── Token 统计仪表盘：数据已迁至 引力·数据罗盘（TokenDashboardPage），
+  //    这里只保留状态与拉取逻辑，展开数据罗盘时才请求
   const [tokenStats,     setTokenStats]     = useState(null)
   const [tokenStatsLoading, setTokenStatsLoading] = useState(false)
   const fetchTokenStats = async () => {
@@ -985,11 +914,6 @@ const ChatPage = () => {
       setTokenStats(res.data)
     } catch { setTokenStats(null) }
     setTokenStatsLoading(false)
-  }
-  const toggleTokenStats = () => {
-    const next = !tokenStatsOpen
-    setTokenStatsOpen(next)
-    if (next) fetchTokenStats()
   }
 
   // ── A级：星轨交互补全 相关状态 ──────────────────────────
@@ -1880,6 +1804,7 @@ const ChatPage = () => {
               onAddBeacon={addBeacon} onToggleBeacon={toggleBeacon} onDeleteBeacon={deleteBeacon}
               showToast={showToast}
               config={config} setConfig={setConfig} onSaveConfig={saveSettings}
+              tokenStats={tokenStats} tokenStatsLoading={tokenStatsLoading} onFetchTokenStats={fetchTokenStats}
             />
           )}
           {activeTab === 'stardust' && (
@@ -1901,8 +1826,6 @@ const ChatPage = () => {
               voices={voices} selectedVoiceURI={selectedVoiceURI} setSelectedVoiceURI={setSelectedVoiceURI}
               onSave={saveSettings} onExport={exportConversation}
               onRefreshVoices={refreshVoices} showToast={showToast}
-              tokenStatsOpen={tokenStatsOpen} onToggleTokenStats={toggleTokenStats}
-              tokenStats={tokenStats} tokenStatsLoading={tokenStatsLoading}
               onEnablePush={enablePushReminders}
             />
           )}
