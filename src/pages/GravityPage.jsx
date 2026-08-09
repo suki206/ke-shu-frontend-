@@ -48,7 +48,7 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
   tokenStats, tokenStatsLoading, onFetchTokenStats,
   inkNotes, inkNotesLoading, onFetchInkNotes, onCreateInkNote, onUpdateInkNote, onDeleteInkNote,
   activeInkNote, activeInkNoteLoading, onOpenInkNote,
-  onSaveInkDraft, onFinalizeInkEntry, onGenerateInkEntry, onStopInkGenerate, inkGenerating }) => {
+  onSaveInkDraft, onFinalizeInkEntry, onGenerateInkEntry, onStopInkGenerate, inkGenerating, inkStreamText }) => {
   const [openBody, setOpenBody] = useState(null)
 
   const anchorDate = config?.anchor_date || ''
@@ -203,8 +203,9 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
         />
       )}
 
-      {/* 合墨子页面：全屏共笔空间——笔记列表 + 单篇时间流两级视图都在
-          InkPage 内部自行切换，这里只负责数据的进出 */}
+      {/* 合墨子页面：全屏接力写作——一篇笔记只有一段连续正文，柯与枢
+          轮流往后接着写，列表/详情两级视图在 InkPage 内部自行切换，
+          这里只负责数据的进出 */}
       {openBody === 'ink' && (
         <InkPage
           notes={inkNotes} notesLoading={inkNotesLoading}
@@ -214,7 +215,7 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
           onOpenNote={onOpenInkNote}
           onSaveDraft={onSaveInkDraft} onFinalizeEntry={onFinalizeInkEntry}
           onGenerateEntry={onGenerateInkEntry} onStopGenerate={onStopInkGenerate}
-          generating={inkGenerating}
+          generating={inkGenerating} streamText={inkStreamText}
           showToast={showToast}
           onClose={() => setOpenBody(null)}
         />

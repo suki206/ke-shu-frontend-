@@ -1,18 +1,18 @@
-import { useState, useEffect, useRef, Fragment } from 'react'
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import { daysLabel } from './dustCommon'
 
 // ============================================================
-// 合墨 · INK —— 引力页右下角天体子页面，全屏跃迁（与信标/数据罗盘
-// 同款骨架）。柯与枢在同一条时间流里轮流落笔，不分左右，读起来是
-// 一条连续文稿。内部自己切两级视图：笔记列表 ↔ 单篇时间流，数据
-// 全部由 ChatPage 通过 props 传入/收回，本文件不直接掉接口。
+// 合墨 · INK —— 引力页右下角天体子页面，全屏跃迁。
 //
-// 三个选项的语义（无论谁写完，点按钮的永远是真人）：
-//   落笔     —— 把手上这段存成正式段落，到此为止
-//   让他/我续 —— 先存这段，再让对方接着写（不隔线，续在后面）
-//   让他/我另写 —— 先存这段，再让对方另起一段（光丝隔开）
-// 枢生成的段落写完即正式落笔（枢没有草稿态），所以枢那侧的三个按
-// 钮只用来决定"接下来轮到谁、以什么方式接"，不做二次持久化。
+// 接力写作，不是聊天记录：一篇笔记只有一段连续正文（note.content），
+// 柯和枢轮流往同一段文字后面接着写，枢写的片段只用一个很轻的行内
+// 徽标区分，不分段落卡片、不分时间流。entries 只是操作日志（给
+// 徽标定位、给 Token 统计用），本页不把它当展示数据源。
+//
+// 枢写完一段后自己决定下一步（后端解析它输出的 [DECISION: ...]
+// 标记），前端拿到 decision 直接调整"接下来该谁接"的默认状态，
+// 不需要人为它的这一段再点一次确认。人只在"我要不要交给枢写"这件
+// 事上点『让他续 / 让他另写』——这个动作永远是真人点的。
 // ============================================================
 
 const BackIcon = () => (
@@ -25,73 +25,91 @@ const PlusIcon = () => (
     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
   </svg>
 )
+const MoreIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
+  </svg>
+)
 
-const MODE_LABEL = { original: '原', continue: '续', parallel: '新' }
 const daysSince = (iso) => (iso ? Math.max(0, (Date.now() - new Date(iso).getTime()) / 86400000) : null)
 const fmtDate = (iso) => {
   if (!iso) return ''
   const d = new Date(iso)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 const InkPage = ({
   notes, notesLoading, onFetchNotes, onCreateNote, onUpdateNote, onDeleteNote,
   activeNote, activeNoteLoading, onOpenNote,
-  onSaveDraft, onFinalizeEntry, onGenerateEntry, onStopGenerate, generating,
+  onSaveDraft, onFinalizeEntry, onGenerateEntry, onStopGenerate, generating, streamText,
   showToast, onClose,
 }) => {
-  const [view, setView]           = useState('list') // 'list' | 'note'
+  const [view, setView]     = useState('list') // 'list' | 'note'
   const [openNoteId, setOpenNoteId] = useState(null)
-  const [composeText, setComposeText] = useState('')
-  const [composeMode, setComposeMode] = useState('original')
-  const [composeFocused, setComposeFocused] = useState(false)
-  const [justGenerated, setJustGenerated]   = useState(false)
-  const [titleDraft, setTitleDraft]   = useState('')
-  const [tagInput, setTagInput]       = useState('')
+  const [tailText, setTailText]     = useState('')
+  const [modeOverride, setModeOverride] = useState(null) // null=跟着自动推断走，否则手动切换 'continue' | 'new'
+  const [titleDraft, setTitleDraft] = useState('')
+  const [tagInput, setTagInput]     = useState('')
   const [showTagInput, setShowTagInput] = useState(false)
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [lastDecisionToast, setLastDecisionToast] = useState(null) // 防止同一次生成重复弹提示
 
-  const textareaRef = useRef(null)
+  const tailRef = useRef(null)
   const prevGenerating = useRef(false)
+
+  // 尾巴输入框自动撑高，跟随内容长高，不出现内部滚动条——这样它才
+  // 能跟前面的正文严丝合缝地接成一整页，而不是一个小方框
+  useEffect(() => {
+    const el = tailRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [tailText, generating])
 
   const note    = activeNote?.note
   const entries = activeNote?.entries || []
   const lastEntry = entries[entries.length - 1]
 
-  // 打开一篇笔记（或它的草稿）时，把草稿灌进输入框，光标落在末尾
+  // 打开一篇笔记时，把草稿尾巴灌进输入框，光标落在末尾
   useEffect(() => {
     if (!note) return
-    setComposeText(note.draft_content || '')
-    setComposeMode(note.draft_mode || (entries.length ? 'continue' : 'original'))
-    setJustGenerated(false)
+    setTailText(note.draft_content || '')
+    setModeOverride(null)
     setTitleDraft(note.title || '')
+    setShowMoreMenu(false); setConfirmDelete(false)
     if (note.draft_content) {
       requestAnimationFrame(() => {
-        const el = textareaRef.current
+        const el = tailRef.current
         if (!el) return
         el.focus()
-        const len = el.value.length
-        el.setSelectionRange(len, len)
+        el.setSelectionRange(el.value.length, el.value.length)
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note?.id, note?.draft_updated_at])
 
-  // 生成结束的那一刻（true → false）弹出"落笔/让我续写/让我另写"轻提示，
-  // 纯客户端瞬时状态，不持久化，翻页或开始打字就自然消失
+  // 生成结束时，如果枢自己判断"写完了"，轻轻提示一下（不锁笔记，
+  // 不强制任何操作，纯提醒）
   useEffect(() => {
-    if (prevGenerating.current && !generating) setJustGenerated(true)
+    if (prevGenerating.current && !generating) {
+      const d = lastEntry?.decision
+      if (d === 'finalize' && lastEntry?.id !== lastDecisionToast) {
+        showToast?.('枢觉得这篇写完了')
+        setLastDecisionToast(lastEntry.id)
+      }
+      requestAnimationFrame(() => tailRef.current?.focus())
+    }
     prevGenerating.current = generating
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generating])
 
   const openNote = async (id) => {
-    setOpenNoteId(id)
-    setView('note')
-    setConfirmDelete(false)
+    setOpenNoteId(id); setView('note'); setConfirmDelete(false)
     await onOpenNote?.(id)
   }
   const goBackToList = () => {
-    setView('list'); setOpenNoteId(null); setComposeText(''); setConfirmDelete(false)
+    setView('list'); setOpenNoteId(null); setTailText(''); setConfirmDelete(false); setShowMoreMenu(false)
     onFetchNotes?.()
   }
   const handleBack = () => { if (view === 'note') goBackToList(); else onClose?.() }
@@ -121,36 +139,53 @@ const InkPage = ({
     goBackToList()
   }
 
-  const startCompose = (mode) => {
-    setComposeMode(mode); setJustGenerated(false)
-    requestAnimationFrame(() => textareaRef.current?.focus())
-  }
+  // 由枢刚才的决策（continue/new）推断"接下来这一段默认怎么接"；
+  // 没有决策记录（比如从没生成过，或最后一段是柯自己写的）就按
+  // 内容是否已经有东西来兜底
+  const derivedMode = useMemo(() => {
+    if (note?.draft_mode) return note.draft_mode
+    if (lastEntry?.author === 'shu' && (lastEntry.decision === 'new' || lastEntry.decision === 'continue')) {
+      return lastEntry.decision
+    }
+    return entries.length ? 'continue' : 'original'
+  }, [note?.draft_mode, lastEntry, entries.length])
+
+  const effectiveMode = entries.length === 0 ? 'original' : (modeOverride || derivedMode)
 
   const holdForLater = async () => {
-    if (!composeText.trim()) return
-    await onSaveDraft?.(openNoteId, { content: composeText, mode: composeMode })
+    if (!tailText.trim()) return
+    await onSaveDraft?.(openNoteId, { content: tailText, mode: effectiveMode })
     showToast?.('已存为待续')
     goBackToList()
   }
 
-  // nextAction: null(落笔到此为止) | 'continue' | 'parallel'
-  const commitMine = async (nextAction) => {
-    const text = composeText.trim()
-    if (!text || generating) return
-    await onFinalizeEntry?.(openNoteId, { content: text, mode: composeMode })
-    setComposeText('')
-    setComposeMode('continue')
-    if (nextAction) await onGenerateEntry?.(openNoteId, nextAction)
+  // handoff: null(落笔到此为止) | 'continue' | 'new'
+  const commit = async (handoff) => {
+    if (generating) return
+    const text = tailText.trim()
+    if (text) {
+      await onFinalizeEntry?.(openNoteId, { content: tailText, mode: effectiveMode })
+      setTailText('')
+    }
+    setModeOverride(null)
+    if (handoff) await onGenerateEntry?.(openNoteId, handoff)
   }
 
-  const letShuStart = () => onGenerateEntry?.(openNoteId, 'original')
+  const letShuStart = () => { if (!generating) onGenerateEntry?.(openNoteId, 'original') }
 
-  const hasEntries     = entries.length > 0
-  const hasComposeText = !!composeText.trim()
-  const showEmptyState   = !hasEntries && !hasComposeText && !generating
-  const showLetShuStart  = !hasEntries && !hasComposeText && !generating
-  const showNudge        = justGenerated && !hasComposeText && lastEntry?.author === 'shu' && !generating
-  const showModeToggle   = hasEntries && !generating
+  const isTrulyEmpty = !note?.content && !tailText.trim() && entries.length === 0
+  const hasTailText  = !!tailText.trim()
+  const charCount    = (note?.content?.length || 0) + tailText.length
+
+  // 正文分段：直接按 entries 顺序拼，每条 entry.content 就是当时
+  // 追加进正文的那一段，枢写的打上行内徽标，new 模式的段落前面加
+  // 一条极细光丝——跟合墨天体本体的光丝动效同一个视觉语言
+  const segments = useMemo(() => entries.map((e, i) => ({
+    key: e.id ?? `seg-${i}`,
+    text: e.content || '',
+    isShu: e.author === 'shu',
+    divider: e.mode === 'new' && i > 0,
+  })), [entries])
 
   return (
     <div className="ink-page">
@@ -159,13 +194,24 @@ const InkPage = ({
           <BackIcon />
         </button>
         <div className="ink-page-title">INK · 合墨</div>
-        <span className="ink-page-header-spacer" />
+        {view === 'note' ? (
+          <div style={{ position: 'relative' }}>
+            <button className="ink-page-iconbtn" onClick={() => setShowMoreMenu(v => !v)} aria-label="更多">
+              <MoreIcon />
+            </button>
+            {showMoreMenu && (
+              <div className="ink-more-menu">
+                <button onClick={handleDeleteNote}>{confirmDelete ? '再次点击删除' : '删除这篇'}</button>
+              </div>
+            )}
+          </div>
+        ) : <span className="ink-page-header-spacer" />}
       </div>
 
       <div className="ink-page-body">
         {view === 'list' && (
           <div className="ink-page-content">
-            <div className="ink-page-eyebrow">柯与枢的共笔手记</div>
+            <div className="ink-page-eyebrow">柯与枢的接力手记</div>
 
             <button className="ink-note-new-btn" onClick={createNote}>
               <PlusIcon /> 新建一篇
@@ -192,7 +238,7 @@ const InkPage = ({
                     </div>
                   )}
                   <div className="ink-note-card-meta">
-                    <span>{n.entryCount || 0} 段</span>
+                    <span>{n.entryCount || 0} 次落笔</span>
                     <span>{daysLabel(daysSince(n.updated_at))}</span>
                   </div>
                 </div>
@@ -203,22 +249,16 @@ const InkPage = ({
 
         {view === 'note' && (
           <div className="ink-page-content is-note">
-            <div className="ink-note-title-row">
-              <input
-                className="ink-note-title"
-                value={titleDraft}
-                onChange={e => setTitleDraft(e.target.value)}
-                onBlur={commitTitle}
-                onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
-                placeholder="未命名手记"
-              />
-            </div>
-            <div className="ink-note-submeta">
-              <span>创建于 {fmtDate(note?.created_at)}</span>
-              <span>更新于 {daysLabel(daysSince(note?.updated_at))}</span>
-              <button className="ink-hold-btn" onClick={handleDeleteNote} style={{ marginLeft: 'auto' }}>
-                {confirmDelete ? '再次点击删除' : '删除这篇'}
-              </button>
+            <input
+              className="ink-doc-title"
+              value={titleDraft}
+              onChange={e => setTitleDraft(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+              placeholder="标题"
+            />
+            <div className="ink-doc-meta">
+              {fmtDate(note?.updated_at || note?.created_at)} · {charCount} 字
             </div>
 
             <div className="ink-tag-row" style={{ marginTop: 10 }}>
@@ -249,89 +289,68 @@ const InkPage = ({
 
             {!activeNoteLoading && (
               <>
-                <div className="ink-timeline">
-                  {entries.map((e, i) => (
-                    <Fragment key={e.id || `tmp-${i}`}>
-                      {e.mode === 'parallel' && <div className="ink-divider" />}
-                      <div className={`ink-entry is-${e.author}${e.streaming ? ' is-streaming' : ''}`}>
-                        <div className="ink-entry-head">
-                          <span className="ink-entry-badge">【{e.author}】</span>
-                          <span className="ink-entry-mode">{MODE_LABEL[e.mode] || '原'}</span>
-                        </div>
-                        <div className="ink-entry-content">{e.content}</div>
-                      </div>
-                    </Fragment>
-                  ))}
+                <div className="ink-doc-body">
+                  <span className="ink-doc-confirmed">
+                    {segments.map(seg => (
+                      <Fragment key={seg.key}>
+                        {seg.divider && <span className="ink-doc-divider" />}
+                        <span className={seg.isShu ? 'ink-doc-shu-span' : undefined}>{seg.text}</span>
+                      </Fragment>
+                    ))}
+                  </span>
+
+                  {generating && (
+                    <span className="ink-doc-shu-span ink-doc-streaming">{streamText}</span>
+                  )}
+
+                  {!generating && (
+                    <textarea
+                      ref={tailRef}
+                      className="ink-doc-tail"
+                      value={tailText}
+                      onChange={e => setTailText(e.target.value)}
+                      placeholder={isTrulyEmpty ? '谁先起笔…' : '接着写…'}
+                    />
+                  )}
                 </div>
 
-                {showEmptyState && (
-                  <div className="ink-empty">
-                    <span className="ink-empty-glow" />
-                    <span className="ink-empty-text">还没有墨迹，谁先起笔？</span>
-                  </div>
-                )}
-
-                {showNudge && (
-                  <div className="ink-nudge-row">
-                    <span className="ink-nudge-hint">枢写完了这一段——</span>
-                    <button className="ink-action-btn line-btn" onClick={() => setJustGenerated(false)}>落笔</button>
-                    <button className="ink-action-btn line-btn" onClick={() => startCompose('continue')}>让我续写</button>
-                    <button className="ink-action-btn line-btn" onClick={() => startCompose('parallel')}>让我另写</button>
-                  </div>
-                )}
-
-                {showLetShuStart && (
-                  <button className="ink-empty-invite line-btn" onClick={letShuStart}>
-                    让枢先写
-                  </button>
-                )}
-
-                <div className="ink-composer">
-                  <div className="ink-composer-toolbar">
-                    {showModeToggle ? (
-                      <button
-                        className="ink-mode-toggle"
-                        onClick={() => setComposeMode(m => (m === 'parallel' ? 'continue' : 'parallel'))}
-                      >
-                        {composeMode === 'parallel' ? '✦ 另起一段' : '⌇ 接着写'}
-                      </button>
-                    ) : <span />}
-                    {hasComposeText && !generating && (
-                      <button className="ink-hold-btn" onClick={holdForLater}>待续</button>
-                    )}
-                  </div>
-
-                  {composeMode === 'parallel' && hasEntries && <div className="ink-divider" style={{ marginTop: 0 }} />}
-
-                  <div className={`composer-shell ink-composer-shell${composeFocused ? ' is-focused' : ''}`}>
-                    <textarea
-                      ref={textareaRef}
-                      className="ink-composer-textarea"
-                      placeholder={hasEntries ? '接着写…' : '谁先起笔…'}
-                      value={composeText}
-                      onChange={e => setComposeText(e.target.value)}
-                      onFocus={() => { setComposeFocused(true); setJustGenerated(false) }}
-                      onBlur={() => setComposeFocused(false)}
-                      disabled={generating}
-                    />
-                  </div>
-
-                  {hasComposeText && (
-                    <div className="ink-action-row">
-                      <button className="ink-action-btn line-btn" onClick={() => commitMine(null)} disabled={generating}>
-                        落笔
-                      </button>
-                      <button className="ink-action-btn line-btn is-primary" onClick={() => commitMine('continue')} disabled={generating}>
-                        让他续
-                      </button>
-                      <button className="ink-action-btn line-btn is-primary" onClick={() => commitMine('parallel')} disabled={generating}>
-                        让他另写
-                      </button>
-                    </div>
+                <div className="ink-doc-actionbar">
+                  {isTrulyEmpty ? (
+                    <button className="ink-empty-invite line-btn" onClick={letShuStart} disabled={generating}>
+                      让枢先写
+                    </button>
+                  ) : (
+                    <>
+                      <div className="ink-doc-actionbar-top">
+                        <button
+                          className="ink-mode-toggle"
+                          onClick={() => setModeOverride(m => (m || derivedMode) === 'new' ? 'continue' : 'new')}
+                          disabled={generating}
+                        >
+                          {(modeOverride || derivedMode) === 'new' ? '✦ 新方向' : '⌇ 接着写'}
+                        </button>
+                        {hasTailText && !generating && (
+                          <button className="ink-hold-btn" onClick={holdForLater}>待续</button>
+                        )}
+                      </div>
+                      <div className="ink-action-row">
+                        {hasTailText && (
+                          <button className="ink-action-btn line-btn" onClick={() => commit(null)} disabled={generating}>
+                            落笔
+                          </button>
+                        )}
+                        <button className="ink-action-btn line-btn is-primary" onClick={() => commit('continue')} disabled={generating}>
+                          让他续
+                        </button>
+                        <button className="ink-action-btn line-btn is-primary" onClick={() => commit('new')} disabled={generating}>
+                          让他另写
+                        </button>
+                      </div>
+                    </>
                   )}
 
                   {generating && (
-                    <div className="ink-nudge-hint" style={{ marginTop: 8 }}>
+                    <div className="ink-nudge-hint">
                       枢正在写……
                       <button className="ink-hold-btn" onClick={onStopGenerate} style={{ marginLeft: 8 }}>停止</button>
                     </div>

@@ -2275,11 +2275,12 @@ button { font-family: inherit; }
 }
 
 /* ============================================================
-   合墨 · INK —— 引力页全屏子页面，共笔空间。沿用 .beacon-page /
+   合墨 · INK —— 引力页全屏子页面，接力写作。沿用 .beacon-page /
    .token-dash-page 同一套骨架（fixed 全屏 + 头部返回键 + 可滚动
-   body），内部自己切两级视图：笔记列表 .ink-note-list ↔ 单篇时间流
-   .ink-timeline。正文不分左右、不做聊天气泡，读起来是一条连续
-   文稿——柯与枢的字迹只靠字体差异区分，不靠背景色块。
+   body），内部自己切两级视图：笔记列表 .ink-note-list ↔ 单篇正文
+   .ink-doc-body。正文是一整段连续文本，不分段落卡片、不做聊天
+   气泡、不分左右——枢写的部分只靠字体 + 极轻的行内徽标区分，读
+   起来就是一篇文章，不是一串对话记录。
    ============================================================ */
 .ink-page {
   position: fixed; inset: 0;
@@ -2318,6 +2319,29 @@ button { font-family: inherit; }
 }
 .ink-page-header-spacer { width: 32px; flex-shrink: 0; }
 
+.ink-more-menu {
+  position: absolute; right: 0; top: calc(100% + 4px);
+  z-index: 5;
+  background: var(--c-panel);
+  backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
+  -webkit-backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
+  border: var(--hair) solid var(--c-line-strong);
+  border-radius: 12px;
+  padding: 4px;
+  min-width: 118px;
+  animation: inkCardIn .18s var(--ease) both;
+}
+.ink-more-menu button {
+  display: block; width: 100%;
+  padding: 9px 12px; border-radius: 8px;
+  background: transparent; border: none;
+  color: var(--c-text-muted);
+  font-family: var(--font-accent); font-size: 11.5px; letter-spacing: 1px;
+  text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background .2s ease, color .2s ease;
+}
+.ink-more-menu button:hover { background: var(--c-accent-soft); color: var(--c-text); }
+
 .ink-page-body {
   position: relative;
   flex: 1;
@@ -2329,7 +2353,7 @@ button { font-family: inherit; }
   max-width: 480px;
   margin: 0 auto;
 }
-.ink-page-content.is-note { max-width: 560px; }
+.ink-page-content.is-note { max-width: 580px; gap: 0; }
 .ink-page-eyebrow {
   font-family: var(--font-accent); font-style: italic;
   font-size: 10px; letter-spacing: 2.5px; color: var(--c-text-faint);
@@ -2446,79 +2470,76 @@ button { font-family: inherit; }
   padding: 4px 2px; outline: none;
 }
 
-/* ── 笔记详情：标题（可点击编辑）──────────────────────────────── */
-.ink-note-title-row { display: flex; align-items: baseline; gap: 8px; }
-.ink-note-title {
-  font-family: var(--font-display); font-size: 18px; letter-spacing: .5px;
+/* ── 笔记详情头部：标题 + 日期/字数，仿原生备忘录的排版 ─────── */
+.ink-doc-title {
+  width: 100%;
+  font-family: var(--font-display); font-size: 21px; letter-spacing: .3px;
   color: var(--c-text);
   background: transparent; border: none; outline: none;
-  cursor: text; width: 100%;
-  border-bottom: var(--hair) solid transparent;
-  transition: border-color .2s ease;
+  padding: 4px 0 2px;
 }
-.ink-note-title:hover, .ink-note-title:focus { border-bottom-color: var(--c-line-strong); }
-.ink-note-submeta {
-  font-family: var(--font-accent); font-size: 9.5px; letter-spacing: 1px;
+.ink-doc-title::placeholder { color: var(--c-text-faint); opacity: .55; }
+.ink-doc-meta {
+  font-family: var(--font-accent); font-size: 11px; letter-spacing: .5px;
   color: var(--c-text-faint);
-  display: flex; gap: 12px; margin-top: 4px;
+  margin-bottom: 4px;
 }
 
-/* ── 时间流：不分左右，从上到下一条连续文稿 ─────────────────── */
-.ink-timeline { display: flex; flex-direction: column; margin-top: 4px; }
-.ink-entry { padding: 14px 0; }
-.ink-entry-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
-.ink-entry-badge {
-  font-family: var(--font-accent); font-size: 10px; letter-spacing: 1px;
-  color: var(--c-text-faint);
+/* ── 正文：一整块连续文本，全屏书写，不是小输入框 ────────────
+   .ink-doc-confirmed 是已经落笔的部分（entries 拼出来的只读文本），
+   .ink-doc-tail 是还没落笔的草稿尾巴，视觉上跟前面严丝合缝地接上，
+   字体大小行距完全一致，唯一区别是它是活的输入框 */
+.ink-doc-body {
+  margin-top: 14px;
+  font-family: var(--font-body);
+  font-size: 16px; line-height: 1.95; color: var(--c-text);
 }
-.ink-entry.is-shu .ink-entry-badge { color: var(--c-accent-2); }
-.ink-entry-mode {
+.ink-doc-confirmed { white-space: pre-wrap; word-break: break-word; }
+.ink-doc-shu-span {
+  font-family: var(--font-accent); letter-spacing: .15px;
+}
+.ink-doc-shu-span::before {
+  content: '· shu ';
   font-family: var(--font-accent); font-style: italic;
-  font-size: 9px; letter-spacing: .5px; color: var(--c-text-faint); opacity: .65;
+  font-size: 10px; letter-spacing: 1px;
+  color: var(--c-accent-2);
+  opacity: .68;
 }
-.ink-entry-content {
-  font-size: 15px; line-height: 1.9; color: var(--c-text);
-  white-space: pre-wrap; word-break: break-word;
-}
-.ink-entry.is-ke  .ink-entry-content { font-family: var(--font-body); }
-.ink-entry.is-shu .ink-entry-content { font-family: var(--font-accent); letter-spacing: .2px; }
-.ink-entry.is-streaming .ink-entry-content::after {
+.ink-doc-streaming { white-space: pre-wrap; word-break: break-word; }
+.ink-doc-streaming::after {
   content: ''; display: inline-block;
-  width: 2px; height: 15px; margin-left: 2px;
+  width: 2px; height: 15px; margin-left: 1px;
   background: var(--c-accent); vertical-align: -2px;
   animation: inkCaretBlink 1s step-end infinite;
 }
 @keyframes inkCaretBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-/* "新"模式的分隔——从中心向两端渐隐的极细光丝，跟合墨天体本体的
-   光丝动效是同一个视觉语言 */
-.ink-divider {
-  height: 1px; margin: 8px auto 22px;
-  width: 58%;
+/* "新方向"分隔——从中心向两端渐隐的极细光丝，跟合墨天体本体的光丝
+   动效是同一个视觉语言，是块级元素但嵌在行内文本里会自然换行 */
+.ink-doc-divider {
+  display: block;
+  height: 1px; margin: 20px auto; width: 46%;
   background: linear-gradient(90deg, transparent, var(--c-line-strong) 50%, transparent);
 }
 
-/* 空态——"还没有墨迹，谁先起笔？" */
-.ink-empty {
-  display: flex; flex-direction: column; align-items: center; gap: 16px;
-  padding: 52px 20px 36px;
-  text-align: center;
+.ink-doc-tail {
+  display: block; width: 100%;
+  background: transparent; border: none; outline: none;
+  resize: none; overflow: hidden;
+  color: var(--c-text);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.95;
+  padding: 0; margin: 0;
+  min-height: 1.95em;
 }
-.ink-empty-glow {
-  width: 9px; height: 9px; border-radius: 50%;
-  background: var(--c-accent);
-  box-shadow: 0 0 20px var(--c-accent-soft);
-  animation: inkEmptyBreath 3.6s ease-in-out infinite;
-}
-@keyframes inkEmptyBreath { 0%, 100% { transform: scale(.78); opacity: .45; } 50% { transform: scale(1.2); opacity: 1; } }
-.ink-empty-text {
-  font-family: var(--font-accent); font-style: italic;
-  font-size: 13.5px; letter-spacing: 1px; color: var(--c-text-faint);
-}
+.ink-doc-tail::placeholder { color: var(--c-text-faint); opacity: .5; }
 
-/* ── 落笔区：复用主对话输入框同一套 .composer-shell 视觉 ─────── */
-.ink-composer { margin-top: 10px; }
-.ink-composer-toolbar {
+/* ── 底部操作条：轻量，不抢正文视觉重心 ──────────────────────── */
+.ink-doc-actionbar {
+  position: sticky; bottom: 0;
+  margin-top: 18px; padding: 12px 0 4px;
+  background: linear-gradient(180deg, transparent, var(--c-bg-solid) 30%);
+}
+.ink-doc-actionbar-top {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 8px;
 }
@@ -2531,7 +2552,8 @@ button { font-family: inherit; }
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: color .2s ease, border-color .2s ease;
 }
-.ink-mode-toggle:hover { color: var(--c-text); border-color: var(--c-line-strong); }
+.ink-mode-toggle:hover:not(:disabled) { color: var(--c-text); border-color: var(--c-line-strong); }
+.ink-mode-toggle:disabled { opacity: .4; cursor: default; }
 .ink-hold-btn {
   display: inline-flex; align-items: center; gap: 5px;
   background: transparent; border: none;
@@ -2542,16 +2564,7 @@ button { font-family: inherit; }
 }
 .ink-hold-btn:hover { color: var(--c-text); }
 
-.ink-composer-shell { min-height: 88px; align-items: stretch; }
-.ink-composer-textarea {
-  flex: 1; padding: 12px 14px;
-  background: transparent; border: 0;
-  color: var(--c-text); resize: none;
-  font-family: var(--font-body); font-size: 14.5px; line-height: 1.8; outline: none;
-  min-height: 88px; max-height: 40vh;
-}
-
-.ink-action-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.ink-action-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .ink-action-btn {
   flex: 1; min-width: 92px;
   padding: 11px 0; border-radius: 14px;
@@ -2560,18 +2573,13 @@ button { font-family: inherit; }
 }
 .ink-action-btn.is-primary { flex: 1.2; }
 .ink-empty-invite {
-  margin-top: 4px;
   padding: 11px 0; border-radius: 14px; width: 100%;
   font-size: 11.5px; letter-spacing: 2px; text-align: center;
 }
-
-/* AI 刚写完那一刻的轻提示——"落笔 / 让我续写 / 让我另写"，纯客户端
-   状态，开始打字或翻页离开就自然消失，不需要持久化 */
-.ink-nudge-row { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
 .ink-nudge-hint {
   font-family: var(--font-accent); font-style: italic;
   font-size: 10px; color: var(--c-text-faint);
-  width: 100%; margin-bottom: 2px;
+  margin-top: 8px;
 }
 
 /* ============================================================

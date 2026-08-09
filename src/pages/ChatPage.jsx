@@ -933,14 +933,16 @@ const ChatPage = () => {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), life)
   }
 
-  // ── 合墨（共笔）：引力·右下角天体。数据同样统一由 ChatPage 持有，
-  //    GravityPage → InkPage 只管展示，不直接掉接口，跟信标/数据
-  //    罗盘是同一套约定 ─────────────────────────────────────────
+  // ── 合墨（共笔·接力写作）：引力·右下角天体。数据同样统一由 ChatPage
+  //    持有，GravityPage → InkPage 只管展示，不直接掉接口，跟信标/
+  //    数据罗盘是同一套约定。一篇笔记只有一段正文（note.content），
+  //    entries 只是操作日志，本文件负责把日志和正文追加保持同步 ──
   const [inkNotes,        setInkNotes]        = useState([])
   const [inkNotesLoading, setInkNotesLoading] = useState(false)
   const [activeInkNote,        setActiveInkNote]        = useState(null) // { note, entries }
   const [activeInkNoteLoading, setActiveInkNoteLoading] = useState(false)
   const [inkGenerating,   setInkGenerating]   = useState(false)
+  const [inkStreamText,   setInkStreamText]   = useState('') // 枢正在写、还没落定的实时预览文本
   const inkAbortRef = useRef(null)
 
   const fetchInkNotes = async () => {
@@ -989,18 +991,26 @@ const ChatPage = () => {
     } catch { showToast('待续保存失败') }
   }
 
+  // 落笔：把当前尾巴追加进 note.content（本地乐观更新），同时把
+  // 服务端返回的正式 entries 行推进日志
   const finalizeInkEntry = async (noteId, { content, mode }) => {
     try {
       const res = await axios.post(`${API_BASE}/notes/${noteId}/entries`, { content, mode })
       setActiveInkNote(prev => (prev && prev.note?.id === noteId)
-        ? { ...prev, entries: [...prev.entries, res.data], note: { ...prev.note, draft_content: null, draft_mode: null } }
+        ? {
+            ...prev,
+            entries: [...prev.entries, res.data],
+            note: { ...prev.note, content: (prev.note.content || '') + content, draft_content: null, draft_mode: null },
+          }
         : prev)
+      setInkNotes(prev => prev.map(n => n.id === noteId ? { ...n, hasDraft: false } : n))
     } catch { showToast('落笔失败') }
   }
 
-  // 枢续写/另写：SSE 流式，读法跟主对话 readSSEStream 一致，只是结果
-  // 落在 activeInkNote.entries 上，不是 messages
-  const readInkSSEStream = async (res, noteId) => {
+  // 枢续写/另写：SSE 流式，token 事件只更新 inkStreamText（实时预览，
+  // 不进 entries），done 事件才把清洗后的正文一次性并入
+  // note.content 并追加一条 entries 日志，同时带回 decision
+  const readInkSSEStream = async (res, noteId, mode) => {
     const reader  = res.body.getReader()
     const decoder = new TextDecoder()
     let buf = '', done = false
@@ -1016,22 +1026,20 @@ const ChatPage = () => {
         try {
           const ev = JSON.parse(line.slice(6))
           if (ev.error) { showToast('枢写不下去了：' + ev.error); done = true; break }
-          if (ev.token) {
-            setActiveInkNote(prev => {
-              if (!prev || prev.note?.id !== noteId) return prev
-              const list = [...prev.entries]
-              const last = list[list.length - 1]
-              if (last?.streaming) list[list.length - 1] = { ...last, content: last.content + ev.token }
-              return { ...prev, entries: list }
-            })
-          }
+          if (ev.token) setInkStreamText(prev => prev + ev.token)
           if (ev.done) {
             setActiveInkNote(prev => {
               if (!prev || prev.note?.id !== noteId) return prev
-              const list = [...prev.entries]
-              const last = list[list.length - 1]
-              if (last?.streaming) list[list.length - 1] = { ...last, streaming: false, id: ev.entryId }
-              return { ...prev, entries: list }
+              const newEntry = {
+                id: ev.entryId, author: 'shu', mode, content: ev.content,
+                decision: ev.decision, tokens_input: ev.tokens?.input, tokens_output: ev.tokens?.output,
+                created_at: new Date().toISOString(),
+              }
+              return {
+                ...prev,
+                entries: [...prev.entries, newEntry],
+                note: { ...prev.note, content: (prev.note.content || '') + ev.content, updated_at: new Date().toISOString() },
+              }
             })
             setInkNotes(nPrev => nPrev.map(n => n.id === noteId ? { ...n, updated_at: new Date().toISOString() } : n))
           }
@@ -1042,9 +1050,7 @@ const ChatPage = () => {
 
   const generateInkEntry = async (noteId, mode) => {
     setInkGenerating(true)
-    setActiveInkNote(prev => (prev && prev.note?.id === noteId)
-      ? { ...prev, entries: [...prev.entries, { author: 'shu', mode, content: '', streaming: true }] }
-      : prev)
+    setInkStreamText('')
 
     const controller = new AbortController()
     inkAbortRef.current = controller
@@ -1057,21 +1063,17 @@ const ChatPage = () => {
       })
       if (res.status === 401) { localStorage.removeItem(ACCESS_KEY_STORAGE); window.location.reload(); return }
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      await readInkSSEStream(res, noteId)
+      await readInkSSEStream(res, noteId, mode)
     } catch (err) {
       if (err.name !== 'AbortError') showToast('生成失败：' + err.message)
-      setActiveInkNote(prev => {
-        if (!prev || prev.note?.id !== noteId) return prev
-        const list = [...prev.entries]
-        if (list[list.length - 1]?.streaming) list.pop()
-        return { ...prev, entries: list }
-      })
     }
     inkAbortRef.current = null
+    setInkStreamText('')
     setInkGenerating(false)
   }
 
   const stopInkGenerate = () => { inkAbortRef.current?.abort() }
+
 
   // ── 语音 ─────────────────────────────────────────────────
   const startSpeak = (text, msgKey) => {
@@ -1941,6 +1943,7 @@ const ChatPage = () => {
               activeInkNote={activeInkNote} activeInkNoteLoading={activeInkNoteLoading} onOpenInkNote={fetchInkEntries}
               onSaveInkDraft={saveInkDraft} onFinalizeInkEntry={finalizeInkEntry}
               onGenerateInkEntry={generateInkEntry} onStopInkGenerate={stopInkGenerate} inkGenerating={inkGenerating}
+              inkStreamText={inkStreamText}
             />
           )}
           {activeTab === 'stardust' && (
