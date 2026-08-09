@@ -596,32 +596,6 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
   onSave, onExport, onRefreshVoices, showToast, onEnablePush,
   tokenStatsOpen, onToggleTokenStats, tokenStats, tokenStatsLoading }) => {
 
-  // 模型切换 · 新增模型的表单（纯本地 UI 状态，提交后写进 config.models）
-  const [showAddModel, setShowAddModel] = useState(false)
-  const [modelForm, setModelForm] = useState({ label: '', baseUrl: '', requestModel: '', apiKey: '' })
-  const modelList = config.models || []
-  const activeModelId = config.model || 'deepseek-chat'
-
-  const submitAddModel = () => {
-    const label = modelForm.label.trim()
-    const baseUrl = modelForm.baseUrl.trim()
-    if (!label || !baseUrl) { showToast('至少要填名称和接口地址'); return }
-    const id = `custom-${Date.now()}`
-    const entry = { id, label, baseUrl, requestModel: modelForm.requestModel.trim() || id, apiKey: modelForm.apiKey.trim() }
-    const next = { ...config, models: [...modelList, entry], model: id }
-    setConfig(next); onSave(next)
-    setModelForm({ label: '', baseUrl: '', requestModel: '', apiKey: '' })
-    setShowAddModel(false)
-  }
-  const removeModel = (id) => {
-    const next = { ...config, models: modelList.filter(m => m.id !== id), model: activeModelId === id ? 'deepseek-chat' : activeModelId }
-    setConfig(next); onSave(next)
-  }
-  const selectModel = (id) => {
-    const next = { ...config, model: id }
-    setConfig(next); onSave(next)
-  }
-
   return (
     <div className="tab-page">
       <div style={{ padding: '28px 22px 14px', flexShrink: 0, borderBottom: '1px solid var(--c-line)' }}>
@@ -716,57 +690,6 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
           </div>
         </div>
 
-        {/* 模型切换 */}
-        <div className="constant-section">
-          <div className="constant-section-title">Model · 模型</div>
-          <div>
-            <div
-              className={`model-item${activeModelId === 'deepseek-chat' ? ' is-active' : ''}`}
-              onClick={() => selectModel('deepseek-chat')}
-            >
-              <div className="model-item-main">
-                <span className="model-item-dot" />
-                <div>
-                  <div className="model-item-label">DeepSeek</div>
-                  <div className="model-item-sub">内置默认 · 无需填 key</div>
-                </div>
-              </div>
-            </div>
-            {modelList.map(m => (
-              <div key={m.id} className={`model-item${activeModelId === m.id ? ' is-active' : ''}`} onClick={() => selectModel(m.id)}>
-                <div className="model-item-main">
-                  <span className="model-item-dot" />
-                  <div style={{ minWidth: 0 }}>
-                    <div className="model-item-label">{m.label}</div>
-                    <div className="model-item-sub">{m.apiKey ? '已填 key' : '未填 key，走环境变量'}</div>
-                  </div>
-                </div>
-                <span className="icon-btn" onClick={e => { e.stopPropagation(); removeModel(m.id) }} style={{ cursor: 'pointer', color: 'var(--c-text-faint)', padding: '4px', flexShrink: 0 }}>
-                  <Icon.Trash />
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {showAddModel ? (
-            <div className="model-add-form">
-              <div className="model-add-title">新增模型</div>
-              <input className="field-input" placeholder="名称（如 Claude）" value={modelForm.label} onChange={e => setModelForm(p => ({ ...p, label: e.target.value }))} />
-              <input className="field-input" placeholder="接口地址 baseUrl（OpenAI 兼容 /chat/completions）" value={modelForm.baseUrl} onChange={e => setModelForm(p => ({ ...p, baseUrl: e.target.value }))} />
-              <input className="field-input" placeholder="请求用的模型名（不填则用名称）" value={modelForm.requestModel} onChange={e => setModelForm(p => ({ ...p, requestModel: e.target.value }))} />
-              <input className="field-input" type="password" placeholder="API Key" value={modelForm.apiKey} onChange={e => setModelForm(p => ({ ...p, apiKey: e.target.value }))} />
-              <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-                <button onClick={() => setShowAddModel(false)} className="line-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>取消</button>
-                <button onClick={submitAddModel} className="solid-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>保存</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowAddModel(true)} className="line-btn" style={{ width: '100%', marginTop: 10, padding: '10px 0', borderRadius: '12px', fontSize: '11px', letterSpacing: '1.5px' }}>
-              + 新增模型
-            </button>
-          )}
-        </div>
-
         {/* 语音 */}
         <div className="constant-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -779,12 +702,6 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
             <option value="">系统默认</option>
             {voices.map(v => <option key={v.voiceURI} value={v.voiceURI}>{v.name||'未命名'} {v.lang?`(${v.lang})`:''}</option>)}
           </select>
-        </div>
-
-        {/* 人格 */}
-        <div className="constant-section">
-          <div className="constant-section-title">Persona · 人格</div>
-          <textarea className="field-input" value={config.system_prompt} onChange={e => setConfig(p => ({ ...p, system_prompt: e.target.value }))} rows={4} style={{ resize: 'vertical', lineHeight: 1.7, fontSize: '13px' }} />
         </div>
 
         {/* 备忘 */}
@@ -801,10 +718,6 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
         <div className="constant-section">
           <div className="constant-section-title">Parameters · 参数</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: 'var(--c-text-faint)', marginBottom: 8, fontFamily: 'var(--font-accent)' }}>Temperature</div>
-              <input className="field-input" type="number" step="0.1" min="0" max="1.5" value={config.temperature} onChange={e => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))} />
-            </div>
             <div>
               <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: 'var(--c-text-faint)', marginBottom: 8, fontFamily: 'var(--font-accent)' }}>压缩阈值 Token</div>
               <input className="field-input" type="number" value={config.compress_threshold} onChange={e => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))} />
@@ -1966,6 +1879,7 @@ const ChatPage = () => {
               beacons={beacons} beaconText={beaconText} setBeaconText={setBeaconText}
               onAddBeacon={addBeacon} onToggleBeacon={toggleBeacon} onDeleteBeacon={deleteBeacon}
               showToast={showToast}
+              config={config} setConfig={setConfig} onSaveConfig={saveSettings}
             />
           )}
           {activeTab === 'stardust' && (

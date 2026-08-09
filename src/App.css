@@ -1604,6 +1604,15 @@ button { font-family: inherit; }
   touch-action: none;
 }
 
+/* 天体星系的容器——是 header 下方唯一的 flex:1 子项，天体的
+   left/top 百分比都相对这块「头部以下」的区域计算，日晷读数
+   往上长多少都不会跟 GRAVITY 标题撞在一起 */
+.gravity-constellation {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
 /* 缓慢流动的星云背景（CSS，独立于 StarCanvas 粒子层，仅作氛围底色） */
 .gravity-nebula {
   position: absolute; inset: 0;
@@ -1902,6 +1911,39 @@ button { font-family: inherit; }
   to   { transform: translate(-50%, -50%) rotate(360deg) translateX(32px) rotate(-360deg); }
 }
 
+/* 日晷上方的常驻读数——"在一起天数"从设置里迁出后，作为整个
+   引力页唯一的视觉重心，不用点开才看得到 */
+.gravity-sundial-readout {
+  position: absolute; left: 50%; bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 12px;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  animation: sundialReadoutIn .9s var(--ease) both;
+}
+@keyframes sundialReadoutIn { from { opacity: 0; transform: translateX(-50%) translateY(6px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+.gravity-sundial-eyebrow {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10px; letter-spacing: 2.5px; color: var(--c-text-faint);
+}
+.gravity-sundial-numline { display: flex; align-items: baseline; gap: 4px; }
+.gravity-sundial-num {
+  font-family: var(--font-display);
+  font-size: 30px; line-height: 1;
+  color: var(--c-text);
+  text-shadow: 0 0 20px rgba(240, 178, 92, .38);
+}
+.gravity-sundial-unit {
+  font-family: var(--font-accent); font-size: 12px;
+  letter-spacing: 1px; color: var(--c-text-muted);
+}
+.gravity-sundial-prompt {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 11.5px; letter-spacing: 1px; color: var(--c-text-faint);
+}
+
 /* 信标子页面：单击脉冲星「跃迁」（缩放 + 淡入）进入 */
 .gravity-subpage-veil { animation: fadeIn 0.24s ease; }
 .gravity-subpage-card {
@@ -1915,10 +1957,18 @@ button { font-family: inherit; }
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* 调频面板：内容比信标多得多，需要一个可滚动的内层容器；
+   放在 .gravity-subpage-card 后面声明，才能让这里的 width 盖过
+   它的默认 330px（同优先级选择器，后声明的赢） */
+.gravity-attune-card { width: 340px; max-width: 90vw; max-height: 82vh; display: flex; flex-direction: column; }
+.gravity-attune-body { flex: 1; overflow-y: auto; padding-right: 2px; }
+
+
 /* ============================================================
-   时轨 · CHRONOS —— 全屏子页面（不是居中小卡片，铺满整个可视区）
-   锚点 / 潮汐 / 倒计时三块共用一套外壳，内容区各自的类名很少，
-   大部分复用了 .field-input / .line-btn / .beacon-* 那一套。
+   时轨 · CHRONOS —— 全屏子页面，纯展示的星轨场景。
+   锚点＝恒星，倒计时＝环绕行星，经期预测＝月相圆盘，
+   经期历史＝光带。所有输入都是点场景里的天体弹出 .chronos-sheet-*
+   小面板，主视图本身没有表单、没有列表。
    ============================================================ */
 .chronos-page {
   position: fixed; inset: 0;
@@ -1951,80 +2001,145 @@ button { font-family: inherit; }
   color: var(--c-text);
 }
 .chronos-header-spacer { width: 32px; }
-.chronos-tabbar {
-  flex-shrink: 0;
-  display: flex; gap: 6px;
-  padding: 0 18px 14px;
-  border-bottom: var(--hair) solid var(--c-line);
-}
-.chronos-tab {
-  flex: 1;
-  padding: 8px 0;
-  background: transparent; border: var(--hair) solid var(--c-line);
-  border-radius: 999px;
-  font-family: var(--font-accent);
-  font-size: 10.5px; letter-spacing: 1.5px;
-  color: var(--c-text-faint);
-  cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: color .22s var(--ease), border-color .22s var(--ease), background .22s var(--ease);
-}
-.chronos-tab.is-active {
-  color: var(--c-text);
-  border-color: var(--c-accent);
-  background: var(--c-accent-soft);
-}
 .chronos-body {
   flex: 1;
   overflow-y: auto;
-  padding: 22px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 20px calc(24px + env(safe-area-inset-bottom, 0px));
 }
-.chronos-section { display: flex; flex-direction: column; gap: 16px; }
+.chronos-body-scene { display: flex; flex-direction: column; align-items: center; }
 
-.chronos-anchor-display {
-  text-align: center;
-  padding: 30px 0 18px;
-}
-.chronos-anchor-days {
-  font-family: var(--font-display);
-  font-size: 42px;
-  color: var(--c-text);
-  line-height: 1;
-}
-.chronos-anchor-caption {
-  margin-top: 8px;
-  font-size: 12.5px;
-  color: var(--c-text-muted);
-  letter-spacing: 1px;
-}
-.chronos-anchor-since {
-  margin-top: 4px;
-  font-size: 10.5px;
-  color: var(--c-text-faint);
-  font-family: var(--font-accent);
-}
-
-.chronos-moon {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 22px 0 8px;
-}
-/* 月相圆盘：用一层随 --moon-frac 位移的暗面遮罩做出盈亏，
-   frac 0/1 = 新月（全暗），0.5 = 满月（全亮） */
-.chronos-moon-disc {
+/* ── 星轨舞台：恒星 + 环绕行星 ──────────────────────────────── */
+.chronos-stage {
   position: relative;
-  width: 76px; height: 76px;
+  width: min(78vw, 320px);
+  aspect-ratio: 1;
+  flex-shrink: 0;
+  margin: 6px 0 4px;
+}
+.chronos-orbit-ring {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 34%, #f6f2e6, #cfc9b8 70%, #8f8973 100%);
-  box-shadow: 0 0 24px rgba(230, 224, 200, .28);
-  overflow: hidden;
+  border: var(--hair) dashed var(--c-line-strong);
+  pointer-events: none;
 }
-.chronos-moon-disc::after {
-  content: '';
+/* 轨道上的行星用「旋转枢轴」实现：pivot 从环心延伸到环的右边缘
+   （width:50% 正好等于环的半径），旋转 pivot 本身即可让末端的
+   dot 精确沿环的半径画圆，半径完全跟随 .chronos-orbit-ring 的
+   百分比尺寸，不需要手算像素。 */
+.chronos-orbit-pivot {
+  position: absolute; left: 50%; top: 50%;
+  width: 50%; height: 0;
+  transform-origin: 0 0;
+  animation-name: chronosOrbitSpin;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.chronos-orbit-dot {
+  position: absolute; right: 0; top: 0;
+  width: 6px; height: 6px;
+  margin: -3px -3px 0 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff2d8, #d8a962 72%);
+  box-shadow: 0 0 8px rgba(216, 169, 98, .7);
+  display: block;
+}
+@keyframes chronosOrbitSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+/* 行星标注：固定角度悬停在轨道上，不随行星一起转，保证随时能读 */
+.chronos-planet-tag {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 5px 9px;
+  border-radius: 10px;
+  background: var(--c-glass-bg);
+  border: var(--hair) solid var(--c-glass-border);
+  backdrop-filter: blur(6px);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  transition: transform .18s var(--ease), background .18s var(--ease);
+}
+.chronos-planet-tag:active { transform: translate(-50%, -50%) scale(.94); }
+.chronos-planet-label { font-size: 10.5px; letter-spacing: .5px; color: var(--c-text-muted); }
+.chronos-planet-days  { font-size: 11px; font-family: var(--font-accent); color: var(--c-accent); }
+
+.chronos-star {
+  position: absolute; left: 50%; top: 50%;
+  width: 34%; height: 34%;
+  transform: translate(-50%, -50%);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  display: flex; align-items: center; justify-content: center;
+}
+.chronos-star-core {
   position: absolute; inset: 0;
-  background: var(--c-bg-solid);
-  opacity: .92;
-  transform: translateX(calc((0.5 - var(--moon-frac, 0)) * 200%));
-  transition: transform .4s var(--ease);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, #fff2d2, #f0b25c 46%, #a85f22 82%, transparent 100%);
+  box-shadow: 0 0 26px rgba(240, 178, 92, .5), 0 0 6px rgba(255, 240, 210, .6);
+  animation: sundialCoreWarm 6s ease-in-out infinite;
 }
+.chronos-star-flare {
+  position: absolute; inset: -22%;
+  border-radius: 50%;
+  border: var(--hair) solid rgba(255, 214, 150, .28);
+  animation: chronosFlarePulse 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes chronosFlarePulse { 0%, 100% { opacity: .3; transform: scale(.96); } 50% { opacity: .68; transform: scale(1.05); } }
+.chronos-star-readout {
+  position: relative; z-index: 1;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  pointer-events: none;
+}
+.chronos-star-num {
+  font-family: var(--font-display);
+  font-size: 34px; line-height: 1;
+  color: var(--c-accent-text, var(--c-text));
+  text-shadow: 0 1px 2px rgba(0,0,0,.25);
+}
+.chronos-star-caption {
+  font-size: 10.5px; letter-spacing: 1px;
+  color: var(--c-accent-text, var(--c-text));
+  opacity: .85;
+}
+.chronos-star-since {
+  font-size: 9px; letter-spacing: .5px;
+  font-family: var(--font-accent);
+  color: var(--c-accent-text, var(--c-text));
+  opacity: .6;
+}
+
+.chronos-add-orbit {
+  position: absolute; right: 2%; bottom: 2%;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--c-glass-bg);
+  border: var(--hair) dashed var(--c-line-strong);
+  color: var(--c-text-muted);
+  font-size: 17px; line-height: 1;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform .18s var(--ease), border-color .18s var(--ease), color .18s var(--ease);
+}
+.chronos-add-orbit:hover  { border-color: var(--c-accent); color: var(--c-accent); }
+.chronos-add-orbit:active { transform: scale(.92); }
+
+/* ── 潮汐：月相圆盘 ──────────────────────────────────────────
+   用 SVG 路径精确画出朔望弧线（外弧固定半圆，内弧椭圆横向半径
+   随相位变化），比早期版本的直线遮罩更接近真实月相剪影。 */
+.chronos-tide {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 14px 0 6px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.chronos-moon-wrap {
+  filter: drop-shadow(0 0 16px rgba(240, 232, 210, .3));
+  animation: chronosMoonIn .7s var(--ease) both, chronosMoonBreathe 7s ease-in-out .7s infinite;
+}
+@keyframes chronosMoonIn { from { opacity: 0; transform: scale(.88); } to { opacity: 1; transform: scale(1); } }
+@keyframes chronosMoonBreathe { 0%, 100% { filter: drop-shadow(0 0 14px rgba(240,232,210,.24)); } 50% { filter: drop-shadow(0 0 22px rgba(240,232,210,.4)); } }
+.chronos-moon-base { fill: var(--c-line-strong); opacity: .4; }
+.chronos-moon-lit  { fill: #f2ecd9; }
 .chronos-moon-name {
   margin-top: 10px;
   font-size: 12px;
@@ -2037,11 +2152,49 @@ button { font-family: inherit; }
   color: var(--c-text-faint);
   padding: 2px 0 4px;
 }
-.chronos-countdown-days {
-  font-size: 11px;
+
+/* ── 光带：经期历史，一天一格，亮＝有记录，暗＝没有 ──────────── */
+.chronos-lightband {
+  display: flex; align-items: flex-end; gap: 1px;
+  width: 100%; max-width: 400px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  background: var(--c-glass-bg);
+  border: var(--hair) solid var(--c-glass-border);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.chronos-lb-cell {
+  flex: 1 1 0;
+  min-width: 1.5px;
+  height: 22px;
+  border-radius: 1.5px;
+  background: var(--c-line);
+  transition: background .3s var(--ease), box-shadow .3s var(--ease);
+}
+.chronos-lb-cell.is-lit {
+  background: var(--c-accent);
+  box-shadow: 0 0 6px var(--c-accent-soft);
+}
+.chronos-lb-cell.is-predicted {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--c-accent);
+  animation: chronosLbPulse 2.6s ease-in-out infinite;
+}
+.chronos-lb-cell.is-today { box-shadow: inset 0 1.5px 0 var(--c-text-muted); }
+@keyframes chronosLbPulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+.chronos-lightband-caption {
+  font-size: 10px; letter-spacing: 1.5px;
   color: var(--c-text-faint);
-  white-space: nowrap;
-  margin-right: 6px;
+  font-family: var(--font-accent); font-style: italic;
+  margin-top: 6px;
+}
+
+/* ── 小面板：锚点 / 新增倒计时 / 倒计时详情 / 经期记录 ──────── */
+.chronos-sheet-veil { z-index: 2400; animation: fadeIn .22s ease; }
+.chronos-sheet-card {
+  width: 320px; max-width: 88vw;
+  padding: 26px 22px 22px;
+  animation: gravityZoomIn .34s var(--ease) both;
 }
 
 
