@@ -1,18 +1,53 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- 按照文档新增manifest标签 -->
+    <link rel="apple-touch-icon" href="/icon-192x192.png" />
     <link rel="manifest" href="/manifest.json" />
+
+    <!--
+      viewport-fit=cover                内容可以画到刘海 / 手势条底下，四周不留白
+      interactive-widget=resizes-content 键盘弹出时让布局视口本身变矮，输入框会被顶上去
+      maximum-scale / user-scalable      固定版式的应用，避免误触双指缩放把布局撑坏
+    -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
-    <title>ke-shu-frond</title>
+
+    <!--
+      安卓 PWA 的状态栏底色取自这里和 manifest 的 theme_color。
+      原来是教程默认的粉色，在深色应用上就成了顶部那条突兀的色带。
+      应用内会随主题动态改写这个标签，这里给的是首帧的值。
+    -->
+    <meta name="theme-color" content="#000002" />
+    <meta name="color-scheme" content="dark" />
+
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- iOS：black-translucent 才会让内容延伸到状态栏底下 -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="在场" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <title>在场</title>
+
+    <!--
+      首帧兜底底色：CSS 加载完成前浏览器会先刷一屏白，深色应用上非常刺眼。
+      写在这里可以让第一帧就是黑的，和启动图无缝衔接。
+    -->
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #000002;
+        color-scheme: dark;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- 文档要求：body结束标签前插入ServiceWorker注册代码 -->
+    <!-- ServiceWorker 注册 -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

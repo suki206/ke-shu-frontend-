@@ -28,19 +28,24 @@ const BODIES = [
   { id: 'core',   label: '',        kind: 'core',   size: 38, functional: false },
 ]
 
-const DRAG_ARM_MS  = 380   // 按住超过这个时长才允许进入拖拽
-// 真机手指按住不动时天然会有几像素的抖动（触屏采样噪声），原来 6px 的容差太紧，
-// 稍微一抖就被当成"移动"，导致 endPress 里 !d.moved 恒为 false、点击永远不触发——
-// 这就是"信标点不了"的根因（电脑鼠标悬停不动没有这种抖动，所以桌面端一直正常）。
-// 放宽到 10px，和 ChatPage.jsx 里长按判定用的容差保持一致。
-const MOVE_THRESH  = 10    // px，超过视为移动（用于取消"点击"判定）
-// 触屏松手（touchend）后，浏览器通常会紧接着补发一整套"合成鼠标事件"
-// （mousedown→mouseup→click），用来兼容只监听鼠标事件的老页面。这里同一个
-// 天体上同时绑了触摸和鼠标两套事件，如果不拦掉合成事件，一次真实点击会被
-// 触摸路径和鼠标路径各处理一遍，表现为 toast 弹两次——这是"点其他项弹两次
-// 提示"的根因。GHOST_EVENT_WINDOW_MS 内紧跟在一次真实触摸后到来的鼠标事件，
-// 一律当成幽灵事件丢弃。
-const GHOST_EVENT_WINDOW_MS = 600
+// ── 关于"信标点不动" ─────────────────────────────────────────
+// 旧实现里，松手时的判定是 `if (!d.dragging && !d.moved) 触发点击`。
+// dragging 由一个 380ms 的定时器置位，只表示"现在允许拖了"，跟手指有没有
+// 真的移动无关。手机上点一颗直径 56px 的小球，手指落下到抬起经常超过
+// 380ms——于是 dragging 已经是 true，点击就被整个吞掉，表现为怎么点都没反应。
+// 电脑上鼠标单击通常只有 80~150ms，从来碰不到这条线，所以桌面端一直是好的。
+//
+// 现在把两件事彻底分开：
+//   dragging  只决定"移动时要不要真的挪动天体"
+//   moved     才是唯一能取消点击的条件
+// 按住不动多久都算点击，一旦移动超过阈值才算拖拽。
+//
+// 另外整体从 touch/mouse 双套事件换成 Pointer Events：一次交互只走一条
+// 事件流，浏览器不会在触摸后补发合成鼠标事件，原来那套"幽灵事件时间窗口"
+// 的补丁就可以整个删掉；配合 setPointerCapture，手指滑出天体范围后也能
+// 继续接到移动，拖拽不再中途断掉。
+const DRAG_ARM_MS = 420   // 按住超过这个时长才允许进入拖拽
+const MOVE_THRESH = 10    // px，超过视为移动（唯一取消点击的条件）
 
 function loadPositions() {
   try {
@@ -59,12 +64,14 @@ const TrashIcon = () => (
 const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggleBeacon, onDeleteBeacon, showToast }) => {
   const [positions, setPositions] = useState(loadPositions)
   const [openBody,  setOpenBody]  = useState(null)   // 目前只有 'pulsar' 会真正打开子页面
+  const [armedId,   setArmedId]   = useState(null)   // 已进入可拖拽状态的天体，给一点视觉反馈
   const containerRef = useRef(null)
-  const dragRef       = useRef(null)   // { id, startX, startY, dragging, moved }
-  const armTimerRef   = useRef(null)
-  const lastTouchRef  = useRef(0)      // 最近一次真实触摸时间戳，用于识别并丢弃触摸后补发的幽灵鼠标事件
+  const dragRef      = useRef(null)   // { id, startX, startY, dragging, moved }
+  const armTimerRef  = useRef(null)
+  const posRef       = useRef(positions)   // 拖拽过程中读最新值，避免闭包拿到旧 state
 
   const persistPositions = (next) => {
+    posRef.current = next
     setPositions(next)
     try { localStorage.setItem(GRAVITY_POS_STORAGE, JSON.stringify(next)) } catch {}
   }
@@ -83,43 +90,47 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
     else showToast?.('即将抵达 · 敬请期待')
   }
 
-  const startPress = (id, e) => {
-    if (e.type === 'touchstart') {
-      lastTouchRef.current = Date.now()
-      // 阻止浏览器为这次触摸补发合成鼠标事件（部分安卓机型/webview上即使
-      // preventDefault 也拦不住，下面的时间窗口判断作为第二重保险）
-      if (e.cancelable) e.preventDefault()
-    } else if (Date.now() - lastTouchRef.current < GHOST_EVENT_WINDOW_MS) {
-      return // 紧跟在真实触摸后到来的鼠标事件，是浏览器补发的幽灵事件，直接丢弃
-    }
-    const pt = e.touches ? e.touches[0] : e
-    dragRef.current = { id, startX: pt.clientX, startY: pt.clientY, dragging: false, moved: false }
+  const onPointerDown = (id, e) => {
+    // 捕获这个指针：之后就算手指滑出天体范围，move / up 也还会送到这里
+    try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch {}
+    dragRef.current = { id, startX: e.clientX, startY: e.clientY, dragging: false, moved: false }
+    clearTimeout(armTimerRef.current)
     armTimerRef.current = setTimeout(() => {
-      if (dragRef.current) { dragRef.current.dragging = true; if (navigator.vibrate) navigator.vibrate(8) }
+      if (!dragRef.current) return
+      dragRef.current.dragging = true
+      setArmedId(dragRef.current.id)
+      if (navigator.vibrate) navigator.vibrate(8)
     }, DRAG_ARM_MS)
   }
 
-  const movePress = (e) => {
+  const onPointerMove = (e) => {
     const d = dragRef.current
     if (!d) return
-    const pt = e.touches ? e.touches[0] : e
-    const dx = pt.clientX - d.startX, dy = pt.clientY - d.startY
-    if (Math.abs(dx) > MOVE_THRESH || Math.abs(dy) > MOVE_THRESH) {
-      d.moved = true
-      if (!d.dragging) { clearTimeout(armTimerRef.current); return }
-      const pos = clientToPercent(pt.clientX, pt.clientY)
-      if (pos) persistPositions({ ...positions, [d.id]: pos })
-    }
+    const dx = e.clientX - d.startX
+    const dy = e.clientY - d.startY
+    if (Math.abs(dx) <= MOVE_THRESH && Math.abs(dy) <= MOVE_THRESH) return
+
+    d.moved = true
+    if (!d.dragging) { clearTimeout(armTimerRef.current); return }   // 还没到时长就滑走了，当成误触
+    const pos = clientToPercent(e.clientX, e.clientY)
+    if (pos) persistPositions({ ...posRef.current, [d.id]: pos })
   }
 
-  const endPress = (body) => {
+  const onPointerUp = (body, e) => {
+    try { e.currentTarget.releasePointerCapture?.(e.pointerId) } catch {}
     clearTimeout(armTimerRef.current)
     const d = dragRef.current
     dragRef.current = null
-    if (d && !d.dragging && !d.moved) handleBodyClick(body)
+    setArmedId(null)
+    // 只要手指没有真的挪动，无论按了多久都算一次点击
+    if (d && !d.moved) handleBodyClick(body)
   }
 
-  const cancelPress = () => { clearTimeout(armTimerRef.current); dragRef.current = null }
+  const onPointerCancel = () => {
+    clearTimeout(armTimerRef.current)
+    dragRef.current = null
+    setArmedId(null)
+  }
 
   return (
     <div className="tab-page gravity-page" ref={containerRef}>
@@ -150,10 +161,16 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
         return (
           <div
             key={body.id}
-            className={`gravity-body gravity-body-${body.kind}`}
+            className={`gravity-body gravity-body-${body.kind}${armedId === body.id ? ' is-armed' : ''}`}
             style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: body.size, height: body.size }}
-            onTouchStart={e => startPress(body.id, e)} onTouchMove={movePress} onTouchEnd={() => endPress(body)} onTouchCancel={cancelPress}
-            onMouseDown={e => startPress(body.id, e)} onMouseMove={movePress} onMouseUp={() => endPress(body)} onMouseLeave={cancelPress}
+            onPointerDown={e => onPointerDown(body.id, e)}
+            onPointerMove={onPointerMove}
+            onPointerUp={e => onPointerUp(body, e)}
+            onPointerCancel={onPointerCancel}
+            role="button"
+            tabIndex={0}
+            aria-label={body.label || '暗星核'}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBodyClick(body) } }}
           >
             {body.kind === 'giant'  && <span className="gravity-ring" />}
             {body.kind === 'binary' && <span className="gravity-binary-orbit" />}

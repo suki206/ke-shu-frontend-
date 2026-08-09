@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import axios from 'axios'
 import StarCanvas from './StarCanvas'
 import StardustPage from './StardustPage'
@@ -192,6 +192,12 @@ function normalizeMsg(m) {
 const MERGE_WINDOW_MS = 3000   // 输入合并防抖：3 秒内连续发送合并为一条
 
 // 3 秒合并倒计时环形指示（发送按钮上极简的小圆点即可，见 composer 部分）
+
+// 聊天字号四档：纯前端，写 localStorage，切换即时生效（零后端调用）
+const FONT_SCALES = ['sm', 'md', 'lg', 'xl']
+const FONT_LABELS = { sm: '小', md: '中', lg: '大', xl: '特大' }
+const FONT_SUB    = { sm: 'Small', md: 'Medium', lg: 'Large', xl: 'X-Large' }
+const FONT_STORAGE = 'ks_font_scale'
 
 // 双主题（深空 noir / 昼梦 warm）
 const THEMES       = ['noir', 'warm']
@@ -441,27 +447,38 @@ const DustFab = ({ activeTab, onNavigate }) => {
 // 长按消息菜单（A级）
 // items: [{ key, label, icon, onClick }]
 // ============================================================
-const MsgContextMenu = ({ x, y, items, onClose }) => {
+const MsgContextMenu = ({ anchor, alignRight, items, onClose }) => {
   const menuRef = useRef(null)
-  const [pos, setPos] = useState({ left: x, top: y })
+  const [pos, setPos] = useState(null)
 
-  useEffect(() => {
-    // 避免菜单超出视口
+  // 菜单锚在气泡上，不跟手指走：手指落在气泡哪个位置是随机的，
+  // 菜单每次从不同地方冒出来会让人重新找一遍按钮。固定贴在气泡下沿、
+  // 并与气泡靠头像那一侧对齐，位置就成了可预期的肌肉记忆。
+  useLayoutEffect(() => {
     const el = menuRef.current
     if (!el) return
-    const rect = el.getBoundingClientRect()
-    let left = x, top = y
-    if (left + rect.width  > window.innerWidth  - 12) left = window.innerWidth  - rect.width  - 12
-    if (top  + rect.height > window.innerHeight - 12) top  = y - rect.height - 10
-    if (left < 12) left = 12
-    if (top  < 12) top  = 12
+    const m = el.getBoundingClientRect()
+    const vw = window.innerWidth, vh = window.innerHeight
+    const GAP = 8, EDGE = 12
+    const a = anchor || { top: vh / 2, bottom: vh / 2, left: vw / 2, right: vw / 2 }
+
+    let top = a.bottom + GAP
+    if (top + m.height > vh - EDGE) top = a.top - m.height - GAP   // 下方放不下就翻到上方
+    if (top < EDGE) top = Math.max(EDGE, Math.min(vh - m.height - EDGE, a.top))
+
+    let left = alignRight ? a.right - m.width : a.left
+    left = Math.max(EDGE, Math.min(left, vw - m.width - EDGE))
     setPos({ left, top })
-  }, [x, y])
+  }, [anchor, alignRight])
 
   return (
     <>
       <div className="msg-menu-veil" onClick={onClose} onContextMenu={e => { e.preventDefault(); onClose() }} />
-      <div ref={menuRef} className="msg-context-menu" style={{ left: pos.left, top: pos.top }}>
+      <div
+        ref={menuRef}
+        className="msg-context-menu"
+        style={{ left: pos ? pos.left : 0, top: pos ? pos.top : 0, visibility: pos ? 'visible' : 'hidden' }}
+      >
         {items.map(item => (
           <button key={item.key} className="msg-context-item" onClick={() => { item.onClick(); onClose() }}>
             <span className="msg-context-icon">{item.icon}</span>
@@ -574,7 +591,8 @@ const SENSITIVITY_HINTS = {
   high:   '判断标准与"中"档一致，作为最宽松的一档预留（后续可以再放宽）。',
 }
 
-const ConstantPage = ({ config, setConfig, theme, setTheme, voices, selectedVoiceURI, setSelectedVoiceURI,
+const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontScale,
+  voices, selectedVoiceURI, setSelectedVoiceURI,
   onSave, onExport, onRefreshVoices, showToast,
   tokenStatsOpen, onToggleTokenStats, tokenStats, tokenStatsLoading }) => {
 
@@ -626,6 +644,27 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, voices, selectedVoic
                 <div style={{ fontSize: '10px', opacity: .65, letterSpacing: '1px', fontFamily: 'var(--font-body)', marginTop: 3 }}>{THEME_SUB[t]}</div>
               </button>
             ))}
+          </div>
+
+          {/* 聊天字号：写 localStorage，改完立刻生效，不走后端也不用保存 */}
+          <div className="font-scale-row">
+            <div className="font-scale-head">
+              <span className="font-scale-title">聊天字号</span>
+              <span className="font-scale-hint">{FONT_SUB[fontScale] || 'Medium'}</span>
+            </div>
+            <div className="font-scale-seg">
+              {FONT_SCALES.map(f => (
+                <button
+                  key={f}
+                  className={`font-scale-btn${fontScale === f ? ' is-on' : ''}`}
+                  onClick={() => setFontScale(f)}
+                >
+                  <span style={{ fontSize: `${{ sm: 12, md: 14, lg: 16.5, xl: 19 }[f]}px` }}>字</span>
+                  <em>{FONT_LABELS[f]}</em>
+                </button>
+              ))}
+            </div>
+            <div className="font-scale-preview">这行字就是当前的正文大小。</div>
           </div>
         </div>
 
@@ -864,6 +903,10 @@ const ChatPage = () => {
   const [deleteModal,   setDeleteModal]   = useState({ show: false, sessionId: null, name: '' })
   const [renameModal,   setRenameModal]   = useState({ show: false, sessionId: null, value: '' })
   const [theme,         setTheme]         = useState(() => localStorage.getItem('ks_theme') || 'noir')
+  const [fontScale,     setFontScale]     = useState(() => {
+    const v = localStorage.getItem(FONT_STORAGE)
+    return FONT_SCALES.includes(v) ? v : 'md'
+  })
   const [toasts,        setToasts]        = useState([])
   const [inputFocused,  setInputFocused]  = useState(false)
   const [speakingKey,   setSpeakingKey]   = useState(null)
@@ -1027,7 +1070,7 @@ const ChatPage = () => {
   }
 
   // ── A级：星轨交互补全 相关状态 ──────────────────────────
-  const [msgMenu,       setMsgMenu]       = useState(null)   // { x, y, msg, key }
+  const [msgMenu,       setMsgMenu]       = useState(null)   // { anchor, alignRight, items }
   const [quoteTarget,   setQuoteTarget]   = useState(null)   // { text }
   const [editingMsg,    setEditingMsg]    = useState(null)   // { id, key }
   const [expandedReasoning, setExpandedReasoning] = useState(() => new Map())
@@ -1444,18 +1487,76 @@ const ChatPage = () => {
 
   const cycleTheme = () => { const idx = THEMES.indexOf(theme); setTheme(THEMES[(idx+1) % THEMES.length]) }
 
+  // ── 字号：写 html 上的 data 属性，CSS 变量随之切换，改完立刻生效 ──
+  useEffect(() => {
+    document.documentElement.setAttribute('data-font-scale', fontScale)
+    try { localStorage.setItem(FONT_STORAGE, fontScale) } catch {}
+  }, [fontScale])
+
+  // ── PWA 视口兜底 ────────────────────────────────────────────
+  // 两件事都必须在 viewport meta 上声明，光靠 JS 量高度补不回来：
+  //   viewport-fit=cover        内容才能画到刘海/手势条底下，否则四周留白
+  //   interactive-widget=resizes-content
+  //                             键盘弹出时让「布局视口」本身变矮，输入框会
+  //                             自然被顶上去；默认的 resizes-visual 只缩可视
+  //                             视口，布局高度不变，输入框就被压在键盘下面
+  // index.html 里写死才是正解，这里做运行时兜底，避免漏改一处就前功尽弃。
+  useEffect(() => {
+    const setMeta = (name, content) => {
+      let m = document.querySelector(`meta[name="${name}"]`)
+      if (!m) { m = document.createElement('meta'); m.setAttribute('name', name); document.head.appendChild(m) }
+      if (m.getAttribute('content') !== content) m.setAttribute('content', content)
+    }
+    setMeta('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content')
+    setMeta('mobile-web-app-capable', 'yes')
+    setMeta('apple-mobile-web-app-capable', 'yes')
+    setMeta('apple-mobile-web-app-status-bar-style', 'black-translucent')
+  }, [])
+
+  // ── 可视高度 / 键盘高度 ─────────────────────────────────────
+  // 安卓上键盘弹出会走三种完全不同的路子，光靠一种测量方式必定漏掉一种：
+  //   A 布局视口自己变矮（interactive-widget=resizes-content 生效）
+  //   B 只有可视视口变矮，布局视口不动（老一点的默认行为）
+  //   C 键盘直接盖上去，两个视口都不动 —— 这种情况下 visualViewport
+  //     量出来的数字和没弹键盘时一模一样，输入框自然就被埋在键盘底下了，
+  //     这也是之前反复调 visualViewport 都修不好的原因
+  // VirtualKeyboard API 能在 C 里给出键盘的精确矩形，所以这里主动接管；
+  // 拿不到这个 API 时退回 visualViewport，A / B 依然工作。
   useEffect(() => {
     const root = document.documentElement
-    const upH  = () => root.style.setProperty('--app-height', `${window.visualViewport ? window.visualViewport.height : window.innerHeight}px`)
-    upH()
+    const vk = (typeof navigator !== 'undefined' && navigator.virtualKeyboard) || null
+    if (vk) { try { vk.overlaysContent = true } catch {} }
+
+    const apply = () => {
+      const vv = window.visualViewport
+      const visual = vv ? vv.height : window.innerHeight
+      const shrunk = Math.max(0, window.innerHeight - visual)   // 已经被谁扣掉的高度
+      const vkH = vk && vk.boundingRect ? vk.boundingRect.height : 0
+      // 只补"还没有人扣过"的那一截：两套机制同时生效时不会扣两遍，
+      // 只有一套生效时也补得上，公式对 A/B/C 三种情况都成立
+      const kb = Math.max(0, vkH - shrunk)
+
+      root.style.setProperty('--app-height', `${Math.round(visual)}px`)
+      root.style.setProperty('--kb-height', `${Math.round(kb)}px`)
+      root.classList.toggle('kb-open', Math.max(vkH, shrunk) > 90)
+      // 页面比可视区高时浏览器会自己滚一下来露出输入框，结果是顶栏被推出屏幕
+      if (window.scrollY !== 0) window.scrollTo(0, 0)
+    }
+    apply()
+
     // resize 覆盖大多数场景；scroll 是安卓上部分机型键盘弹出时唯一会触发的事件，两个都要接
-    window.visualViewport?.addEventListener('resize', upH)
-    window.visualViewport?.addEventListener('scroll', upH)
-    window.addEventListener('resize', upH)
+    window.visualViewport?.addEventListener('resize', apply)
+    window.visualViewport?.addEventListener('scroll', apply)
+    window.addEventListener('resize', apply)
+    window.addEventListener('orientationchange', apply)
+    vk?.addEventListener?.('geometrychange', apply)
     return () => {
-      window.visualViewport?.removeEventListener('resize', upH)
-      window.visualViewport?.removeEventListener('scroll', upH)
-      window.removeEventListener('resize', upH)
+      window.visualViewport?.removeEventListener('resize', apply)
+      window.visualViewport?.removeEventListener('scroll', apply)
+      window.removeEventListener('resize', apply)
+      window.removeEventListener('orientationchange', apply)
+      vk?.removeEventListener?.('geometrychange', apply)
+      if (vk) { try { vk.overlaysContent = false } catch {} }
     }
   }, [])
 
@@ -1489,7 +1590,7 @@ const ChatPage = () => {
 
   // ── 渲染消息 ─────────────────────────────────────────────
   // ── 长按 / 右键 打开消息操作菜单 ──────────────────────────
-  const openMsgMenu = (clientX, clientY, msg, key, isUser, isLastAI, isArchived, body) => {
+  const openMsgMenu = (anchorEl, msg, key, isUser, isLastAI, isArchived, body) => {
     const items = []
     if (!isUser) {
       items.push({ key: 'speak', label: speakingKey === key ? (isSpeakingPaused ? '继续朗读' : '暂停朗读') : '朗读', icon: <Icon.Speak size={13} />, onClick: () => speakMessage(body, key) })
@@ -1503,7 +1604,13 @@ const ChatPage = () => {
     if (isUser && !isArchived) {
       items.push({ key: 'edit', label: '编辑', icon: <Icon.Edit size={13} />, onClick: () => startEdit(msg, key) })
     }
-    setMsgMenu({ x: clientX, y: clientY, items })
+    // 只留下菜单定位需要的几个数字：DOM 节点不进 state，避免持有已卸载的元素
+    const r = anchorEl && anchorEl.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null
+    setMsgMenu({
+      anchor: r ? { top: r.top, bottom: r.bottom, left: r.left, right: r.right } : null,
+      alignRight: isUser,
+      items,
+    })
   }
 
   const renderMsgItem = (msg, key) => {
@@ -1535,12 +1642,13 @@ const ChatPage = () => {
     const onPressStart = (e) => {
       pressMovedRef.current = false
       const pt = e.touches ? e.touches[0] : e
-      const x = pt.clientX, y = pt.clientY
-      pressStartPosRef.current = { x, y }
+      pressStartPosRef.current = { x: pt.clientX, y: pt.clientY }
+      // 同步取下气泡节点：定时器里 e 已经不可靠了
+      const bubbleEl = e.currentTarget
       pressTimerRef.current = setTimeout(() => {
         if (pressMovedRef.current) return
         if (navigator.vibrate) navigator.vibrate(8)
-        openMsgMenu(x, y, msg, key, isUser, isLastAI, isArchived, body)
+        openMsgMenu(bubbleEl, msg, key, isUser, isLastAI, isArchived, body)
       }, 480)
     }
     const onPressMove = (e) => {
@@ -1554,7 +1662,7 @@ const ChatPage = () => {
       clearTimeout(pressTimerRef.current)
     }
     const onPressEnd  = () => clearTimeout(pressTimerRef.current)
-    const onCtxMenu   = (e) => { e.preventDefault(); clearTimeout(pressTimerRef.current); openMsgMenu(e.clientX, e.clientY, msg, key, isUser, isLastAI, isArchived, body) }
+    const onCtxMenu   = (e) => { e.preventDefault(); clearTimeout(pressTimerRef.current); openMsgMenu(e.currentTarget, msg, key, isUser, isLastAI, isArchived, body) }
 
     return (
       <div key={key} className="msg-row" style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '18px', padding: '0 18px' }}>
@@ -1593,31 +1701,47 @@ const ChatPage = () => {
                 }
               </div>
             </div>
-            {/* 操作栏 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '7px', padding: isUser ? '0 4px 0 0' : '0 0 0 4px' }}>
-              {!isUser && !isStreaming && (
+            {/* 操作栏：时间戳一律靠头像那一侧——我的消息贴最右，祂的贴最左 */}
+            <div className={`msg-meta${isUser ? ' is-user' : ''}`}>
+              {isUser ? (
                 <>
-                  <span onClick={() => speakMessage(body, key)} title={speakingKey===key ? (isSpeakingPaused?'继续':'暂停') : '朗读'} style={{ cursor: 'pointer', opacity: speakingKey===key?.9:.38, transition: 'opacity .2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e=>{if(speakingKey!==key)e.currentTarget.style.opacity='.85'}} onMouseLeave={e=>{if(speakingKey!==key)e.currentTarget.style.opacity='.38'}}>
-                    {speakingKey===key&&!isSpeakingPaused ? <Icon.Pause size={13} /> : speakingKey===key&&isSpeakingPaused ? <Icon.Play size={13} /> : <Icon.Speak size={13} />}
-                  </span>
-                  <span onClick={() => copyMessage(body)} title="复制" style={{ cursor: 'pointer', opacity: .38, transition: 'opacity .2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='.38'}>
-                    <Icon.Copy size={13} />
-                  </span>
-                  {isLastAI && (
-                    <span onClick={regenerateLastMessage} title="重新生成" style={{ cursor: 'pointer', opacity: .38, transition: 'opacity .2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='.38'}>
-                      <Icon.Refresh size={13} />
-                    </span>
+                  {edited && <span className="edited-tag">已编辑</span>}
+                  {msg.truncated && <span className="edited-tag">已中断</span>}
+                  <span className="msg-time">{formatTime(msg.created_at)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="msg-time">{formatTime(msg.created_at)}</span>
+                  {!isStreaming && (
+                    <>
+                      <button
+                        className={`msg-meta-btn${speakingKey === key ? ' is-on' : ''}`}
+                        onClick={() => speakMessage(body, key)}
+                        title={speakingKey === key ? (isSpeakingPaused ? '继续朗读' : '暂停朗读') : '朗读'}
+                      >
+                        {speakingKey === key && !isSpeakingPaused
+                          ? <Icon.Pause size={15} />
+                          : speakingKey === key && isSpeakingPaused
+                            ? <Icon.Play size={15} />
+                            : <Icon.Speak size={15} />}
+                      </button>
+                      <button className="msg-meta-btn" onClick={() => copyMessage(body)} title="复制">
+                        <Icon.Copy size={15} />
+                      </button>
+                      {isLastAI && (
+                        <button className="msg-meta-btn" onClick={regenerateLastMessage} title="重新生成">
+                          <Icon.Refresh size={15} />
+                        </button>
+                      )}
+                      {msg.tokens && (
+                        <span className="token-label">↑{msg.tokens.input} ↓{msg.tokens.output}</span>
+                      )}
+                    </>
                   )}
-                  {msg.tokens && (
-                    <span className="token-label">↑{msg.tokens.input} ↓{msg.tokens.output}</span>
-                  )}
+                  {edited && <span className="edited-tag">已编辑</span>}
+                  {msg.truncated && <span className="edited-tag">已中断</span>}
                 </>
               )}
-              {edited && <span className="edited-tag">已编辑</span>}
-              {msg.truncated && <span className="edited-tag">已中断</span>}
-              <span style={{ fontSize: '10.5px', color: 'var(--c-text-faint)', fontFamily: 'var(--font-accent)', letterSpacing: '0.8px' }}>
-                {formatTime(msg.created_at)}
-              </span>
             </div>
           </div>
         </div>
@@ -1719,8 +1843,8 @@ const ChatPage = () => {
         )}
       </div>
 
-      {/* 输入框 */}
-      <div style={{ padding: '10px 14px calc(env(safe-area-inset-bottom, 0px) + 78px)', flexShrink: 0 }}>
+      {/* 输入框：内边距挪进 CSS，键盘弹出时可以收掉给底部导航预留的那 78px */}
+      <div className="composer-dock">
         {/* 编辑中提示条 */}
         {editingMsg && (
           <div className="compose-banner">
@@ -1765,7 +1889,8 @@ const ChatPage = () => {
   return (
     <div
       data-theme={theme}
-      style={{ flex: 1, display: 'flex', height: 'var(--app-height, 100dvh)', maxHeight: 'var(--app-height, 100dvh)', color: 'var(--c-text)', fontFamily: 'var(--font-body)', overflow: 'hidden', position: 'relative', flexDirection: 'column' }}
+      className="app-shell"
+      style={{ color: 'var(--c-text)', fontFamily: 'var(--font-body)' }}
     >
       {/* 星空 Canvas */}
       <StarCanvas ref={starCanvasRef} theme={theme} interactive={false} />
@@ -1781,7 +1906,7 @@ const ChatPage = () => {
 
       {/* 长按消息菜单 */}
       {msgMenu && (
-        <MsgContextMenu x={msgMenu.x} y={msgMenu.y} items={msgMenu.items} onClose={() => setMsgMenu(null)} />
+        <MsgContextMenu anchor={msgMenu.anchor} alignRight={msgMenu.alignRight} items={msgMenu.items} onClose={() => setMsgMenu(null)} />
       )}
 
       {/* CHAT 星核低语：长按星核触发，全屏大字浮现后消散 */}
@@ -1818,6 +1943,7 @@ const ChatPage = () => {
             <ConstantPage key="constant"
               config={config} setConfig={setConfig}
               theme={theme} setTheme={setTheme}
+              fontScale={fontScale} setFontScale={setFontScale}
               voices={voices} selectedVoiceURI={selectedVoiceURI} setSelectedVoiceURI={setSelectedVoiceURI}
               onSave={saveSettings} onExport={exportConversation}
               onRefreshVoices={refreshVoices} showToast={showToast}

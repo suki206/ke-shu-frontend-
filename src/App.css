@@ -2116,3 +2116,208 @@ button { font-family: inherit; }
   .dust-scroll, .dust-search { padding-left: 15px; padding-right: 15px; }
   .dust-sheet { padding-left: 20px; padding-right: 20px; }
 }
+
+
+/* ============================================================
+   本轮修复 —— PWA 全屏 / 键盘 / 字号四档 / 消息底部信息栏
+   整段追加到 App.css 末尾（要在前面所有规则之后，靠后来居上覆盖旧值）
+   ============================================================ */
+
+/* ── 1. 让整个应用严格等于「当前可见的那块屏幕」 ──────────────
+   原来只有内层容器吃 --app-height，html/body/#root 仍是完整的布局视口。
+   键盘弹出时外层比可视区高，浏览器就会自己滚一下去露出输入框，
+   表现出来就是顶栏被推出屏幕、输入框却还压在键盘底下。
+   这里把三层一起钉死，浏览器没有可滚的余量，也就不会乱滚。 */
+html {
+  height: var(--app-height, 100%);
+  height: var(--app-height, 100dvh);
+}
+body   { height: 100%; }
+#root  { height: 100%; }
+
+/* 安全区兜底：某些机型在 viewport-fit=cover 之前 env() 会解析成 0，
+   这里给出显式默认值，避免刘海区把内容压掉一截 */
+:root {
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --kb-height:   0px;
+}
+
+/* 应用外壳：可视高度再减去键盘占掉的那一截。
+   JS 保证 --kb-height 只在"布局没有自己变矮"时才是正数，两者不会重复扣。 */
+.app-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  height:     calc(var(--app-height, 100dvh) - var(--kb-height, 0px));
+  max-height: calc(var(--app-height, 100dvh) - var(--kb-height, 0px));
+  transition: height .18s var(--ease), max-height .18s var(--ease);
+}
+
+/* 弹窗跟着可视区居中：键盘顶上来时不至于把输入卡片压在键盘底下 */
+.modal-veil { bottom: var(--kb-height, 0px); }
+
+/* ── 2. 输入框停靠区 ────────────────────────────────────────
+   常态给底部导航留 78px；键盘弹出时导航条已经被盖住了，
+   这 78px 是纯浪费，收掉能多露出一行半的正文。 */
+.composer-dock {
+  flex-shrink: 0;
+  padding: 10px 14px calc(var(--safe-bottom) + 78px);
+  transition: padding-bottom .22s var(--ease);
+}
+.kb-open .composer-dock { padding-bottom: 10px; }
+
+/* 键盘弹出时收起底部导航：它是 fixed 定位，会浮在输入框上面挡住字 */
+.kb-open .bottom-nav {
+  transform: translateY(110%);
+  pointer-events: none;
+}
+.bottom-nav { transition: transform .24s var(--ease); }
+
+/* ── 3. 聊天字号四档 ────────────────────────────────────────
+   只调正文相关的几处，界面骨架（标签、按钮、时间戳）不跟着放大，
+   否则整个布局会随字号一起变形。 */
+:root,
+[data-font-scale="md"] { --chat-font: 14.5px; --chat-line: 1.82; }
+[data-font-scale="sm"] { --chat-font: 13px;   --chat-line: 1.86; }
+[data-font-scale="lg"] { --chat-font: 16.5px; --chat-line: 1.78; }
+[data-font-scale="xl"] { --chat-font: 18.5px; --chat-line: 1.72; }
+
+.msg-text        { font-size: var(--chat-font); line-height: var(--chat-line); }
+.composer-input  { font-size: calc(var(--chat-font) - 0.5px); }
+.reasoning-body  { font-size: calc(var(--chat-font) - 2px); }
+.quote-block     { font-size: calc(var(--chat-font) - 2.5px); }
+
+/* 设置页里的字号选择 */
+.font-scale-row { margin-top: 18px; }
+.font-scale-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.font-scale-title {
+  font-size: 12.5px; color: var(--c-text); letter-spacing: .4px;
+}
+.font-scale-hint {
+  font-family: var(--font-accent);
+  font-size: 10px; letter-spacing: 2px; color: var(--c-text-faint);
+}
+.font-scale-seg { display: flex; gap: 8px; }
+.font-scale-btn {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 11px 0 9px;
+  background: transparent;
+  border: var(--hair) solid var(--c-line);
+  border-radius: 13px;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  transition: border-color .28s var(--ease), color .28s var(--ease), background .28s var(--ease);
+}
+.font-scale-btn span { line-height: 1.1; font-family: var(--font-body); }
+.font-scale-btn em {
+  font-style: normal; font-family: var(--font-accent);
+  font-size: 10px; letter-spacing: 1.4px; opacity: .7;
+}
+.font-scale-btn:hover { border-color: var(--c-line-strong); color: var(--c-text); }
+.font-scale-btn.is-on {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+  color: var(--c-text);
+}
+.font-scale-preview {
+  margin-top: 12px; padding: 12px 14px;
+  border: var(--hair) dashed var(--c-line);
+  border-radius: 12px;
+  color: var(--c-text-muted);
+  font-size: var(--chat-font);
+  line-height: var(--chat-line);
+  letter-spacing: .2px;
+  transition: font-size .18s var(--ease);
+}
+
+/* ── 4. 消息底部信息栏 ──────────────────────────────────────
+   原来图标 13px、透明度 0.38，时间戳 10.5px 还用了 faint 色，
+   在深色底上基本是"看得见但读不出"。整体抬一档：图标 15px、
+   常态不透明度 0.62，时间戳换成 muted 色并放大到 11.5px。 */
+.msg-meta {
+  display: flex; align-items: center;
+  gap: 13px; margin-top: 8px;
+  padding: 0 0 0 6px;
+}
+.msg-meta.is-user {
+  justify-content: flex-end;
+  padding: 0 6px 0 0;
+}
+
+.msg-time {
+  font-family: var(--font-accent);
+  font-size: 11.5px; letter-spacing: .8px;
+  color: var(--c-text-muted);
+  opacity: .72;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.msg-meta-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; padding: 3px;
+  margin: -3px;                    /* 视觉位置不变，但点击热区扩大到 21px */
+  cursor: pointer;
+  color: var(--c-text-muted);
+  opacity: .62;
+  transition: opacity .2s ease, color .2s ease, transform .15s var(--ease);
+}
+.msg-meta-btn:hover  { opacity: 1; color: var(--c-text); }
+.msg-meta-btn:active { transform: scale(0.9); }
+.msg-meta-btn.is-on  { opacity: 1; color: var(--c-accent); }
+
+.token-label {
+  font-size: 11px; letter-spacing: .4px;
+  font-family: var(--font-accent);
+  color: var(--c-text-muted); opacity: .55;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.edited-tag {
+  font-size: 11px; letter-spacing: .5px;
+  font-family: var(--font-accent); font-style: italic;
+  color: var(--c-text-muted); opacity: .68;
+}
+
+/* ── 5. 长按菜单：贴气泡而不是贴手指 ────────────────────────
+   veil 加一层极淡的暗场，菜单出现时视线自然收到菜单上，
+   同时也让"当前操作的是哪一条"有了边界感。 */
+.msg-menu-veil {
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+  animation: fadeIn .18s ease;
+}
+.msg-context-menu {
+  min-width: 156px;
+  transform-origin: top left;
+}
+.msg-context-item {
+  font-size: 13.5px;
+  padding: 10px 13px;
+}
+.msg-context-icon { opacity: .8; }
+
+
+/* ── 6. 引力页天体：进入可拖拽状态时的反馈 ──────────────────
+   按住到可以拖了会震一下，但视觉上原来毫无提示，手指一抬又不确定
+   刚才那下算点击还是算拖拽。给一个极轻的放大，够了。 */
+.gravity-body { transition: transform .22s var(--ease), filter .22s var(--ease); }
+.gravity-body.is-armed {
+  transform: translate(-50%, -50%) scale(1.12);
+  filter: brightness(1.18);
+  cursor: grabbing;
+}
+.gravity-body:focus-visible {
+  outline: none;
+}
+.gravity-body:focus-visible .gravity-body-orb {
+  box-shadow: 0 0 0 2px var(--c-accent-soft), 0 0 18px var(--c-accent);
+}
