@@ -34,10 +34,23 @@
   --c-glass-bg:      rgba(50, 34, 14, 0.38);
   --c-glass-bg-user: rgba(206, 165, 100, 0.20);
   --c-glass-border:  rgba(238, 210, 158, 0.22);
-  --c-glass-blur:    18px;
   --c-glass-sat:     1.12;
-  --c-glass-bright:  0.68;
-  --c-msg-shadow:    0 2px 16px rgba(0, 0, 0, 0.65);
+  --c-msg-shadow:    0 1px 3px rgba(0, 0, 0, 0.82), 0 2px 20px rgba(0, 0, 0, 0.55);
+
+  /* 气泡径向暗遮罩：中心够暗撑住文字对比度，边缘几乎全透，
+     让 StarCanvas 的星点/连线能从气泡边缘和圆角漏进来。
+     ai 锚点偏左（头像那侧），user 锚点偏右，见 .bubble-glass 里的位置 */
+  --c-bubble-ai-core:   rgba(6, 3, 0, 0.56);
+  --c-bubble-ai-mid:    rgba(6, 3, 0, 0.28);
+  --c-bubble-ai-edge:   rgba(6, 3, 0, 0.03);
+  --c-bubble-ai-glow:   rgba(255, 214, 140, 0.16);
+
+  --c-bubble-user-core: rgba(40, 22, 4, 0.52);
+  --c-bubble-user-mid:  rgba(40, 22, 4, 0.30);
+  --c-bubble-user-edge: rgba(40, 22, 4, 0.04);
+  --c-bubble-user-glow: rgba(229, 194, 136, 0.20);
+
+  --c-bubble-blur: 7px;
 
   --c-panel:        rgba(20, 12, 4, 0.62);
   --c-panel-blur:   32px;
@@ -82,10 +95,20 @@
   --c-glass-bg:      rgba(10, 20, 45, 0.40);
   --c-glass-bg-user: rgba(70, 110, 170, 0.20);
   --c-glass-border:  rgba(136, 180, 229, 0.22);
-  --c-glass-blur:    18px;
   --c-glass-sat:     1.08;
-  --c-glass-bright:  0.72;
-  --c-msg-shadow:    0 2px 16px rgba(0, 0, 0, 0.70);
+  --c-msg-shadow:    0 1px 3px rgba(0, 0, 0, 0.85), 0 2px 20px rgba(0, 0, 0, 0.6);
+
+  --c-bubble-ai-core:   rgba(1, 2, 8, 0.58);
+  --c-bubble-ai-mid:    rgba(1, 2, 8, 0.30);
+  --c-bubble-ai-edge:   rgba(1, 2, 8, 0.03);
+  --c-bubble-ai-glow:   rgba(182, 210, 255, 0.16);
+
+  --c-bubble-user-core: rgba(8, 18, 40, 0.54);
+  --c-bubble-user-mid:  rgba(8, 18, 40, 0.30);
+  --c-bubble-user-edge: rgba(8, 18, 40, 0.04);
+  --c-bubble-user-glow: rgba(136, 180, 229, 0.20);
+
+  --c-bubble-blur: 7px;
 
   --c-panel:        rgba(5, 12, 28, 0.64);
   --c-panel-blur:   32px;
@@ -130,10 +153,20 @@
   --c-glass-bg:      rgba(255, 255, 255, 0.057);
   --c-glass-bg-user: rgba(226, 220, 208, 0.12);
   --c-glass-border:  rgba(255, 255, 255, 0.17);
-  --c-glass-blur:    18px;
   --c-glass-sat:     1.0;
-  --c-glass-bright:  0.62;
-  --c-msg-shadow:    0 2px 18px rgba(0, 0, 0, 0.75);
+  --c-msg-shadow:    0 1px 3px rgba(0, 0, 0, 0.88), 0 2px 22px rgba(0, 0, 0, 0.6);
+
+  --c-bubble-ai-core:   rgba(0, 0, 2, 0.60);
+  --c-bubble-ai-mid:    rgba(0, 0, 2, 0.32);
+  --c-bubble-ai-edge:   rgba(0, 0, 2, 0.04);
+  --c-bubble-ai-glow:   rgba(226, 220, 245, 0.15);
+
+  --c-bubble-user-core: rgba(18, 16, 12, 0.54);
+  --c-bubble-user-mid:  rgba(18, 16, 12, 0.30);
+  --c-bubble-user-edge: rgba(18, 16, 12, 0.04);
+  --c-bubble-user-glow: rgba(220, 211, 195, 0.20);
+
+  --c-bubble-blur: 7px;
 
   --c-panel:        rgba(8, 8, 10, 0.62);
   --c-panel-blur:   34px;
@@ -238,15 +271,32 @@ body {
 /* ============================================================
    气泡
    ============================================================ */
-.msg-row { animation: riseIn 0.38s var(--ease) both; }
+.msg-row {
+  animation: riseIn 0.38s var(--ease) both;
+  /* 长会话滚动性能：离屏的消息行（连同各自的 backdrop-filter 和
+     呼吸光晕）整体跳过布局/绘制/合成，只有真正进入视口附近的气泡
+     才有渲染开销。contain-intrinsic-size 给一个粗略的平均高度占位，
+     避免离屏内容真实高度未知导致的滚动条跳动；数值按常见 1~3 行
+     消息估算，如果你的消息普遍偏长可以调大。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
+}
 
 .bubble-glass {
   position: relative;
-  background: var(--c-glass-bg);
-  backdrop-filter: blur(var(--c-glass-blur)) saturate(var(--c-glass-sat)) brightness(var(--c-glass-bright));
-  -webkit-backdrop-filter: blur(var(--c-glass-blur)) saturate(var(--c-glass-sat)) brightness(var(--c-glass-bright));
+  isolation: isolate; /* 给下面的呼吸光晕 ::before 建立独立层叠上下文，z-index:-1 才不会漏到别的气泡下面 */
+  /* 径向暗遮罩取代原来的整块实色毛玻璃：中心留够暗度撑住文字对比度，
+     往边缘迅速褪成近乎全透——星点、连线、流星能从气泡边缘和圆角里
+     透出来。锚点偏向头像那一侧（ai 靠左 24%，user 靠右 76%），
+     视觉上像信号是从头像那端"亮"出来的，往外扩散。 */
+  background: radial-gradient(ellipse at 42% 36%,
+    var(--c-bubble-ai-core) 0%,
+    var(--c-bubble-ai-mid)  50%,
+    var(--c-bubble-ai-edge) 100%);
+  backdrop-filter: blur(var(--c-bubble-blur)) saturate(var(--c-glass-sat));
+  -webkit-backdrop-filter: blur(var(--c-bubble-blur)) saturate(var(--c-glass-sat));
   border: var(--hair) solid var(--c-glass-border);
-  box-shadow: 0 8px 32px var(--c-shadow), inset 0 1px 0 var(--c-highlight);
+  box-shadow: 0 8px 28px var(--c-shadow), inset 0 1px 0 var(--c-highlight);
   border-radius: 22px;
   padding: 14px 19px 11px;
   /* Android 上长按文字会触发系统原生"选择文本"呼出菜单（放大镜+复制/分享），
@@ -256,7 +306,36 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
-.bubble-glass.is-user { background: var(--c-glass-bg-user); }
+.bubble-glass.is-user {
+  background: radial-gradient(ellipse at 58% 36%,
+    var(--c-bubble-user-core) 0%,
+    var(--c-bubble-user-mid)  50%,
+    var(--c-bubble-user-edge) 100%);
+}
+
+/* 呼吸光晕层：只有 ai 气泡呼吸，像"信号仍在虚空里亮着，等你回应"；
+   user 气泡是稳定的静态光（下面 .is-user::before 关掉动画）——
+   你说出口的话不需要证明自己还在。z-index:-1 把它压在正文文字之下，
+   只在气泡自己的暗遮罩背景之上，不会盖住可读性。
+   只切 opacity，走合成层，成本很低；配合下面 .msg-row 的
+   content-visibility，离屏气泡连这点开销都省掉。 */
+.bubble-glass::before {
+  content: '';
+  position: absolute; inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(circle at 42% 32%, var(--c-bubble-ai-glow), transparent 60%);
+  opacity: .7;
+  animation: bubbleBreathe 5.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.bubble-glass.is-user::before {
+  background: radial-gradient(circle at 58% 32%, var(--c-bubble-user-glow), transparent 60%);
+  opacity: .85;
+  animation: none;
+}
+@keyframes bubbleBreathe { 0%, 100% { opacity: .45; } 50% { opacity: .85; } }
+
 .bubble-glass::after {
   content: '';
   position: absolute;
@@ -266,7 +345,10 @@ body {
   pointer-events: none;
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .bubble-glass { background: color-mix(in srgb, var(--c-bg-solid) 60%, transparent); }
+  /* 不支持 backdrop-filter 的兜底：径向渐变退化成一块偏暗的纯色，
+     依然比原来的 60% 更透一些，但不再依赖毛玻璃模糊 */
+  .bubble-glass          { background: color-mix(in srgb, var(--c-bg-solid) 46%, transparent); }
+  .bubble-glass.is-user  { background: color-mix(in srgb, var(--c-bg-solid) 40%, transparent); }
 }
 
 .msg-text {
@@ -874,6 +956,7 @@ body {
     animation: none !important; opacity: 1 !important; transform: none !important; filter: none !important;
   }
   .splash-glow, .splash-shimmer { animation: none !important; opacity: 0 !important; }
+  .bubble-glass::before { animation: none !important; opacity: .6 !important; }
 }
 
 /* ============================================================
