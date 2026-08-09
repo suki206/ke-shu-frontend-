@@ -1074,6 +1074,20 @@ const ChatPage = () => {
 
   const stopInkGenerate = () => { inkAbortRef.current?.abort() }
 
+  // 撤销枢刚写的那一段（生成完之后的"删除这段"）：本地也把最后一条
+  // entries 和对应长度的 content 尾巴一起摘掉，跟后端保持同步
+  const deleteLastInkEntry = async (noteId) => {
+    try {
+      const res = await axios.delete(`${API_BASE}/notes/${noteId}/last-entry`)
+      setActiveInkNote(prev => {
+        if (!prev || prev.note?.id !== noteId) return prev
+        const list = [...prev.entries]
+        list.pop()
+        return { ...prev, entries: list, note: { ...prev.note, content: res.data.content } }
+      })
+    } catch { showToast('删除失败') }
+  }
+
 
   // ── 语音 ─────────────────────────────────────────────────
   const startSpeak = (text, msgKey) => {
@@ -1943,6 +1957,7 @@ const ChatPage = () => {
               activeInkNote={activeInkNote} activeInkNoteLoading={activeInkNoteLoading} onOpenInkNote={fetchInkEntries}
               onSaveInkDraft={saveInkDraft} onFinalizeInkEntry={finalizeInkEntry}
               onGenerateInkEntry={generateInkEntry} onStopInkGenerate={stopInkGenerate} inkGenerating={inkGenerating}
+              onDeleteLastInkEntry={deleteLastInkEntry}
               inkStreamText={inkStreamText}
             />
           )}

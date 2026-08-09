@@ -48,7 +48,8 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
   tokenStats, tokenStatsLoading, onFetchTokenStats,
   inkNotes, inkNotesLoading, onFetchInkNotes, onCreateInkNote, onUpdateInkNote, onDeleteInkNote,
   activeInkNote, activeInkNoteLoading, onOpenInkNote,
-  onSaveInkDraft, onFinalizeInkEntry, onGenerateInkEntry, onStopInkGenerate, inkGenerating, inkStreamText }) => {
+  onSaveInkDraft, onFinalizeInkEntry, onGenerateInkEntry, onStopInkGenerate, onDeleteLastInkEntry,
+  inkGenerating, inkStreamText }) => {
   const [openBody, setOpenBody] = useState(null)
 
   const anchorDate = config?.anchor_date || ''
@@ -215,6 +216,7 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
           onOpenNote={onOpenInkNote}
           onSaveDraft={onSaveInkDraft} onFinalizeEntry={onFinalizeInkEntry}
           onGenerateEntry={onGenerateInkEntry} onStopGenerate={onStopInkGenerate}
+          onDeleteLastEntry={onDeleteLastInkEntry}
           generating={inkGenerating} streamText={inkStreamText}
           showToast={showToast}
           onClose={() => setOpenBody(null)}
