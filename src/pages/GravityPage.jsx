@@ -1,59 +1,30 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 
 // ============================================================
-// 引力 · 五天体壳子
-// 本批唯一功能天体：左上脉冲星「信标」（原常数页信标模块整体迁入）
-// 其余四颗（回声 / 数据罗盘 / 星历速览 / 暗星核）本批仅视觉占位，
-// 点击给 toast，具体功能留待后续批次。
-// 位置可长按拖拽调整，存 localStorage（ks_gravity_positions），
-// 每颗独立动画周期，互不同步。
+// 引力 · 五天体固定布局
+// 本批：拿掉长按拖拽，位置写死；五颗天体全部换上正式视觉——
+// 时轨（环形日晷，替代原来占位的"暗星核"，本批仍非功能性，
+// 只是视觉上的枢纽）、信标（蓝白脉冲星，功能性，点开信标便签
+// 子页面）、回声（气态巨行星）、数据罗盘（双星系统）、
+// 星历速览（彗星），后四颗本批仍是视觉占位，点击给 toast。
+// 交互只剩点击，不再需要 Pointer Events / 拖拽判定那一整套。
 // ============================================================
 
-const GRAVITY_POS_STORAGE = 'ks_gravity_positions'
-
-// 有机散布的默认坐标（百分比），刻意避免对称网格
-const DEFAULT_POSITIONS = {
-  pulsar: { x: 26, y: 23 },
-  giant:  { x: 75, y: 15 },
-  binary: { x: 17, y: 67 },
-  comet:  { x: 83, y: 73 },
-  core:   { x: 55, y: 43 },
+const FIXED_POSITIONS = {
+  sundial: { x: 50, y: 19 },
+  pulsar:  { x: 22, y: 33 },
+  giant:   { x: 78, y: 30 },
+  binary:  { x: 19, y: 75 },
+  comet:   { x: 81, y: 77 },
 }
 
 const BODIES = [
-  { id: 'pulsar', label: '信标',     kind: 'pulsar', size: 56, functional: true  },
-  { id: 'giant',  label: '回声',     kind: 'giant',  size: 70, functional: false },
-  { id: 'binary', label: '数据罗盘', kind: 'binary', size: 52, functional: false },
-  { id: 'comet',  label: '星历速览', kind: 'comet',  size: 40, functional: false },
-  { id: 'core',   label: '',        kind: 'core',   size: 38, functional: false },
+  { id: 'sundial', label: '时轨',     kind: 'sundial', size: 96, functional: false },
+  { id: 'pulsar',  label: '信标',     kind: 'pulsar',  size: 58, functional: true  },
+  { id: 'giant',   label: '回声',     kind: 'giant',   size: 74, functional: false },
+  { id: 'binary',  label: '数据罗盘', kind: 'binary',  size: 54, functional: false },
+  { id: 'comet',   label: '星历速览', kind: 'comet',   size: 44, functional: false },
 ]
-
-// ── 关于"信标点不动" ─────────────────────────────────────────
-// 旧实现里，松手时的判定是 `if (!d.dragging && !d.moved) 触发点击`。
-// dragging 由一个 380ms 的定时器置位，只表示"现在允许拖了"，跟手指有没有
-// 真的移动无关。手机上点一颗直径 56px 的小球，手指落下到抬起经常超过
-// 380ms——于是 dragging 已经是 true，点击就被整个吞掉，表现为怎么点都没反应。
-// 电脑上鼠标单击通常只有 80~150ms，从来碰不到这条线，所以桌面端一直是好的。
-//
-// 现在把两件事彻底分开：
-//   dragging  只决定"移动时要不要真的挪动天体"
-//   moved     才是唯一能取消点击的条件
-// 按住不动多久都算点击，一旦移动超过阈值才算拖拽。
-//
-// 另外整体从 touch/mouse 双套事件换成 Pointer Events：一次交互只走一条
-// 事件流，浏览器不会在触摸后补发合成鼠标事件，原来那套"幽灵事件时间窗口"
-// 的补丁就可以整个删掉；配合 setPointerCapture，手指滑出天体范围后也能
-// 继续接到移动，拖拽不再中途断掉。
-const DRAG_ARM_MS = 420   // 按住超过这个时长才允许进入拖拽
-const MOVE_THRESH = 10    // px，超过视为移动（唯一取消点击的条件）
-
-function loadPositions() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(GRAVITY_POS_STORAGE) || 'null')
-    if (saved && typeof saved === 'object') return { ...DEFAULT_POSITIONS, ...saved }
-  } catch {}
-  return { ...DEFAULT_POSITIONS }
-}
 
 const TrashIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
@@ -62,78 +33,15 @@ const TrashIcon = () => (
 )
 
 const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggleBeacon, onDeleteBeacon, showToast }) => {
-  const [positions, setPositions] = useState(loadPositions)
-  const [openBody,  setOpenBody]  = useState(null)   // 目前只有 'pulsar' 会真正打开子页面
-  const [armedId,   setArmedId]   = useState(null)   // 已进入可拖拽状态的天体，给一点视觉反馈
-  const containerRef = useRef(null)
-  const dragRef      = useRef(null)   // { id, startX, startY, dragging, moved }
-  const armTimerRef  = useRef(null)
-  const posRef       = useRef(positions)   // 拖拽过程中读最新值，避免闭包拿到旧 state
-
-  const persistPositions = (next) => {
-    posRef.current = next
-    setPositions(next)
-    try { localStorage.setItem(GRAVITY_POS_STORAGE, JSON.stringify(next)) } catch {}
-  }
-
-  const clientToPercent = (clientX, clientY) => {
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (!rect || !rect.width || !rect.height) return null
-    return {
-      x: Math.min(94, Math.max(6, ((clientX - rect.left) / rect.width) * 100)),
-      y: Math.min(92, Math.max(8, ((clientY - rect.top) / rect.height) * 100)),
-    }
-  }
+  const [openBody, setOpenBody] = useState(null)   // 目前只有 'pulsar' 会真正打开子页面
 
   const handleBodyClick = (body) => {
     if (body.functional) setOpenBody(body.id)
     else showToast?.('即将抵达 · 敬请期待')
   }
 
-  const onPointerDown = (id, e) => {
-    // 捕获这个指针：之后就算手指滑出天体范围，move / up 也还会送到这里
-    try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch {}
-    dragRef.current = { id, startX: e.clientX, startY: e.clientY, dragging: false, moved: false }
-    clearTimeout(armTimerRef.current)
-    armTimerRef.current = setTimeout(() => {
-      if (!dragRef.current) return
-      dragRef.current.dragging = true
-      setArmedId(dragRef.current.id)
-      if (navigator.vibrate) navigator.vibrate(8)
-    }, DRAG_ARM_MS)
-  }
-
-  const onPointerMove = (e) => {
-    const d = dragRef.current
-    if (!d) return
-    const dx = e.clientX - d.startX
-    const dy = e.clientY - d.startY
-    if (Math.abs(dx) <= MOVE_THRESH && Math.abs(dy) <= MOVE_THRESH) return
-
-    d.moved = true
-    if (!d.dragging) { clearTimeout(armTimerRef.current); return }   // 还没到时长就滑走了，当成误触
-    const pos = clientToPercent(e.clientX, e.clientY)
-    if (pos) persistPositions({ ...posRef.current, [d.id]: pos })
-  }
-
-  const onPointerUp = (body, e) => {
-    try { e.currentTarget.releasePointerCapture?.(e.pointerId) } catch {}
-    clearTimeout(armTimerRef.current)
-    const d = dragRef.current
-    dragRef.current = null
-    setArmedId(null)
-    // 只要手指没有真的挪动，无论按了多久都算一次点击
-    if (d && !d.moved) handleBodyClick(body)
-  }
-
-  const onPointerCancel = () => {
-    clearTimeout(armTimerRef.current)
-    dragRef.current = null
-    setArmedId(null)
-  }
-
   return (
-    <div className="tab-page gravity-page" ref={containerRef}>
+    <div className="tab-page gravity-page">
       <div className="gravity-nebula" aria-hidden="true">
         <span className="gravity-nebula-layer l1" />
         <span className="gravity-nebula-layer l2" />
@@ -146,9 +54,9 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
       </div>
 
       <svg className="gravity-threads" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {BODIES.filter(b => b.id !== 'core').map((b, i) => {
-          const p = positions[b.id] || DEFAULT_POSITIONS[b.id]
-          const c = positions.core || DEFAULT_POSITIONS.core
+        {BODIES.filter(b => b.id !== 'sundial').map((b, i) => {
+          const p = FIXED_POSITIONS[b.id]
+          const c = FIXED_POSITIONS.sundial
           return (
             <line key={b.id} x1={p.x} y1={p.y} x2={c.x} y2={c.y}
               className="gravity-thread" style={{ animationDelay: `${i * 0.7}s` }} vectorEffect="non-scaling-stroke" />
@@ -157,25 +65,52 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
       </svg>
 
       {BODIES.map(body => {
-        const pos = positions[body.id] || DEFAULT_POSITIONS[body.id]
+        const pos = FIXED_POSITIONS[body.id]
         return (
           <div
             key={body.id}
-            className={`gravity-body gravity-body-${body.kind}${armedId === body.id ? ' is-armed' : ''}`}
+            className={`gravity-body gravity-body-${body.kind}`}
             style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: body.size, height: body.size }}
-            onPointerDown={e => onPointerDown(body.id, e)}
-            onPointerMove={onPointerMove}
-            onPointerUp={e => onPointerUp(body, e)}
-            onPointerCancel={onPointerCancel}
+            onClick={() => handleBodyClick(body)}
             role="button"
             tabIndex={0}
-            aria-label={body.label || '暗星核'}
+            aria-label={body.label}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBodyClick(body) } }}
           >
-            {body.kind === 'giant'  && <span className="gravity-ring" />}
-            {body.kind === 'binary' && <span className="gravity-binary-orbit" />}
-            {body.kind === 'comet'  && <span className="gravity-comet-tail" />}
-            {body.kind !== 'binary' && <span className="gravity-body-orb" />}
+            {body.kind === 'sundial' && (
+              <>
+                <span className="gravity-sundial-rim" />
+                <span className="gravity-sundial-ticks" />
+                <span className="gravity-sundial-core" />
+                <span className="gravity-sundial-moon" />
+              </>
+            )}
+            {body.kind === 'pulsar' && (
+              <>
+                <span className="gravity-pulsar-trail" />
+                <span className="gravity-pulsar-crosshair" />
+              </>
+            )}
+            {body.kind === 'giant' && (
+              <>
+                <span className="gravity-ring gravity-ring-1" />
+                <span className="gravity-ring gravity-ring-2" />
+                <span className="gravity-ring gravity-ring-3" />
+              </>
+            )}
+            {body.kind === 'binary' && (
+              <>
+                <span className="gravity-binary-lens" />
+                <span className="gravity-binary-orbit" />
+              </>
+            )}
+            {body.kind === 'comet' && (
+              <>
+                <span className="gravity-comet-tail" />
+                <span className="gravity-comet-sparkle" />
+              </>
+            )}
+            {body.kind !== 'binary' && body.kind !== 'sundial' && <span className="gravity-body-orb" />}
             {body.label && <span className="gravity-body-label">{body.label}</span>}
           </div>
         )

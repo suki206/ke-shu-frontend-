@@ -188,6 +188,22 @@ html, body {
   background: var(--c-bg-solid);
 }
 
+/* 兜底背景层：后面「本轮修复」那段把 html 的高度钉死成
+   var(--app-height)（JS 测出来的可视高度，专门给键盘避让用），
+   这个值不一定包含底部安全区，一旦更短，html/body 的背景色就会
+   在安全区那一截提前停笔，露出浏览器默认的白色画布——手势指示条
+   周围那圈奶白色就是这么来的。这层固定在真实视口（含安全区），
+   高度不跟着 --app-height 变，永远兜底涂满，键盘收缩逻辑不受影响 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  background: var(--c-bg-solid);
+  z-index: -1;
+  pointer-events: none;
+}
+
 body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
@@ -1494,8 +1510,10 @@ button { font-family: inherit; }
 .beacon-empty { font-size: 11.5px; color: var(--c-text-faint); padding: 10px 2px; font-style: italic; }
 
 /* ============================================================
-   引力（GRAVITY）—— 五天体壳子
-   本批唯一功能天体：脉冲星「信标」；其余四颗为视觉占位。
+   引力（GRAVITY）—— 五天体固定布局
+   位置写死，不再支持拖拽；唯一功能天体仍是脉冲星「信标」，
+   其余四颗（时轨 / 回声 / 数据罗盘 / 星历速览）视觉已升级，
+   点击仍是占位 toast，功能留后续批次。
    ============================================================ */
 .gravity-page {
   position: relative;
@@ -1551,18 +1569,16 @@ button { font-family: inherit; }
 }
 @keyframes threadWaver { 0%, 100% { opacity: .16; } 50% { opacity: .48; } }
 
-/* 天体本体 */
+/* 天体本体 —— 本轮拿掉长按拖拽，位置写死，交互只剩点击 */
 .gravity-body {
   position: absolute;
   z-index: 2;
   transform: translate(-50%, -50%);
   display: flex; align-items: center; justify-content: center;
-  cursor: grab;
-  touch-action: none;
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
-.gravity-body:active { cursor: grabbing; }
 .gravity-body-orb {
   position: absolute; inset: 0;
   border-radius: 50%;
@@ -1579,7 +1595,8 @@ button { font-family: inherit; }
   pointer-events: none;
 }
 
-/* 左上 · 脉冲星（信标）—— 蓝白色，4 秒呼吸周期，十字刻度纹理 */
+/* 左上 · 脉冲星（信标）—— 蓝白色，4 秒呼吸周期；十字刻度缓慢扫描，
+   一缕星尘拖在右下角，呼应参考图里那条贯穿全图的粒子光轨 */
 .gravity-body-pulsar .gravity-body-orb {
   background: radial-gradient(circle at 38% 32%, #f2f8ff, #9fc4ee 46%, #4d7fb8 80%, transparent 100%);
   box-shadow: 0 0 22px rgba(140,190,255,.55), 0 0 4px rgba(255,255,255,.5);
@@ -1599,30 +1616,93 @@ button { font-family: inherit; }
   0%, 100% { transform: scale(.93); filter: brightness(.88); }
   50%      { transform: scale(1.07); filter: brightness(1.3); }
 }
+.gravity-pulsar-crosshair {
+  position: absolute; inset: -16%;
+  pointer-events: none;
+  animation: crosshairSpin 44s linear infinite;
+}
+.gravity-pulsar-crosshair::before,
+.gravity-pulsar-crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(210, 230, 255, .48);
+}
+.gravity-pulsar-crosshair::before { left: 50%; top: 8%; bottom: 8%; width: 1px; transform: translateX(-50%); }
+.gravity-pulsar-crosshair::after  { top: 50%; left: 8%; right: 8%; height: 1px; transform: translateY(-50%); }
+@keyframes crosshairSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.gravity-pulsar-trail {
+  position: absolute; left: 44%; top: 60%;
+  width: 2px; height: 2px;
+  border-radius: 50%;
+  background: rgba(210,230,255,.9);
+  box-shadow:
+    -10px  12px 0 -0.3px rgba(210,230,255,.7),
+    -21px  24px 0 -0.5px rgba(180,210,255,.5),
+    -33px  35px 0 -0.7px rgba(160,195,255,.32),
+    -46px  47px 0 -0.9px rgba(150,185,255,.18);
+  animation: pulsarTrailTwinkle 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes pulsarTrailTwinkle { 0%, 100% { opacity: .5; } 50% { opacity: .95; } }
 
-/* 右上 · 气态巨行星（回声）—— 带光环缓慢自转，占位 */
+/* 右上 · 气态巨行星（回声）—— 表面风暴纹理缓慢流动，三层光环
+   不同倾角、不同转速、部分反向，比原来单环更有层次 */
 .gravity-body-giant .gravity-body-orb {
   background: radial-gradient(circle at 34% 30%, #ffe9c9, #d79b58 55%, #7a4a22 88%);
   box-shadow: 0 0 18px rgba(215,155,88,.38);
   animation: giantDrift 12s ease-in-out infinite;
+  overflow: hidden;
+}
+.gravity-body-giant .gravity-body-orb::before {
+  content: '';
+  position: absolute; inset: 4%;
+  border-radius: 50%;
+  background: repeating-linear-gradient(
+    102deg,
+    rgba(255,238,210,.24) 0 5%,
+    rgba(122,74,34,.2) 5% 9%,
+    transparent 9% 15%
+  );
+  mix-blend-mode: overlay;
+  opacity: .85;
+  animation: giantStormDrift 24s linear infinite;
 }
 @keyframes giantDrift { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+@keyframes giantStormDrift { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .gravity-ring {
   position: absolute; left: 50%; top: 50%;
-  width: 172%; height: 44%;
-  border: 1px solid rgba(255,225,180,.42);
   border-radius: 50%;
   transform: translate(-50%, -50%) rotate(-18deg);
-  animation: ringSpin 30s linear infinite;
   pointer-events: none;
 }
+.gravity-ring-1 { width: 172%; height: 44%; border: 1px solid rgba(255,225,180,.42); animation: ringSpin 30s linear infinite; }
+.gravity-ring-2 { width: 210%; height: 56%; border: 1px solid rgba(255,225,180,.2);  animation: ringSpin 46s linear infinite reverse; }
+.gravity-ring-3 { width: 148%; height: 35%; border: 1px dashed rgba(255,225,180,.3); animation: ringSpin 20s linear infinite; }
 @keyframes ringSpin {
   from { transform: translate(-50%, -50%) rotate(-18deg); }
   to   { transform: translate(-50%, -50%) rotate(342deg); }
 }
 
-/* 左下 · 双星系统（数据罗盘）—— 两颗小星互相环绕，占位 */
+/* 左下 · 双星系统（数据罗盘）—— 两颗小星互相环绕，外圈叠一层
+   缓慢自转的暖冷双色光晕，模拟引力把周围光线扭出的弧痕 */
 .gravity-body-binary .gravity-body-orb { display: none; }
+.gravity-binary-lens {
+  position: absolute; inset: -20%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg, rgba(200,220,255,.16) 40deg, transparent 95deg,
+    rgba(255,220,180,.14) 200deg, transparent 265deg, transparent 360deg
+  );
+  filter: blur(3px);
+  animation: lensWarp 16s linear infinite;
+  pointer-events: none;
+}
+@keyframes lensWarp {
+  0%   { transform: rotate(0deg) scale(1); }
+  50%  { transform: rotate(180deg) scale(1.08); }
+  100% { transform: rotate(360deg) scale(1); }
+}
 .gravity-binary-orbit { position: absolute; inset: 0; pointer-events: none; }
 .gravity-binary-orbit::before,
 .gravity-binary-orbit::after {
@@ -1651,7 +1731,8 @@ button { font-family: inherit; }
   to   { transform: translate(-50%, -50%) rotate(540deg) translateX(12px) rotate(-540deg); }
 }
 
-/* 右下 · 彗星（星历速览）—— 拖一条淡尾巴，占位 */
+/* 右下 · 彗星（星历速览）—— 离子尾加长，尾巴里嵌几粒会忽明忽暗的
+   冰晶反光碎点 */
 .gravity-body-comet .gravity-body-orb {
   background: radial-gradient(circle at 40% 40%, #fff, #bcd8ff 60%, transparent 100%);
   box-shadow: 0 0 16px rgba(190,220,255,.6);
@@ -1659,27 +1740,83 @@ button { font-family: inherit; }
 }
 @keyframes cometDrift { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(-2px,2px); } }
 .gravity-comet-tail {
-  position: absolute; right: 94%; top: 50%;
-  width: 58px; height: 5px;
+  position: absolute; right: 92%; top: 50%;
+  width: 96px; height: 5px;
   transform: translateY(-50%);
-  background: linear-gradient(90deg, transparent, rgba(190,220,255,.5));
+  background: linear-gradient(90deg, transparent, rgba(190,220,255,.28) 42%, rgba(224,240,255,.6));
   border-radius: 4px;
   filter: blur(1.5px);
   animation: cometTail 5.5s ease-in-out infinite;
   pointer-events: none;
 }
-@keyframes cometTail { 0%, 100% { opacity: .38; width: 50px; } 50% { opacity: .72; width: 70px; } }
-
-/* 中央偏下 · 暗星核 —— "待点亮"状态，微光闪烁，占位 */
-.gravity-body-core .gravity-body-orb {
-  background: radial-gradient(circle at 40% 35%, rgba(255,255,255,.16), rgba(70,70,92,.5) 60%, transparent 100%);
-  border: var(--hair) solid var(--c-line-strong);
-  animation: darkCoreFlicker 7.5s ease-in-out infinite;
+@keyframes cometTail { 0%, 100% { opacity: .4; width: 84px; } 50% { opacity: .78; width: 118px; } }
+.gravity-comet-sparkle {
+  position: absolute; right: 58%; top: 40%;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    -14px  6px 0 -0.5px rgba(255,255,255,.8),
+    -30px -3px 0 -1px   rgba(255,255,255,.6),
+    -48px  8px 0 -1.2px rgba(255,255,255,.42);
+  animation: cometSparkle 3.2s ease-in-out infinite;
+  pointer-events: none;
 }
-@keyframes darkCoreFlicker {
-  0%, 100% { opacity: .32; transform: scale(.9); }
-  45%      { opacity: .55; transform: scale(1); }
-  62%      { opacity: .3;  transform: scale(.96); }
+@keyframes cometSparkle {
+  0%, 100% { opacity: .3; }
+  30%      { opacity: 1; }
+  55%      { opacity: .35; }
+  80%      { opacity: .85; }
+}
+
+/* 顶部居中 · 时轨 —— 巨型环形日晷，本组唯一的"大件"，撑起整个
+   引力场的视觉重心：外圈刻度环缓慢自转，中央暖核常明，
+   一枚月相盘绕核心慢慢公转 */
+.gravity-body-sundial .gravity-body-orb { display: none; }
+.gravity-sundial-rim {
+  position: absolute; inset: 5%;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 214, 150, .34);
+  box-shadow: 0 0 26px rgba(255, 200, 130, .16), inset 0 0 18px rgba(255, 200, 130, .08);
+  pointer-events: none;
+}
+.gravity-sundial-ticks {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    rgba(255, 222, 170, .55) 0deg 1.1deg,
+    transparent 1.1deg 15deg
+  );
+  -webkit-mask: radial-gradient(circle, transparent 0 78%, #000 80% 92%, transparent 94%);
+          mask: radial-gradient(circle, transparent 0 78%, #000 80% 92%, transparent 94%);
+  animation: sundialTickSpin 100s linear infinite;
+  pointer-events: none;
+}
+@keyframes sundialTickSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.gravity-sundial-core {
+  position: absolute; left: 50%; top: 50%;
+  width: 34%; height: 34%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, #fff2d2, #f0b25c 46%, #a85f22 82%, transparent 100%);
+  box-shadow: 0 0 20px rgba(240, 178, 92, .55), 0 0 5px rgba(255, 240, 210, .6);
+  animation: sundialCoreWarm 6s ease-in-out infinite;
+}
+@keyframes sundialCoreWarm {
+  0%, 100% { filter: brightness(.94); }
+  50%      { filter: brightness(1.16); }
+}
+.gravity-sundial-moon {
+  position: absolute; left: 50%; top: 50%;
+  width: 15%; height: 15%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 62% 40%, #f4f1ea 0 44%, #6c6a63 46% 100%);
+  box-shadow: 0 0 6px rgba(244, 241, 234, .5);
+  animation: sundialMoonOrbit 22s linear infinite;
+}
+@keyframes sundialMoonOrbit {
+  from { transform: translate(-50%, -50%) rotate(0deg)   translateX(32px) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg) translateX(32px) rotate(-360deg); }
 }
 
 /* 信标子页面：单击脉冲星「跃迁」（缩放 + 淡入）进入 */
@@ -2325,15 +2462,11 @@ body   { height: 100%; }
 .msg-context-icon { opacity: .8; }
 
 
-/* ── 6. 引力页天体：进入可拖拽状态时的反馈 ──────────────────
-   按住到可以拖了会震一下，但视觉上原来毫无提示，手指一抬又不确定
-   刚才那下算点击还是算拖拽。给一个极轻的放大，够了。 */
-.gravity-body { transition: transform .22s var(--ease), filter .22s var(--ease); }
-.gravity-body.is-armed {
-  transform: translate(-50%, -50%) scale(1.12);
-  filter: brightness(1.18);
-  cursor: grabbing;
-}
+/* ── 6. 引力页天体：点击反馈 ──────────────────────────────────
+   拖拽整个拿掉后位置写死，这里只留一个轻点按下的回弹，
+   和键盘 / focus-visible 的可达性轮廓。 */
+.gravity-body { transition: transform .18s var(--ease), filter .18s var(--ease); }
+.gravity-body:active { transform: translate(-50%, -50%) scale(.94); }
 .gravity-body:focus-visible {
   outline: none;
 }
