@@ -246,6 +246,7 @@ const buildThreads = (items) => {
   const pins = items.map(it => ({ x: it.x + it.pinX, y: it.y + 9 }))
   const lines = []
   const dots = []
+  // 只连主链：上一条到下一条，两两相连，不再额外补隔张跳连线
   for (let i = 0; i < pins.length - 1; i++) {
     lines.push([pins[i], pins[i + 1]])
     const rng = seededRng(`${items[i].note.id}-thread-${i}`)
@@ -257,7 +258,6 @@ const buildThreads = (items) => {
         r: 1.5 + rng() * 1.5,
       })
     }
-    if (i < pins.length - 2 && rng() < 0.4) lines.push([pins[i], pins[i + 2]])
   }
   return { pins, lines, dots }
 }
@@ -888,10 +888,24 @@ const InkPage = ({
   // 不一样。ResizeObserver 只在宽度变化超过 8px 才更新，避免键盘
   // 弹出这类无关的高度变化触发重排；只测一次挂载点，孤儿区/置顶区
   // 共用同一个宽度
-  const wallMeasureRef = useRef(null)
+  //
+  // 【bug 修复】.ink-stardust-outer 这个挂载点只在 view==='list' 时
+  // 才存在于 DOM 里——进详情页时它被卸载，返回列表页时 React 会
+  // 重新造一个全新的 DOM 节点。原来用 useRef + 依赖 [] 的 useEffect
+  // 只在组件第一次挂载时 observe 了"当时那一个"节点，此后节点换了
+  // 一茬又一茬，observer 从没跟着重新绑定过，wallW 就卡在第一次的
+  // 值上不再更新（甚至可能是 0）——layoutStardust 一看 wallW 为假
+  // 就直接返回空列表，卡片和光丝全不见了，只有整个 InkPage 组件
+  // 重新挂载（重新进"合墨"）才会让这个一次性的 effect 再跑一遍。
+  // 这也是"第四篇写完存了却看不到卡片"的同一个根因——不是真的有
+  // 三篇上限，是返回列表这一步之后墙面宽度已经失效，不管这是第几篇。
+  // 改用 ref 回调：每次这个节点挂载/卸载都会调用它，从而每次列表页
+  // 重新出现都能重新建立 observer、量出当下真实宽度。
   const [wallW, setWallW] = useState(0)
-  useEffect(() => {
-    const el = wallMeasureRef.current
+  const wallObserverRef = useRef(null)
+  const wallMeasureRef = useCallback((el) => {
+    wallObserverRef.current?.disconnect()
+    wallObserverRef.current = null
     if (!el || typeof ResizeObserver === 'undefined') return
     let last = 0
     const ro = new ResizeObserver(() => {
@@ -901,7 +915,10 @@ const InkPage = ({
       setWallW(w)
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    wallObserverRef.current = ro
+    // 节点刚挂载那一刻主动量一次，不等第一次 resize 回调——避免宽度
+    // 从上一次的值（比如 0）到这次量出来之间有一帧用旧值渲染
+    setWallW(el.clientWidth)
   }, [])
 
   const pinnedLayout  = useMemo(() => layoutStardust(pinnedNotes, wallW), [pinnedNotes, wallW])
