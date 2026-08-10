@@ -2282,10 +2282,10 @@ button { font-family: inherit; }
    .token-dash-page 同一套骨架（fixed 全屏 + 头部返回键 + 可滚动
    body），内部自己切两级视图：笔记列表 .ink-note-list ↔ 单篇正文
    .ink-doc-body。
-   列表是一行行铭文，不是卡片——没有背景板、没有圆角、没有阴影，
-   行与行之间只留一条极细分隔线，状态全用静态小符号交代（草稿一个
-   不会动的小圆点，轮到枢写就在标题末尾缀一个「· shu」），没有会
-   动的呼吸动画，也不堆文字说明；空板块、空列表同理，不放提示文字，
+   列表是一叠倾斜漂浮的塔罗星牌（.ink-tarot-spread 两列瀑布流，详见
+   下方"塔罗星牌"一节）——每张牌菱形切角、有厚度描边和高光、底部
+   带模糊投影，标题从牌顶探出成一枚小标签。全部是静态 CSS，没有
+   animation，翻页/滚动不会有持续重绘；空板块、空列表不放提示文字，
    就让页面本身的深色背景空着。
    正文是一整段连续文本，不分段落卡片、不做聊天气泡、不做时间流——
    柯的字迹是白色，不打任何标记（本来就是"我"在写）；枢的字迹是
@@ -2457,137 +2457,272 @@ button { font-family: inherit; }
 .ink-note-new-btn:hover  { color: var(--c-text); border-color: var(--c-accent); background: var(--c-accent-soft); }
 .ink-note-new-btn:active { transform: scale(0.985); }
 
-.ink-note-list { display: flex; flex-direction: column; }
-
 /* 置顶分隔线——跟正文里"另起一篇"用的那条渐隐光丝是同一个视觉语言，
    只是横过来用在列表：置顶区在上，普通区在下，一条线隔开就够，
    不需要额外的文字提示 */
 .ink-pin-divider {
   height: 1px; width: 100%;
-  margin: 6px 0 10px;
+  margin: 4px 0 14px;
   background: linear-gradient(90deg, transparent, var(--c-line-strong) 50%, transparent);
 }
 
 /* 置顶笔记标题前的小图钉，颜色跟标题走，不单独抢色 */
 .ink-pin-icon { margin-right: 1px; vertical-align: -1px; flex-shrink: 0; opacity: .8; }
 
-/* 铭文行升级成星体卡片（第十批）：不再是一条条一模一样的目录线，
-   每张卡片是一小块悬在深空里的半透明玉石——外沿一圈极细的玻璃描边，
-   内部一层径向光晕（焦点位置由 JSX 里传下来的 --glow-x/--glow-y
-   决定，每篇笔记算出来的位置固定不变，不会跳动，只是让一排卡片
-   看起来不是同一个模具刻出来的），配合内外两层 box-shadow 做出
-   "微微凸起、悬浮在背景之上"的伪3D体积感。全部是静态 CSS，没有
-   animation，翻页/滚动都不会有任何持续重绘的开销。
-   起笔人／置顶／草稿三个维度决定卡片的"材质"：
-   · 柯起笔 → 暖金光晕；枢起笔 → 冷调光晕（跟 .ink-doc-shu-span
-     用的是同一个 --c-accent-2，换主题会一起换）
-   · 置顶 → 光环更亮更满，呼应引力页 pulsar/giant 的光效语言，但
-     降级成静态渲染
-   · 草稿（尚未完成）→ 光晕故意压暗、边界更散，视觉上就是"这一篇
-     还没写完、还悬在半空" */
-.ink-note-list { display: flex; flex-direction: column; gap: 10px; }
+/* ============================================================
+   塔罗星牌（第十一批）：列表从"星体卡片"整体重做成一张张倾斜漂浮
+   的星牌。每张牌四个视觉层：
+   · .ink-tarot-shadow  牌下方一片模糊椭圆阴影，让牌"浮在星尘上方"
+   · .ink-tarot-card    牌本体，负责倾斜角度 + 整体位移动画
+   · .ink-tarot-face    菱形切角的正面玻璃，光晕/高光/正文都在这层
+   · .ink-tarot-tab     从牌顶探出的标题标签，自己也有独立的厚度感
+   两列瀑布流靠 CSS columns 实现，左右自然错位；每张牌的倾斜角度和
+   光晕焦点都来自 cardGlowOffset 的字符串哈希，同一篇笔记算出来的
+   角度永远一样，不会每次渲染跳动，但整版牌看起来是随手散开的，
+   不是同一个模具刻出来的。
+   ============================================================ */
 
-.ink-note-row {
+/* 两列瀑布流：columns 比 grid 更省事地做出"左右错位、高度不齐"的
+   自然效果——每张牌高度本来就因标题长度、有没有预览而不同，不需要
+   额外用 nth-child 强行错位。column-gap 故意留得比牌间距宽一点，
+   因为牌是斜的、还带切角，两列挨太近容易在倾斜时视觉"碰边" */
+.ink-tarot-spread {
+  columns: 2;
+  column-gap: 20px;
+  /* 给倾斜的牌一点呼吸空间，选中态放大时也不会一下贴到内容区边缘 */
+  padding: 0 2px;
+}
+/* 牌是斜的、标签是探出来的，浏览器可能把每张牌切在两栏交界处，
+   avoid 保证一张牌永远完整地待在一栏里，不会被从中间截断 */
+.ink-tarot-card { break-inside: avoid; -webkit-column-break-inside: avoid; }
+
+.ink-tarot-card {
+  position: relative;
+  /* 不用 isolation:isolate——选中态要让这张牌的 z-index 真正压过
+     相邻兄弟牌（含它们探出的标签），isolate 会把层叠上下文锁死在
+     瀑布流容器里，反而做不到"盖住旁边的牌" */
+  margin: 6px 0 34px;
+  /* 顶部多留空间给探出的标签，底部留空间给模糊阴影，两侧留空间给
+     倾斜后可能超出原始盒子的牌角 */
+  padding: 16px 6px 14px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transform: rotate(var(--tilt, 0deg));
+  transform-origin: 50% 45%;
+  transition: transform .32s var(--ease), z-index 0s;
+  z-index: 1;
+}
+/* 单数位置的牌整体下压一点，配合天然错落的高度，两列看起来更像
+   散落的牌堆而不是对齐的两条列表 */
+.ink-tarot-spread > .ink-tarot-card:nth-child(4n+2),
+.ink-tarot-spread > .ink-tarot-card:nth-child(4n+3) {
+  margin-top: 30px;
+}
+
+/* 选中态（"先选中、再确认"）：整张牌抬起——回正大半个角度、放大、
+   上浮，像被那只无形的手托起来端详。z-index 大幅提高，确保盖住
+   旁边任何因为倾斜而压过来的邻牌边缘或标签 */
+.ink-tarot-card.is-selected {
+  transform: rotate(calc(var(--tilt, 0deg) * .22)) scale(1.08) translateY(-8px);
+  z-index: 20;
+}
+
+/* 底部模糊椭圆阴影：让牌看起来悬在星尘上方两厘米，不是贴死在
+   背景上。纯黑 + 较大 blur，在任何主题的深色背景下都读得出来，
+   不依赖 --c-shadow（那个变量本身很淡，在深底上几乎看不见）。
+   跟随卡片倾斜三分之一角度、并随卡片左右轻微偏移，模拟光从
+   左上方斜打下来的方向感 */
+.ink-tarot-shadow {
+  position: absolute;
+  left: 20%; right: 20%; bottom: -6px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.88) 0%, transparent 75%);
+  filter: blur(9px);
+  opacity: .75;
+  transform: rotate(calc(var(--tilt, 0deg) * .3)) translateX(calc(var(--tilt, 0deg) * 1.2px));
+  transition: opacity .32s var(--ease), transform .32s var(--ease), height .32s var(--ease), bottom .32s var(--ease);
+  pointer-events: none;
+}
+.ink-tarot-card.is-selected .ink-tarot-shadow {
+  opacity: .92; height: 20px; bottom: -14px;
+}
+
+/* 牌正面：菱形切角（八边形近似菱形——四角都削掉一块，比单纯削
+   两个顶角更接近"塔罗牌"轮廓，同时比纯 45deg 菱形留出更多可读
+   面积）的磨砂玻璃。四周一道极细的深色描边模拟卡纸厚度——不是
+   普通的 border-color，是明暗两侧不同的双层描边，靠 box-shadow
+   叠两条不同方向的 inset 阴影做出"左上受光、右下背光"的厚度感。
+   describe 用 % 而不是固定 px，切角比例不随卡片实际宽度变化 */
+.ink-tarot-face {
   position: relative;
   isolation: isolate;
-  padding: 16px 16px 14px;
-  border-radius: 16px;
-  border: var(--hair) solid var(--c-line);
-  background:
-    linear-gradient(155deg, var(--c-highlight), transparent 46%),
-    var(--c-glass-bg);
-  box-shadow:
-    0 1px 0 var(--c-highlight) inset,
-    0 14px 30px -20px var(--c-shadow),
-    0 1px 3px var(--c-shadow);
-  cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
   overflow: hidden;
+  clip-path: polygon(
+    10% 0%, 90% 0%, 100% 10%, 100% 92%, 92% 100%, 8% 100%, 0% 92%, 0% 10%
+  );
+  padding: 24px 16px 18px;
+  min-height: 132px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background:
+    linear-gradient(155deg, var(--c-highlight), transparent 50%),
+    var(--c-glass-bg);
+  backdrop-filter: blur(3px) saturate(var(--c-glass-sat));
+  -webkit-backdrop-filter: blur(3px) saturate(var(--c-glass-sat));
+  box-shadow:
+    /* 卡纸厚度：左上极细高光 + 右下极细暗边 */
+    -1px -1px 0 0 rgba(255, 255, 255, 0.10) inset,
+    1px 1px 0 0 rgba(0, 0, 0, 0.34) inset,
+    0 0 0 1px var(--c-line) inset,
+    0 16px 26px -18px rgba(0,0,0,0.7);
+  transition: box-shadow .25s ease;
 }
-.ink-note-row:hover  { border-color: var(--c-line-strong); }
-.ink-note-row:active {
-  box-shadow: 0 1px 0 var(--c-highlight) inset, 0 6px 16px -14px var(--c-shadow);
+.ink-tarot-card.is-selected .ink-tarot-face {
+  box-shadow:
+    -1px -1px 0 0 rgba(255, 255, 255, 0.16) inset,
+    1px 1px 0 0 rgba(0, 0, 0, 0.34) inset,
+    0 0 0 1px var(--c-line-strong) inset,
+    0 24px 40px -18px rgba(0,0,0,0.75);
 }
 
-/* 光晕层：一颗柔和的星芯，焦点位置由每张卡片自己的 --glow-x/-y
-   决定；用 ::before 独立叠一层而不是直接画在卡片背景上，是为了
-   跟上面 linear-gradient 的玻璃高光互不干扰，颜色也好按维度切换 */
-.ink-note-row-glow {
+/* 光晕层：柔和的星芯，焦点位置由每张牌自己的 --glow-x/-y 决定 */
+.ink-tarot-glow {
   position: absolute; inset: 0;
   pointer-events: none;
   background: radial-gradient(
     circle at var(--glow-x, 50%) var(--glow-y, 40%),
     var(--c-accent-soft) 0%, transparent 62%
   );
-  opacity: .55;
+  opacity: .5;
 }
-.ink-note-row.is-shu-lit .ink-note-row-glow {
+.ink-tarot-card.is-shu-lit .ink-tarot-glow {
   background: radial-gradient(
     circle at var(--glow-x, 50%) var(--glow-y, 40%),
     var(--c-accent-2-soft) 0%, transparent 62%
   );
 }
-/* 置顶：光环更亮更满，边缘再叠一圈极淡的描边光 */
-.ink-note-row.is-pinned-lit {
-  border-color: var(--c-line-strong);
-}
-.ink-note-row.is-pinned-lit .ink-note-row-glow { opacity: .85; }
-.ink-note-row.is-pinned-lit::after {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: inherit;
+.ink-tarot-card.is-pinned-lit .ink-tarot-glow { opacity: .8; }
+.ink-tarot-card.is-draft-lit  .ink-tarot-glow { opacity: .26; filter: saturate(.7); }
+
+/* 左上角一道极细高光斜线——模拟玻璃反光，静态、不随时间变化 */
+.ink-tarot-sheen {
+  position: absolute;
+  top: -40%; left: -30%;
+  width: 60%; height: 90%;
+  background: linear-gradient(115deg, rgba(255,255,255,0.16) 0%, transparent 45%);
   pointer-events: none;
-  box-shadow: 0 0 0 1px var(--c-accent-soft) inset;
+  transform: rotate(-8deg);
 }
-/* 草稿：还没写完，光晕压暗、更散，像悬在半空还没落定 */
-.ink-note-row.is-draft-lit .ink-note-row-glow { opacity: .28; filter: saturate(.7); }
 
-.ink-note-row-title {
-  position: relative;
-  display: flex; align-items: baseline; gap: 6px;
-}
-.ink-note-row-title-text {
-  flex: 1; min-width: 0;
-  font-family: var(--font-body); font-size: 14.5px; color: var(--c-text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* 草稿："尚未完成"是一个看得见的文字小标签，不再是只靠 aria-label
-   撑门面、肉眼看不出意思的小圆点——外部列表就要能一眼扫到哪篇还
-   没写完，不用点进去才知道；没有草稿这个位置就什么都不放，留白
-   本身就是"没什么要看"，不需要另一个"已完成"符号去填满 */
-.ink-note-row-draftflag {
-  flex-shrink: 0;
-  font-family: var(--font-accent); font-size: 10.5px; letter-spacing: .5px;
+.ink-tarot-pin {
+  position: absolute; top: 10px; right: 12px;
   color: var(--c-accent); opacity: .85;
-  border: var(--hair) solid var(--c-accent);
-  border-radius: 20px; padding: 1px 7px;
+  display: flex;
 }
-/* 起笔人落款：谁先落下第一笔这一篇就署谁的名，常驻在标题末尾——
-   不再是"轮到谁写"的动态提示，草稿阶段（还没有任何 entries）落笔
-   人只可能是真人，不会再诈尸出一个「· shu」。柯／枢分别用各自的
-   字迹色区分；字号比原来的"轮到谁写"提示放大一档——正文段落前的
-   「· shu」徽标（10px）是给大段文字间隔用的小字号，这里是列表上
-   唯一的身份标识，得让人一眼看清 */
-.ink-note-row-author {
-  flex-shrink: 0;
-  font-family: var(--font-accent); font-style: italic;
-  font-size: 13px; letter-spacing: 1px;
-  opacity: .8;
-}
-.ink-note-row-author.is-shu { color: var(--c-accent-2); }
-.ink-note-row-author.is-ke  { color: var(--c-text); }
 
-.ink-note-row-preview {
-  margin-top: 5px;
-  font-family: var(--font-body); font-size: 12.5px; line-height: 1.6;
+.ink-tarot-preview {
+  position: relative;
+  font-family: var(--font-body); font-size: 12px; line-height: 1.65;
   color: var(--c-text-muted);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
 }
-.ink-note-row-meta {
-  margin-top: 8px;
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  font-family: var(--font-accent); font-size: 9.5px; letter-spacing: 1px;
+
+.ink-tarot-meta {
+  position: relative;
+  margin-top: 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+  font-family: var(--font-accent); font-size: 9px; letter-spacing: .8px;
   color: var(--c-text-faint);
+}
+.ink-tarot-author {
+  font-style: italic; font-size: 12px; letter-spacing: 1px;
+  opacity: .85;
+}
+.ink-tarot-author.is-shu { color: var(--c-accent-2); }
+.ink-tarot-author.is-ke  { color: var(--c-text); }
+.ink-tarot-meta-dot::before { content: '·'; margin-right: 8px; opacity: .6; }
+.ink-tarot-meta-dot:first-of-type::before { content: ''; margin-right: 0; }
+.ink-tarot-author + .ink-tarot-meta-dot::before { content: '·'; margin-right: 8px; }
+
+/* ── 探出标签：牌顶边缘垂直探出的小旗帜，图书馆书脊分类签的感觉 ──
+   标签本身也是有厚度的物件：.ink-tarot-tab 是外壳（侧面，颜色更暗，
+   模拟标签插入牌体的那一小段厚度），.ink-tarot-tab-face 是正面
+   （颜色更亮，标题印在这一层）。未选中时标题单行截断带省略号，
+   宽度固定，不会因标题长短撑变每张牌的宽度；选中态展开成完整标题、
+   允许换行，标签跟着牌一起"抬起"，宽度也放宽 */
+/* 标签宽度锁定在牌体宽度的一个安全范围内（left/right 百分比，而
+   不是 min/max-width）——这样无论瀑布流把这张牌分到多宽的一栏，
+   标签都不会横向溢出去盖住相邻的牌。未选中时单行截断省略号；
+   选中态标签本身也跟着牌"抬起"（放大 + 更靠上），但宽度上限依然
+   锁在牌体内测量，只允许纵向换行变高，不允许横向撑破边界 */
+.ink-tarot-tab {
+  position: absolute;
+  top: 0; left: 14%; right: 14%;
+  transform: translateY(-58%);
+  z-index: 2;
+  padding: 3px 3px 0;
+  border-radius: 7px 7px 3px 3px;
+  background: linear-gradient(180deg, var(--c-line-strong), var(--c-line) 70%);
+  box-shadow: 0 6px 14px -8px rgba(0,0,0,0.65);
+  transition: transform .32s var(--ease), left .32s var(--ease), right .32s var(--ease);
+}
+/* 选中态：标签跟着牌一起抬得更高，左右边界略微收窄（视觉上更
+   "立"起来），文字这时才允许换行完整显示 */
+.ink-tarot-card.is-selected .ink-tarot-tab {
+  left: 6%; right: 6%;
+  transform: translateY(-64%) scale(1.05);
+}
+.ink-tarot-tab-face {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  padding: 5px 10px 6px;
+  border-radius: 6px 6px 2px 2px;
+  background:
+    linear-gradient(165deg, var(--c-highlight), transparent 60%),
+    var(--c-accent-soft);
+  backdrop-filter: blur(6px) saturate(1.15);
+  -webkit-backdrop-filter: blur(6px) saturate(1.15);
+  box-shadow: 0 0 0 1px var(--c-accent-soft) inset;
+  text-align: center;
+}
+.ink-tarot-card.is-shu-lit .ink-tarot-tab-face {
+  background:
+    linear-gradient(165deg, var(--c-highlight), transparent 60%),
+    var(--c-accent-2-soft);
+  box-shadow: 0 0 0 1px var(--c-accent-2-soft) inset;
+}
+/* 置顶：标签底色更满更亮，跟牌面 is-pinned-lit 的光环强度呼应 */
+.ink-tarot-card.is-pinned-lit .ink-tarot-tab-face {
+  box-shadow: 0 0 0 1px var(--c-accent) inset;
+}
+/* 草稿：标签左侧一个很小的静态圆点，颜色是强调色，不写"尚未完成"
+   四个字进标签——标签空间寸土寸金，一个点足够眼熟之后一眼认出 */
+.ink-tarot-tab-draft {
+  display: inline-block;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--c-accent);
+  margin-right: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.ink-tarot-tab-text {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 11px; letter-spacing: 1.4px;
+  color: var(--c-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: block;
+}
+/* 选中态：标签展开，标题可以换行完整显示，不再截断——最多两行，
+   再长也不会把标签无限撑高 */
+.ink-tarot-card.is-selected .ink-tarot-tab-text {
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+  display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .ink-note-empty {

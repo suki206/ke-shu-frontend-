@@ -204,6 +204,15 @@ const InkPage = ({
   const [confirmCardDelete, setConfirmCardDelete] = useState(false)
   const [moveSheet, setMoveSheet] = useState(null) // { note, newBoard } | null
 
+  // ── 塔罗星牌：选中态（第十一批）──────────────────────────────
+  // "先选中、再确认"，不用双击判定：单击一张未选中的牌 → 抬起/展开
+  // 完整标题；再单击同一张已选中的牌 → 才真正进入笔记；单击别处的
+  // 牌或空白区域 → 收起选中态。跟长按走的是完全独立的两条通路
+  // （长按绑在 onMouseDown/onTouchStart 的计时器上，这里只挂在
+  // onClick 上），互不打架，也不依赖任何时间窗口去猜"这是单击还是
+  // 双击的第一下"
+  const [selectedCardId, setSelectedCardId] = useState(null)
+
   const bodyRef   = useRef(null)   // 滚动容器
   const tailRef   = useRef(null)   // 尾巴输入框
   const mirrorRef = useRef(null)   // 量光标位置的隐藏镜像层
@@ -715,6 +724,9 @@ const InkPage = ({
     if (activeBoard && !boards.includes(activeBoard)) setActiveBoard(null)
   }, [boards, activeBoard])
 
+  // 切板块时收起当前抬起的牌——换了一批牌在眼前，旧的选中态不该带过去
+  useEffect(() => { setSelectedCardId(null) }, [activeBoard])
+
   // 置顶摘到最前面、按置顶时间新的在前；板块筛选只决定"现在看哪些"，
   // 跟置顶互不冲突，一篇笔记可以又置顶又挂在某个板块下
   const { pinnedNotes, restNotes } = useMemo(() => {
@@ -730,16 +742,22 @@ const InkPage = ({
     clearTimeout(longPressTimer.current)
     longPressTimer.current = setTimeout(() => {
       longPressFired.current = true
+      setSelectedCardId(null)
       setCardMenu({ note: n }); setConfirmCardDelete(false)
       if (navigator.vibrate) { try { navigator.vibrate(12) } catch {} }
     }, LONG_PRESS_MS)
   }
   const cancelLongPress = () => clearTimeout(longPressTimer.current)
+  // 单击一张牌：还没选中 → 选中它（牌面抬起、标签展开）；
+  // 已经选中 → 这一下才算"确认"，真正进入笔记
   const handleCardClick = (n) => {
-    // 长按已经弹出过菜单了，松手触发的这次点击不再当成"打开笔记"
+    // 长按已经弹出过菜单了，松手触发的这次点击不再当成选中/打开
     if (longPressFired.current) { longPressFired.current = false; return }
-    openNote(n.id)
+    if (selectedCardId === n.id) { setSelectedCardId(null); openNote(n.id); return }
+    setSelectedCardId(n.id)
   }
+  // 点空白区域收起当前选中的牌
+  const deselectCard = () => setSelectedCardId(null)
   const openCardMenu = (n) => { setCardMenu({ note: n }); setConfirmCardDelete(false) }
   const closeCardMenu = () => { setCardMenu(null); setConfirmCardDelete(false) }
 
@@ -762,44 +780,53 @@ const InkPage = ({
     setMoveSheet(null)
   }
 
-  // 每张卡片的光晕焦点位置做一点微妙的错落——同一篇笔记算出来的
-  // 偏移永远一样（纯字符串哈希，没有 Math.random），不会每次渲染
-  // 都跳动，但一整排卡片看起来不会像同一个模具刻出来的。只用来算
-  // 两个百分比坐标，运行时开销可以忽略不计
+  // 每张卡片的光晕焦点位置、倾斜角度都做一点微妙的错落——同一篇
+  // 笔记算出来的偏移永远一样（纯字符串哈希，没有 Math.random），
+  // 不会每次渲染都跳动，但一整排卡片看起来不是同一个模具刻出来的。
+  // 倾斜角度控制在 ±4.5deg 内，像发牌时散在桌面上的自然角度，
+  // 不会大到影响阅读或显得"歪掉了"
   const cardGlowOffset = (id) => {
     const s = String(id || '')
     let h = 0
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
     const gx = 28 + (h % 45)          // 28%~72%
     const gy = 22 + ((h >> 5) % 40)   // 22%~62%
-    return { gx, gy }
+    // 倾斜角度特意避开接近 0 的死区——真实的散牌不会有哪张恰好
+    // 是正的，用两段区间各留一半符号位，保证 |tilt| 落在 3~9deg
+    const tiltMag = 3 + ((h >> 11) % 60) / 10   // 3deg ~ 9deg
+    const tilt = ((h >> 17) % 2 === 0) ? tiltMag : -tiltMag
+    return { gx, gy, tilt }
   }
 
-  // 铭文行升级成星体卡片（第十批）：不再是一条条一模一样的目录线，
-  // 每张卡片背后悬一层静态的径向光晕——柯起笔的偏暖金、枢起笔的偏
-  // 冷调（复用引力页天体本来就在用的强调色变量，换主题时跟着换，
-  // 不写死颜色）；置顶的卡片额外带一圈更亮的光环，草稿卡片的光晕
-  // 压得更暗更散，呼应"这一篇还没写完"。全部是 radial-gradient +
-  // box-shadow 一次性画出来的静态效果，没有 animation，不烧性能。
-  // 草稿在标题前给一个看得见的"尚未完成"标签——不再是只靠
-  // aria-label 撑门面、肉眼看不出意思的小圆点，外部列表上就要能一眼
-  // 扫到哪篇还没写完，不用点进去才知道；标题末尾常驻一个"起笔人"
-  // 落款（· ke / · shu），谁先落下第一笔这一篇就署谁的名，不再是
-  // "轮到谁写"的动态提示——所以不管有没有草稿、写没写完，每张卡片
-  // 右上角随时都能看出这一篇是谁开的头
+  // 塔罗星牌（第十一批）：从"铭文行/星体卡片"升级成一张张倾斜漂浮
+  // 的星牌。牌体本身是菱形裁切的磨砂玻璃，四周一道极细描边模拟卡纸
+  // 厚度，左上角一道极细高光模拟反光，底部一片模糊椭圆阴影让牌看起来
+  // 悬在星尘上方而不是贴死在背景上——这几层都是静态 CSS
+  // （clip-path + box-shadow + 独立的 ::after 阴影伪元素），没有
+  // animation，不烧性能。
+  // 标题不再写在牌面正中央，改成从牌顶边缘探出的一枚小标签——半透明
+  // 磨砂玻璃质感，正面亮、侧面暗，用渐变模拟标签自己的厚度；标签
+  // 底色随"谁起笔/是否置顶/是否草稿"变化，跟牌面光晕用的是同一套
+  // 状态判断，只是从"整张牌的光晕颜色"收窄成"一小片标签的底色"，
+  // 状态信息更聚焦、牌面本身可以更干净。
+  // 选中态（第十一批）：点一下先"抬起"——牌整体轻微放大上浮、标签
+  // 从省略号展开成完整标题；同一张牌再点一下才真正进入。见上方
+  // selectedCardId/handleCardClick。
   const renderNoteCard = (n) => {
-    const { gx, gy } = cardGlowOffset(n.id)
+    const { gx, gy, tilt } = cardGlowOffset(n.id)
+    const isSelected = selectedCardId === n.id
     const cardClass = [
-      'ink-note-row',
+      'ink-tarot-card',
       n.firstAuthor === 'shu' ? 'is-shu-lit' : 'is-ke-lit',
       n.pinned_at ? 'is-pinned-lit' : '',
       n.hasDraft ? 'is-draft-lit' : '',
+      isSelected ? 'is-selected' : '',
     ].filter(Boolean).join(' ')
     return (
     <div
       key={n.id}
       className={cardClass}
-      style={{ '--glow-x': `${gx}%`, '--glow-y': `${gy}%` }}
+      style={{ '--glow-x': `${gx}%`, '--glow-y': `${gy}%`, '--tilt': `${tilt}deg` }}
       onClick={() => handleCardClick(n)}
       onTouchStart={() => startLongPress(n)}
       onTouchEnd={cancelLongPress}
@@ -808,22 +835,40 @@ const InkPage = ({
       onMouseUp={cancelLongPress}
       onMouseLeave={cancelLongPress}
       onContextMenu={(e) => { e.preventDefault(); openCardMenu(n) }}
+      role="button"
+      tabIndex={0}
+      aria-label={n.title || '未命名手记'}
+      aria-expanded={isSelected}
     >
-      <span className="ink-note-row-glow" aria-hidden="true" />
-      <div className="ink-note-row-title">
-        {n.pinned_at && <PinIcon />}
-        {n.hasDraft && <span className="ink-note-row-draftflag">尚未完成</span>}
-        <span className="ink-note-row-title-text">{n.title || '未命名手记'}</span>
-        {n.firstAuthor && (
-          <span className={`ink-note-row-author${n.firstAuthor === 'shu' ? ' is-shu' : ' is-ke'}`}>
-            · {n.firstAuthor}
-          </span>
-        )}
+      <span className="ink-tarot-shadow" aria-hidden="true" />
+
+      <div className="ink-tarot-face">
+        <span className="ink-tarot-glow" aria-hidden="true" />
+        <span className="ink-tarot-sheen" aria-hidden="true" />
+
+        {n.pinned_at && <span className="ink-tarot-pin"><PinIcon /></span>}
+
+        {n.preview && <div className="ink-tarot-preview">{n.preview}</div>}
+
+        <div className="ink-tarot-meta">
+          {n.firstAuthor && (
+            <span className={`ink-tarot-author${n.firstAuthor === 'shu' ? ' is-shu' : ' is-ke'}`}>
+              · {n.firstAuthor}
+            </span>
+          )}
+          <span className="ink-tarot-meta-dot">{n.board ? `${n.board} · ` : ''}{n.entryCount || 0} 次落笔</span>
+          <span className="ink-tarot-meta-dot">{daysLabel(daysSince(n.updated_at))}</span>
+        </div>
       </div>
-      {n.preview && <div className="ink-note-row-preview">{n.preview}</div>}
-      <div className="ink-note-row-meta">
-        <span>{n.board ? `${n.board} · ` : ''}{n.entryCount || 0} 次落笔</span>
-        <span>{daysLabel(daysSince(n.updated_at))}</span>
+
+      {/* 探出标签：图书馆书脊分类签的感觉，正面亮、侧面暗模拟厚度；
+          未选中时标题截断带省略号，选中态展开成完整标题、标签本身
+          也跟着牌面一起"抬起" */}
+      <div className="ink-tarot-tab">
+        <span className="ink-tarot-tab-face">
+          {n.hasDraft && <span className="ink-tarot-tab-draft" aria-hidden="true" />}
+          <span className="ink-tarot-tab-text">{n.title || '未命名手记'}</span>
+        </span>
       </div>
     </div>
     )
@@ -914,7 +959,7 @@ const InkPage = ({
         <div className="ink-caret-mirror" ref={mirrorRef} aria-hidden="true" />
 
         {view === 'list' && (
-          <div className="ink-page-content">
+          <div className="ink-page-content" onClick={(e) => { if (e.target === e.currentTarget) deselectCard() }}>
             <div className="ink-page-eyebrow">柯与枢的接力手记</div>
 
             {boards.length > 0 && (
@@ -942,13 +987,13 @@ const InkPage = ({
                 页面背景自己空着，"新建一篇"已经是唯一需要的入口了 */}
 
             {!notesLoading && pinnedNotes.length > 0 && (
-              <div className="ink-note-list">{pinnedNotes.map(renderNoteCard)}</div>
+              <div className="ink-tarot-spread">{pinnedNotes.map(renderNoteCard)}</div>
             )}
             {!notesLoading && pinnedNotes.length > 0 && restNotes.length > 0 && (
               <div className="ink-pin-divider" />
             )}
             {!notesLoading && restNotes.length > 0 && (
-              <div className="ink-note-list">{restNotes.map(renderNoteCard)}</div>
+              <div className="ink-tarot-spread">{restNotes.map(renderNoteCard)}</div>
             )}
           </div>
         )}
