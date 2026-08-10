@@ -2917,6 +2917,27 @@ button { font-family: inherit; }
    .ink-sheet 样式原本是给旧版"落笔三选一"弹层用的，头部图标改版
    之后一直空着——现在接上了长按笔记卡片弹出的菜单，以及"移动到"
    的板块选择器 ─────────────────────────────────────────────── */
+
+/* 合墨专用降级：星尘墙一屏铺开几十张便签，每张自己就带一层
+   backdrop-filter（.ink-stardust-face 的磨砂纸面）叠上 filter:blur
+  （--depth 算出来的远近虚化），这些弹窗再摞一层 backdrop-filter 现场
+   采样"这一整摞已经很重的画面"，浏览器算不过来——闪烁和卡顿就是
+   这么来的，跟这三个弹窗本身的动画写法没关系了，是背后要实时模糊
+   的东西太多。写作页返回确认虽然背后没有星尘墙，但同一批弹窗共用
+   一套类，干脆一起降级，不用分情况。
+   直接不用 backdrop-filter，换成一层够暗的纯色/近纯色遮罩——不再
+   现场采样背后内容，这一整块开销直接消失，不用在"怎么让 blur 更
+   便宜"上继续想办法。 */
+.ink-modal-veil {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.modal-card.ink-sheet {
+  background: var(--c-modal-solid);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .ink-sheet { padding: 26px 24px 20px; width: 296px; max-width: 86vw; text-align: center; }
 .ink-sheet-sub {
   font-family: var(--font-accent); font-style: italic;
