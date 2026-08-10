@@ -2599,23 +2599,25 @@ button { font-family: inherit; }
 .ink-doc-ke-span.is-editable { cursor: text; }
 .ink-doc-ke-span.is-editable:hover { opacity: .85; }
 
-/* 编辑态：把静态段落换成一个跟 .ink-doc-tail 视觉一致的输入框，
-   下面配一排撤销/重做/取消/保存——撤销重做走自己的 editHistory，
-   不依赖浏览器原生 Ctrl+Z，手机上也能用 */
+/* 编辑态：把静态段落原地换成一个输入框，视觉上跟 .ink-doc-tail
+   完全一致——无边框、无独立卡片背景，字号/行距/颜色照抄正文，
+   看起来就是"这一段现在可以直接改字了"，不是另起一个浮层。
+   撤销/重做已经挪到页面顶部（跟返回箭头并排，贯穿整个写作过程都在），
+   这里只留"取消"和"保存修改" */
 .ink-doc-editing { display: block; margin-top: 1.1em; }
 .ink-doc-edit-textarea {
   display: block; width: 100%;
   background: transparent;
-  border: var(--hair) solid var(--c-line-strong); border-radius: 10px;
-  outline: none; resize: vertical;
+  border: none; outline: none;
+  resize: none; overflow: hidden;
   color: #FFFFFF;
   font-family: var(--font-body); font-size: 16px; line-height: 1.95;
-  padding: 10px 12px; margin: 0;
-  min-height: 4em;
+  padding: 0; margin: 0;
+  min-height: 1.95em;
 }
 .ink-edit-controls {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin-top: 8px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 10px;
 }
 
 /* 枢刚写完那一刻的"保留/删除这段"——只出现这一次，处理完就消失，

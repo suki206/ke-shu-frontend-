@@ -124,6 +124,19 @@ const BranchIcon = () => (
     <circle cx="12" cy="21" r="1.5" fill="currentColor" stroke="none" />
   </svg>
 )
+// 撤销/重做：一枚回旋箭头，方向相反
+const UndoIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+  </svg>
+)
+const RedoIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 14l5-5-5-5" />
+    <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+  </svg>
+)
 // 置顶：一枚小图钉，钉头 + 一道竖线
 const PinIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="ink-pin-icon">
@@ -163,12 +176,26 @@ const InkPage = ({
   const [leaveConfirm, setLeaveConfirm]   = useState(false) // 返回时尾巴还有字，问"存草稿"还是"保存"
 
   // ── 编辑自己已经落笔的段落（第八批）：只有 author='ke' 的段落能点开编辑，
-  //    枢写的段落没有编辑入口。editHistory/editHistoryIndex 撑起编辑框
-  //    自己的撤销/重做，不依赖浏览器的 Ctrl+Z（手机上也用得了） ──────
+  //    枢写的段落没有编辑入口。────────────────────────────────
   const [editingEntry, setEditingEntry] = useState(null) // { id, text } | null
-  const [editHistory, setEditHistory]   = useState([])
-  const [editHistoryIndex, setEditHistoryIndex] = useState(0)
-  const editHistoryTimer = useRef(null)
+
+  // ── 撤销/重做（第九批，通用化）：不再只服务"编辑历史段落"这一种
+  //    场景——只要真人在动笔（起笔、续写、编辑历史段落），撤销/重做
+  //    就都在，固定摆在顶部跟返回箭头并排，不随场景挪位置、不跟着
+  //    输入框走。writeHistory/writeHistoryIndex 记的是"当前这个输入
+  //    目标"从进入这次书写起的文本快照序列；换一个目标（尾巴 ⇄ 某个
+  //    历史段落）历史栈就重新起一条，互不混用。不依赖浏览器原生
+  //    Ctrl+Z，手机上也能用 ──────────────────────────────────
+  const [writeHistory, setWriteHistory] = useState([])
+  const [writeHistoryIndex, setWriteHistoryIndex] = useState(0)
+  const writeHistoryTimer = useRef(null)
+  // 当前历史栈记的是谁：'tail' | 'entry'，配合 editingEntry 判断落回哪
+  const writeHistoryTargetRef = useRef(null)
+  // 跟 writeHistoryIndex 状态同步的 ref——防抖定时器里要读"当下真正
+  // 最新"的下标，不能用闭包捕获时那一刻的旧值（否则连续快速打字、
+  // 中途又撤销过一次的话，压栈会切错位置）
+  const writeHistoryIndexRef = useRef(0)
+  useEffect(() => { writeHistoryIndexRef.current = writeHistoryIndex }, [writeHistoryIndex])
 
   // ── 板块 tab（第五批）：null = 全部 ───────────────────────────
   const [activeBoard, setActiveBoard] = useState(null)
@@ -180,6 +207,7 @@ const InkPage = ({
   const bodyRef   = useRef(null)   // 滚动容器
   const tailRef   = useRef(null)   // 尾巴输入框
   const mirrorRef = useRef(null)   // 量光标位置的隐藏镜像层
+  const editTextareaRef = useRef(null) // 编辑历史段落时的输入框
 
   const prevGenerating = useRef(false)
   const loadedNoteRef  = useRef(null)   // 已经把草稿灌进输入框的那篇 id
@@ -191,6 +219,9 @@ const InkPage = ({
   const nextModeRef     = useRef(null)  // 下一次真人落笔要不要强制标成 'new'（枢建议"另起一篇"、真人自己落笔那一段要带分隔线）
   const longPressTimer = useRef(null)
   const longPressFired = useRef(false)
+  // 打开这篇笔记那一刻尾巴长什么样——"恢复原样"就是退回这个快照，
+  // 不落笔也不存草稿，正文/草稿状态跟打开前一模一样
+  const originalTailRef = useRef('')
 
   const note    = activeNote?.note
   const entries = activeNote?.entries || []
@@ -212,6 +243,15 @@ const InkPage = ({
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
   }, [tailText, generating, view])
+
+  // 编辑历史段落时的输入框——同样跟着内容自动撑高，不出现内部
+  // 滚动条，改一段长文字也能整段都看得见，不是挤在一个小方框里
+  useEffect(() => {
+    const el = editTextareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [editingEntry])
 
   // ── 光标居中：镜像层量出光标真实 Y，再滚容器 ──────────────
   const keepCaretInView = useCallback((smooth = true) => {
@@ -315,9 +355,13 @@ const InkPage = ({
     const draft = note.draft_content || ''
     setTailText(draft)
     lastSavedRef.current = draft
+    originalTailRef.current = draft
     setConfirmDelete(false)
     setJustGenerated(false); setForceWrite(false)
-    setEditingEntry(null); setEditHistory([]); setEditHistoryIndex(0)
+    setEditingEntry(null)
+    writeHistoryTargetRef.current = 'tail'
+    writeHistoryIndexRef.current = 0
+    setWriteHistory([draft]); setWriteHistoryIndex(0)
 
     if (draft) {
       requestAnimationFrame(() => {
@@ -405,17 +449,28 @@ const InkPage = ({
     setView('list'); setOpenNoteId(null); setTailText('')
     setConfirmDelete(false)
     setJustGenerated(false); setForceWrite(false)
-    setEditingEntry(null); setEditHistory([]); setEditHistoryIndex(0)
+    setEditingEntry(null); resetWriteHistory()
     loadedNoteRef.current = null
     onFetchNotes?.()
   }
 
-  // 返回时如果尾巴里还有没处理的字，弹窗问清楚要"存草稿"还是直接
-  // "保存"（＝落笔），不再像以前那样直接默认存成草稿——真人自己
-  // 决定这段是留着待续，还是现在就落定
+  // 返回时如果尾巴里还有没处理的字，弹窗问清楚"存草稿""保存"还是
+  // "恢复原样"——真人自己决定这段是留着待续、现在就落定，还是干脆
+  // 撤回这次改动、当作什么都没发生过
   const cancelLeave = () => setLeaveConfirm(false)
   const leaveAsDraft = () => { setLeaveConfirm(false); goBackToList() }
   const leaveAsSaved = async () => { setLeaveConfirm(false); await saveNow(); goBackToList() }
+  // 恢复原样：把尾巴退回打开这篇笔记那一刻的样子，不落笔也不存草稿，
+  // 正文和草稿状态跟没动过一样——如果原本就没有草稿，这一段就直接
+  // 跟着"从头到尾没落过一个字"那条路走（goBackToList 会自动删掉这篇
+  // 白纸笔记，行为跟原来一致）
+  const leaveAsOriginal = () => {
+    const original = originalTailRef.current || ''
+    setTailText(original); tailTextRef.current = original
+    lastSavedRef.current = original
+    setLeaveConfirm(false)
+    goBackToList()
+  }
 
   const handleBack = () => {
     if (view !== 'note') { onClose?.(); return }
@@ -465,13 +520,24 @@ const InkPage = ({
     return m
   }
 
+  // 尾巴清空之后共用的收尾：历史栈重新起（起点是空字符串），
+  // "恢复原样"的基准点也跟着挪到现在——已经落笔的字既成事实，
+  // 不该再被"恢复原样"撤回去
+  const clearTailAfterCommit = () => {
+    setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
+    originalTailRef.current = ''
+    writeHistoryTargetRef.current = 'tail'
+    writeHistoryIndexRef.current = 0
+    setWriteHistory(['']); setWriteHistoryIndex(0)
+  }
+
   // ✓ ＝ 直接落笔存下，不弹任何选择
   const saveNow = async () => {
     if (generating || !hasTailText) return
     clearTimeout(draftTimer.current)
     const text = tailText.trim()
     await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: takeNextMode() }))
-    setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
+    clearTailAfterCommit()
     setJustGenerated(false); setForceWrite(false)
     showToast?.('已落笔')
   }
@@ -485,7 +551,7 @@ const InkPage = ({
     const text = tailText.trim()
     if (text) {
       await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: takeNextMode() }))
-      setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
+      clearTailAfterCommit()
     }
     setJustGenerated(false); setForceWrite(false)
     await onGenerateEntry?.(openNoteId, (hasBody || text) ? 'continue' : 'original')
@@ -500,7 +566,7 @@ const InkPage = ({
     const text = tailText.trim()
     if (text) {
       await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: takeNextMode() }))
-      setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
+      clearTailAfterCommit()
     }
     setJustGenerated(false); setForceWrite(false)
     await onGenerateEntry?.(openNoteId, 'new')
@@ -531,43 +597,104 @@ const InkPage = ({
     })
   }
 
+  // ── 撤销/重做：通用的一套，服务两个目标 ──────────────────────
+  // 目标 A「尾巴」：正在起笔/续写，还没落笔的那一段
+  // 目标 B「历史段落」：点开自己写过的某一段在原地改
+  // 两者共用 writeHistory/writeHistoryIndex 这一条栈，谁在写就记谁的
+  // 快照；切换目标（比如从尾巴切去编辑一段历史）栈会重新起一条。
+
+  // 把新的一笔计入历史栈——防抖 500ms，不是按一下键就压一条，避免
+  // 撤销要按几十次才退回一个字
+  const pushWriteHistory = useCallback((text, target) => {
+    if (writeHistoryTargetRef.current !== target) {
+      // 目标换了（比如刚从编辑历史段落切回尾巴）：这条栈重新起，
+      // 起点是这次进入时的文本本身，不然第一下撤销会撤到空
+      writeHistoryTargetRef.current = target
+      writeHistoryIndexRef.current = 0
+      setWriteHistory([text]); setWriteHistoryIndex(0)
+      return
+    }
+    clearTimeout(writeHistoryTimer.current)
+    writeHistoryTimer.current = setTimeout(() => {
+      const idx = writeHistoryIndexRef.current
+      setWriteHistory(h => {
+        const base = h.slice(0, idx + 1)
+        if (base[base.length - 1] === text) return h // 没变化不重复压栈
+        return [...base, text]
+      })
+      writeHistoryIndexRef.current = idx + 1
+      setWriteHistoryIndex(idx + 1)
+    }, 500)
+  }, [])
+
+  const resetWriteHistory = () => {
+    clearTimeout(writeHistoryTimer.current)
+    writeHistoryTargetRef.current = null
+    writeHistoryIndexRef.current = 0
+    setWriteHistory([]); setWriteHistoryIndex(0)
+  }
+
+  const canUndo = writeHistoryIndex > 0
+  const canRedo = writeHistoryIndex < writeHistory.length - 1
+
+  // 撤销/重做落到哪个输入框，看当前是不是在编辑历史段落
+  const applyHistoryText = (text) => {
+    if (editingEntry) {
+      setEditingEntry(prev => (prev ? { ...prev, text } : prev))
+    } else {
+      setTailText(text); tailTextRef.current = text
+    }
+  }
+  const undoWrite = () => {
+    if (!canUndo) return
+    clearTimeout(writeHistoryTimer.current)
+    const idx = writeHistoryIndex - 1
+    writeHistoryIndexRef.current = idx
+    setWriteHistoryIndex(idx)
+    applyHistoryText(writeHistory[idx])
+  }
+  const redoWrite = () => {
+    if (!canRedo) return
+    clearTimeout(writeHistoryTimer.current)
+    const idx = writeHistoryIndex + 1
+    writeHistoryIndexRef.current = idx
+    setWriteHistoryIndex(idx)
+    applyHistoryText(writeHistory[idx])
+  }
+
+  // 尾巴每次改动都记一笔快照（起笔、续写都走这条）
+  const handleTailChange = (text) => {
+    setTailText(text)
+    pushWriteHistory(text, 'tail')
+  }
+
   // ── 编辑自己已经落笔的段落：只有 author='ke' 的段落能点开，枢的
-  //    段落没有编辑入口（渲染那边就没绑点击事件）。撤销/重做走自己
-  //    这套 editHistory，不依赖浏览器原生 Ctrl+Z——手机上也用得了 ──
+  //    段落没有编辑入口（渲染那边就没绑点击事件）。进入编辑时历史栈
+  //    切换到这一段自己的轨道，退出时切回尾巴的轨道 ──────────────
   const startEditEntry = (id, text) => {
     if (generating || !id) return
     setEditingEntry({ id, text })
-    setEditHistory([text]); setEditHistoryIndex(0)
+    writeHistoryTargetRef.current = 'entry'
+    writeHistoryIndexRef.current = 0
+    setWriteHistory([text]); setWriteHistoryIndex(0)
   }
   const cancelEditEntry = () => {
-    setEditingEntry(null); setEditHistory([]); setEditHistoryIndex(0)
-  }
-  const changeEditText = (text) => {
-    setEditingEntry(prev => (prev ? { ...prev, text } : prev))
-    clearTimeout(editHistoryTimer.current)
-    editHistoryTimer.current = setTimeout(() => {
-      setEditHistory(h => [...h.slice(0, editHistoryIndex + 1), text])
-      setEditHistoryIndex(i => i + 1)
-    }, 500)
-  }
-  const undoEdit = () => {
-    if (editHistoryIndex <= 0) return
-    const idx = editHistoryIndex - 1
-    setEditHistoryIndex(idx)
-    setEditingEntry(prev => (prev ? { ...prev, text: editHistory[idx] } : prev))
-  }
-  const redoEdit = () => {
-    if (editHistoryIndex >= editHistory.length - 1) return
-    const idx = editHistoryIndex + 1
-    setEditHistoryIndex(idx)
-    setEditingEntry(prev => (prev ? { ...prev, text: editHistory[idx] } : prev))
+    setEditingEntry(null)
+    // 退出编辑，历史栈交还给尾巴——如果尾巴当时有内容，从它现在的
+    // 文本重新起一条，不残留刚才那段历史段落的撤销记录
+    writeHistoryTargetRef.current = 'tail'
+    writeHistoryIndexRef.current = 0
+    setWriteHistory([tailTextRef.current]); setWriteHistoryIndex(0)
   }
   const saveEditEntry = async () => {
     if (!editingEntry) return
     const text = editingEntry.text.trim()
     if (!text) { showToast?.('内容不能为空'); return }
     await onUpdateEntry?.(openNoteId, editingEntry.id, { content: text })
-    setEditingEntry(null); setEditHistory([]); setEditHistoryIndex(0)
+    setEditingEntry(null)
+    writeHistoryTargetRef.current = 'tail'
+    writeHistoryIndexRef.current = 0
+    setWriteHistory([tailTextRef.current]); setWriteHistoryIndex(0)
     showToast?.('已修改')
     onOpenNote?.(openNoteId) // 重新拉一次，拿服务端按 entries 顺序重新拼过的正文
   }
@@ -692,9 +819,24 @@ const InkPage = ({
   const page = (
     <div className="ink-page">
       <div className="ink-page-header">
-        <button className="ink-page-iconbtn" onClick={handleBack} aria-label="返回">
-          <BackIcon />
-        </button>
+        <div className="ink-head-actions">
+          <button className="ink-page-iconbtn" onClick={handleBack} aria-label="返回">
+            <BackIcon />
+          </button>
+          {/* 撤销/重做：只要真人在动笔（起笔/续写的尾巴，或者点开
+              历史段落在原地改）就在，不随场景挪位置——跟返回箭头
+              并排固定在左上角 */}
+          {view === 'note' && (showTail || editingEntry) && (
+            <>
+              <button className="ink-page-iconbtn" onClick={undoWrite} disabled={!canUndo} aria-label="撤销" title="撤销">
+                <UndoIcon />
+              </button>
+              <button className="ink-page-iconbtn" onClick={redoWrite} disabled={!canRedo} aria-label="重做" title="重做">
+                <RedoIcon />
+              </button>
+            </>
+          )}
+        </div>
         <div className="ink-page-title">{view === 'list' ? 'INK · 合墨' : ''}</div>
         {view === 'note' ? (
           <div className="ink-head-actions">
@@ -807,14 +949,23 @@ const InkPage = ({
                         {editingEntry?.id === seg.id ? (
                           <span className="ink-doc-ke-span ink-doc-editing">
                             <textarea
+                              ref={editTextareaRef}
                               className="ink-doc-edit-textarea"
                               value={editingEntry.text}
-                              onChange={e => changeEditText(e.target.value)}
+                              onChange={e => {
+                                const v = e.target.value
+                                setEditingEntry(prev => (prev ? { ...prev, text: v } : prev))
+                                pushWriteHistory(v, 'entry')
+                                requestAnimationFrame(() => {
+                                  const el = editTextareaRef.current
+                                  if (!el) return
+                                  el.style.height = 'auto'
+                                  el.style.height = `${el.scrollHeight}px`
+                                })
+                              }}
                               autoFocus
                             />
                             <span className="ink-edit-controls">
-                              <button className="ink-hold-btn" onClick={undoEdit} disabled={editHistoryIndex <= 0}>撤销</button>
-                              <button className="ink-hold-btn" onClick={redoEdit} disabled={editHistoryIndex >= editHistory.length - 1}>重做</button>
                               <button className="ink-hold-btn" onClick={cancelEditEntry}>取消</button>
                               <button className="ink-hold-btn" onClick={saveEditEntry}>保存修改</button>
                             </span>
@@ -843,7 +994,7 @@ const InkPage = ({
                       className="ink-doc-tail"
                       value={tailText}
                       onChange={e => {
-                        setTailText(e.target.value)
+                        handleTailChange(e.target.value)
                         requestAnimationFrame(() => keepCaretInView())
                       }}
                       onKeyUp={() => keepCaretInView(false)}
@@ -952,7 +1103,7 @@ const InkPage = ({
         </div>
       )}
 
-      {/* 返回时尾巴还有字：问清楚存草稿还是直接保存 */}
+      {/* 返回时尾巴还有字：问清楚存草稿、直接保存，还是撤回这次改动 */}
       {leaveConfirm && (
         <div className="modal-veil" style={{ zIndex: 2520 }} onClick={cancelLeave}>
           <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
@@ -960,6 +1111,7 @@ const InkPage = ({
             <div className="ink-sheet-list">
               <button className="ink-sheet-btn" onClick={leaveAsDraft}>存草稿</button>
               <button className="ink-sheet-btn" onClick={leaveAsSaved}>保存</button>
+              <button className="ink-sheet-btn" onClick={leaveAsOriginal}>恢复原样</button>
             </div>
             <button className="ink-sheet-cancel" onClick={cancelLeave}>取消</button>
           </div>
