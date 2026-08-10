@@ -566,9 +566,15 @@ const InkPage = ({
   const goBackToList = async () => {
     clearTimeout(draftTimer.current)
     const pending = tailTextRef.current
-    if (!hasBody && !pending.trim()) {
-      // 从头到尾没落过一个字（正文和草稿尾巴都还是空的）：这一篇
-      // 本来就是白纸，直接删掉，不留一条空白笔记杵在列表里
+    // 【bug 修复】这里不能用上面的 hasBody——hasBody 是这一次渲染时
+    // 算好的一个普通常量，"保存并返回"（leaveAsSaved）是在同一次调用
+    // 里紧接着 saveNow() 之后马上调这个函数，中间不会有真人重新点一下
+    // 触发的新一轮渲染，goBackToList 这个闭包里的 hasBody 依然是
+    // saveNow 落笔之前那个"还是空的"的旧值，根本没机会看到刚落笔
+    // 这件事——于是前脚刚存的这段，后脚就被当成"从没写过"删掉了。
+    // committedRef 是个 ref，任何时候读到的都是当下最新的值，不受
+    // "这段代码是哪次渲染时闭包住的"影响，这里必须用它现读一次
+    if (!committedRef.current && !pending.trim()) {
       await onDeleteNote?.(openNoteId)
     } else if (pending !== lastSavedRef.current) {
       // 没点保存就返回：这一段照样留成草稿，列表上会亮"尚未完成"
@@ -1306,7 +1312,7 @@ const InkPage = ({
 
       {/* 长按笔记卡片：置顶 / 移动到 / 删除 */}
       {cardMenu && (
-        <div className="modal-veil" style={{ zIndex: 2500 }} onClick={closeCardMenu}>
+        <div className="modal-veil ink-sheet-veil" style={{ zIndex: 2500 }} onClick={closeCardMenu}>
           <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
             <div className="ink-sheet-sub">{cardMenu.note.title || '未命名手记'}</div>
             <div className="ink-sheet-list">
@@ -1325,7 +1331,7 @@ const InkPage = ({
 
       {/* 移动到：选一个已有板块，或者直接新建一个 */}
       {moveSheet && (
-        <div className="modal-veil" style={{ zIndex: 2510 }} onClick={closeMoveSheet}>
+        <div className="modal-veil ink-sheet-veil" style={{ zIndex: 2510 }} onClick={closeMoveSheet}>
           <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
             <div className="ink-sheet-sub">把「{moveSheet.note.title || '未命名手记'}」移动到</div>
             <div className="ink-sheet-list">
@@ -1359,7 +1365,7 @@ const InkPage = ({
 
       {/* 返回时尾巴还有字：问清楚存草稿、直接保存，还是撤回这次改动 */}
       {leaveConfirm && (
-        <div className="modal-veil" style={{ zIndex: 2520 }} onClick={cancelLeave}>
+        <div className="modal-veil ink-sheet-veil" style={{ zIndex: 2520 }} onClick={cancelLeave}>
           <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
             <div className="ink-sheet-sub">这段还没个说法——</div>
             <div className="ink-sheet-list">
