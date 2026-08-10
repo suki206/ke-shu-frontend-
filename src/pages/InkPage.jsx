@@ -24,6 +24,51 @@ import { daysLabel } from './dustCommon'
 //    情节往下接，而是单独成一段，正文里会有一条分隔线跟前面隔开。
 //    只有正文已经有内容（或者尾巴里有还没存的字）时才能点；一张
 //    白纸时没有"已经写下的内容"可供另起，跟「交给枢」共用起笔逻辑。
+// 7) 段落标签改款：去掉行首【ke】/【shu】方括号标签——柯的段落不再
+//    打任何标记（本来就是"我"在写，不需要自报家门），枢的每一段
+//    落笔上方换成一枚安静的「· shu」小徽标：斜体、小号、字距拉开，
+//    跟头部"INK · 合墨"、卡片meta这类微标签用的是同一套字体/间距
+//    语言，不再是一整块加粗方括号杵在段首打断阅读。
+// 8) "让枢先起笔"从正文中间一个满宽描边按钮，改成跟"我再添一笔"
+//    同一套 .ink-nudge-hint + .ink-hold-btn 的极简文字链接——头部
+//    「交给枢写完」图标在正文为空时其实就是同一个动作（交给枢／
+//    让枢先起笔本就共用 handOffToShu），没必要在正文里另起一套
+//    方框按钮的视觉语言，徒增一个突兀的"卡片"杵在空白页正中间。
+// 9) 落笔相关的写请求（存草稿 / 正式落笔）统一走一条串行队列
+//    （enqueueWrite）：草稿是 1.2 秒防抖自动发的后台请求，如果手速
+//    快，前一次自动存草稿还没返回、后一次「自存」已经把草稿清空
+//    发出去了，网络时序一旦乱序到达，姗姗来迟的草稿请求会把刚清空
+//    的草稿标记又写回去——列表和详情页会诈尸出一个「尚未完成」。
+//    现在同一篇笔记的写请求严格按发起顺序执行，后一个永远等前一个
+//    真正落地了才发出，不会再被网络时序打乱。
+// 10) 枢决策自动流转（第四批）：后端在枢每次写完的正文末尾解析出
+//    entries.decision（finalize/continue/new），前端拿它自动接着触发
+//    下一轮——decision=continue 自动"交给枢"，=new 自动"另起一篇"，
+//    =finalize（或者模型没交出这个标记）就落回今天这套"保留/删除
+//    这段"的人工确认。为了不让枢自己跟自己写个没完，设了
+//    AUTO_CHAIN_LIMIT 上限，连续自动接力到顶就把主动权交还给真人；
+//    真人任何一次手动操作（点头部图标、点"我再添一笔"、开一篇新
+//    笔记）都会把这个计数清零，重新攒一轮新的自动接力额度。
+// 11) 列表页板块系统（第五批）：顶部一条横向滑动的板块 tab（【全部】
+//    +自定义板块），长按笔记卡片弹出【置顶】【移动到】【删除】——
+//    这套菜单和"移动到"的板块选择器复用的是原来"落笔弹层"那一套
+//    还没删掉的 .ink-sheet 系列样式（早年三选一改成头部图标之后
+//    这套 CSS 一直空着没人用，现在正好接上）。置顶的笔记摘到最前面，
+//    用一条跟"另起一篇"分隔线同款的渐隐光丝隔开，板块筛选和置顶
+//    互不干扰，一篇笔记可以又置顶又挂在某个板块下。
+// 12) 列表页美化（第六批）：卡片改铭文行——去掉背景板/圆角/阴影，
+//    行与行之间只留一条极细分隔线，读起来更像手记目录而不是一堆
+//    悬浮的 app 卡片。状态也从"文字徽标+呼吸动画"改成纯静态小符号：
+//    草稿是标题前一个不会动的小圆点，没有草稿就什么都不显示（不用
+//    另一个"已完成"符号去填满，留白本身就是"没什么要看"）；轮到
+//    枢写（最后一条是柯写的，或者笔记还空着）在标题末尾缀一个安静
+//    的「· shu」，跟正文里枢的段落徽标同一套字体语言。空板块／空
+//    列表不再放提示文字，就让页面本身的深色背景空着，"新建一篇"
+//    已经是唯一需要的入口。返回时如果尾巴还有没处理的字，弹窗问
+//    「存草稿」还是「保存」，不再默认悄悄存成草稿——这一步顺带把
+//    tailTextRef 和 tailText 状态没有严格同步的一个小豁口也补上了
+//    （落笔/交给枢/另起一篇清空尾巴时，ref 现在跟 state 同一时刻
+//    清零，不用等下一帧的 effect 才追上）。
 // ============================================================
 
 const BackIcon = () => (
@@ -63,6 +108,13 @@ const BranchIcon = () => (
     <circle cx="12" cy="21" r="1.5" fill="currentColor" stroke="none" />
   </svg>
 )
+// 置顶：一枚小图钉，钉头 + 一道竖线
+const PinIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="ink-pin-icon">
+    <path d="M12 17v5" />
+    <path d="M8 3h8l-1 6 3 3H6l3-3-1-6z" />
+  </svg>
+)
 
 const daysSince = (iso) => (iso ? Math.max(0, (Date.now() - new Date(iso).getTime()) / 86400000) : null)
 const fmtDate = (iso) => {
@@ -75,6 +127,11 @@ const fmtDate = (iso) => {
 // 下面还留得住刚写的两三行
 const CARET_ANCHOR = 0.38
 const DRAFT_DEBOUNCE = 1200
+// 枢决策自动流转最多连续接力几次：防止 decision 一直是 continue/new，
+// 枢自己跟自己没完没了地写下去——到这个数就把主动权交还给真人
+const AUTO_CHAIN_LIMIT = 3
+// 长按笔记卡片多久算"长按"，太短容易跟滚动手势打架
+const LONG_PRESS_MS = 480
 
 const InkPage = ({
   notes, notesLoading, onFetchNotes, onCreateNote, onUpdateNote, onDeleteNote,
@@ -91,6 +148,14 @@ const InkPage = ({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [justGenerated, setJustGenerated] = useState(false) // 枢刚写完，给"保留/删除这段"的窗口
   const [forceWrite, setForceWrite]       = useState(false) // 枢接完之后，我主动要求再添一笔
+  const [leaveConfirm, setLeaveConfirm]   = useState(false) // 返回时尾巴还有字，问"存草稿"还是"保存"
+
+  // ── 板块 tab（第五批）：null = 全部 ───────────────────────────
+  const [activeBoard, setActiveBoard] = useState(null)
+  // ── 长按笔记卡片弹出的菜单 / "移动到"面板（第五批）──────────────
+  const [cardMenu, setCardMenu] = useState(null)   // { note } | null
+  const [confirmCardDelete, setConfirmCardDelete] = useState(false)
+  const [moveSheet, setMoveSheet] = useState(null) // { note, newBoard } | null
 
   const bodyRef   = useRef(null)   // 滚动容器
   const tailRef   = useRef(null)   // 尾巴输入框
@@ -102,6 +167,10 @@ const InkPage = ({
   const tailTextRef    = useRef('')
   const noteIdRef      = useRef(null)
   const lastSavedRef   = useRef('')
+  const pendingWriteRef = useRef(Promise.resolve()) // 见下方 enqueueWrite
+  const autoChainRef   = useRef(0)      // 枢决策自动接力已经连续走了几轮
+  const longPressTimer = useRef(null)
+  const longPressFired = useRef(false)
 
   const note    = activeNote?.note
   const entries = activeNote?.entries || []
@@ -171,6 +240,18 @@ const InkPage = ({
     return () => ro.disconnect()
   }, [keepCaretInView, view])
 
+  // ── 写请求排队：草稿自动保存 / 自存 / 交给枢，都是"改这篇笔记"的
+  //    请求，各自独立发起、互不等待的话，网络时序一乱就可能后发
+  //    先至——比如自存已经把草稿清空了，稍早那次自动存草稿的请求才
+  //    姗姗来迟，把刚清空的草稿标记又写了回去。这里让同一篇笔记的
+  //    写请求排成一条队——不管成败，队里下一个永远等上一个先落地
+  //    了才发出，保证服务端收到的顺序跟真人操作的顺序一致 ────────
+  const enqueueWrite = useCallback((task) => {
+    const run = pendingWriteRef.current.then(task, task)
+    pendingWriteRef.current = run.catch(() => {})
+    return run
+  }, [])
+
   // ── 草稿：写着写着自动存，不用等你点任何按钮 ────────────────
   const persistDraft = useCallback(async (text, noteId) => {
     const id = noteId ?? noteIdRef.current
@@ -178,8 +259,8 @@ const InkPage = ({
     const t = (text ?? tailTextRef.current) || ''
     if (t === lastSavedRef.current) return
     lastSavedRef.current = t
-    await onSaveDraft?.(id, { content: t, mode: 'continue' })
-  }, [onSaveDraft])
+    await enqueueWrite(() => onSaveDraft?.(id, { content: t, mode: 'continue' }))
+  }, [onSaveDraft, enqueueWrite])
 
   useEffect(() => {
     if (view !== 'note' || !openNoteId) return
@@ -229,19 +310,36 @@ const InkPage = ({
     }
   }, [note, keepCaretInView])
 
-  // 枢写完那一刻：给一次"保留/删除这段"的机会，不自动把输入框塞回来
+  // 枢写完那一刻：先看这一段带没带决策标记——continue/new 就在自动
+  // 接力额度没用完的情况下直接触发下一轮，不用真人每次都点；额度用完、
+  // 标记是 finalize、或者模型压根没交出这个标记，都落回"保留/删除
+  // 这段"的人工确认窗口，不自动把输入框塞回来
   useEffect(() => {
     if (prevGenerating.current && !generating) {
-      setJustGenerated(true)
-      setForceWrite(false)
+      const decision  = lastEntry?.author === 'shu' ? lastEntry?.decision : null
+      const canAutoChain = !lastEntry?.truncated && autoChainRef.current < AUTO_CHAIN_LIMIT
+      if (decision === 'continue' && canAutoChain) {
+        autoChainRef.current += 1
+        setJustGenerated(false); setForceWrite(false)
+        handOffToShu()
+      } else if (decision === 'new' && canAutoChain) {
+        autoChainRef.current += 1
+        setJustGenerated(false); setForceWrite(false)
+        handOffToShuNew()
+      } else {
+        setJustGenerated(true)
+        setForceWrite(false)
+      }
     }
     prevGenerating.current = generating
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generating])
 
   // ── 导航 ──────────────────────────────────────────────────
   const openNote = async (id) => {
     loadedNoteRef.current = null
     lastSavedRef.current = ''
+    autoChainRef.current = 0
     setOpenNoteId(id); setView('note'); setConfirmDelete(false)
     await onOpenNote?.(id)
   }
@@ -261,7 +359,19 @@ const InkPage = ({
     onFetchNotes?.()
   }
 
-  const handleBack = () => { if (view === 'note') goBackToList(); else onClose?.() }
+  // 返回时如果尾巴里还有没处理的字，弹窗问清楚要"存草稿"还是直接
+  // "保存"（＝落笔），不再像以前那样直接默认存成草稿——真人自己
+  // 决定这段是留着待续，还是现在就落定
+  const cancelLeave = () => setLeaveConfirm(false)
+  const leaveAsDraft = () => { setLeaveConfirm(false); goBackToList() }
+  const leaveAsSaved = async () => { setLeaveConfirm(false); await saveNow(); goBackToList() }
+
+  const handleBack = () => {
+    if (view !== 'note') { onClose?.(); return }
+    const pending = tailTextRef.current
+    if (pending.trim() && pending !== lastSavedRef.current) { setLeaveConfirm(true); return }
+    goBackToList()
+  }
 
   const createNote = async () => {
     const created = await onCreateNote?.()
@@ -299,9 +409,10 @@ const InkPage = ({
   const saveNow = async () => {
     if (generating || !hasTailText) return
     clearTimeout(draftTimer.current)
+    autoChainRef.current = 0
     const text = tailText.trim()
-    await onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode })
-    setTailText(''); lastSavedRef.current = ''
+    await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode }))
+    setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
     setJustGenerated(false); setForceWrite(false)
     showToast?.('已落笔')
   }
@@ -312,8 +423,8 @@ const InkPage = ({
     clearTimeout(draftTimer.current)
     const text = tailText.trim()
     if (text) {
-      await onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode })
-      setTailText(''); lastSavedRef.current = ''
+      await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode }))
+      setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
     }
     setJustGenerated(false); setForceWrite(false)
     await onGenerateEntry?.(openNoteId, (hasBody || text) ? 'continue' : 'original')
@@ -327,8 +438,8 @@ const InkPage = ({
     clearTimeout(draftTimer.current)
     const text = tailText.trim()
     if (text) {
-      await onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode })
-      setTailText(''); lastSavedRef.current = ''
+      await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode }))
+      setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
     }
     setJustGenerated(false); setForceWrite(false)
     await onGenerateEntry?.(openNoteId, 'new')
@@ -341,12 +452,111 @@ const InkPage = ({
     showToast?.('这段和它留下的记忆都删掉了')
   }
   const reopenTail = () => {
+    autoChainRef.current = 0 // 真人主动要求再添一笔，自动接力额度重新攒
     setForceWrite(true); setJustGenerated(false)
     requestAnimationFrame(() => {
       tailRef.current?.focus()
       requestAnimationFrame(() => keepCaretInView())
     })
   }
+  // 头部图标 / 正文里的续写类按钮都是真人主动点的——点之前先把自动
+  // 接力计数清零，这一次手动操作之后重新攒一轮新的自动接力额度
+  const humanHandOffToShu    = () => { autoChainRef.current = 0; handOffToShu() }
+  const humanHandOffToShuNew = () => { autoChainRef.current = 0; handOffToShuNew() }
+
+  // ── 板块（第五批）：从 notes 里出现过的 board 值去重，就是 tab 列表；
+  //    activeBoard=null 表示【全部】。板块存在与否完全由笔记自己的
+  //    board 字段决定，没有单独的板块表——新建板块就是"移动到"的时候
+  //    直接给一篇笔记挂一个新名字，最后一篇挪走了，这个板块也就自然
+  //    从 tab 栏上消失，不用另外清理 ────────────────────────────
+  const boards = useMemo(() => {
+    const set = new Set()
+    notes?.forEach(n => { if (n.board) set.add(n.board) })
+    return Array.from(set)
+  }, [notes])
+
+  // 当前选中的板块如果不在了（笔记全被移走/删了），退回【全部】
+  useEffect(() => {
+    if (activeBoard && !boards.includes(activeBoard)) setActiveBoard(null)
+  }, [boards, activeBoard])
+
+  // 置顶摘到最前面、按置顶时间新的在前；板块筛选只决定"现在看哪些"，
+  // 跟置顶互不冲突，一篇笔记可以又置顶又挂在某个板块下
+  const { pinnedNotes, restNotes } = useMemo(() => {
+    const list = activeBoard ? (notes || []).filter(n => n.board === activeBoard) : (notes || [])
+    const pinned = list.filter(n => n.pinned_at).slice().sort((a, b) => new Date(b.pinned_at).getTime() - new Date(a.pinned_at).getTime())
+    const rest   = list.filter(n => !n.pinned_at)
+    return { pinnedNotes: pinned, restNotes: rest }
+  }, [notes, activeBoard])
+
+  // ── 长按笔记卡片：置顶 / 移动到 / 删除 ──────────────────────
+  const startLongPress = (n) => {
+    longPressFired.current = false
+    clearTimeout(longPressTimer.current)
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true
+      setCardMenu({ note: n }); setConfirmCardDelete(false)
+      if (navigator.vibrate) { try { navigator.vibrate(12) } catch {} }
+    }, LONG_PRESS_MS)
+  }
+  const cancelLongPress = () => clearTimeout(longPressTimer.current)
+  const handleCardClick = (n) => {
+    // 长按已经弹出过菜单了，松手触发的这次点击不再当成"打开笔记"
+    if (longPressFired.current) { longPressFired.current = false; return }
+    openNote(n.id)
+  }
+  const openCardMenu = (n) => { setCardMenu({ note: n }); setConfirmCardDelete(false) }
+  const closeCardMenu = () => { setCardMenu(null); setConfirmCardDelete(false) }
+
+  const togglePin = async (n) => {
+    await onUpdateNote?.(n.id, { pinned: !n.pinned_at })
+    showToast?.(n.pinned_at ? '已取消置顶' : '已置顶')
+    closeCardMenu()
+  }
+  const handleCardDelete = (n) => {
+    if (!confirmCardDelete) { setConfirmCardDelete(true); setTimeout(() => setConfirmCardDelete(false), 3000); return }
+    onDeleteNote?.(n.id)
+    closeCardMenu()
+  }
+
+  const openMoveSheet  = (n) => { setMoveSheet({ note: n, newBoard: '' }); setCardMenu(null) }
+  const closeMoveSheet = () => setMoveSheet(null)
+  const moveNoteToBoard = async (n, board) => {
+    await onUpdateNote?.(n.id, { board: board || null })
+    showToast?.(board ? `已移动到「${board}」` : '已移出板块')
+    setMoveSheet(null)
+  }
+
+  // 铭文行：草稿用一个静态小圆点标在标题前（不再是会呼吸的动画圆点
+  // 配"尚未完成"文字），没有草稿就什么都不显示；轮到枢写（最后一条
+  // 是柯写的，或者笔记还空着谁都没写）就在标题末尾缀一个安静的
+  // "· shu"，跟正文里枢的段落徽标是同一套字体语言
+  const renderNoteCard = (n) => (
+    <div
+      key={n.id}
+      className="ink-note-row"
+      onClick={() => handleCardClick(n)}
+      onTouchStart={() => startLongPress(n)}
+      onTouchEnd={cancelLongPress}
+      onTouchMove={cancelLongPress}
+      onMouseDown={() => startLongPress(n)}
+      onMouseUp={cancelLongPress}
+      onMouseLeave={cancelLongPress}
+      onContextMenu={(e) => { e.preventDefault(); openCardMenu(n) }}
+    >
+      <div className="ink-note-row-title">
+        {n.pinned_at && <PinIcon />}
+        {n.hasDraft && <span className="ink-note-row-dot" aria-label="尚未完成" />}
+        <span className="ink-note-row-title-text">{n.title || '未命名手记'}</span>
+        {n.lastAuthor !== 'shu' && <span className="ink-note-row-shu">· shu</span>}
+      </div>
+      {n.preview && <div className="ink-note-row-preview">{n.preview}</div>}
+      <div className="ink-note-row-meta">
+        <span>{n.board ? `${n.board} · ` : ''}{n.entryCount || 0} 次落笔</span>
+        <span>{daysLabel(daysSince(n.updated_at))}</span>
+      </div>
+    </div>
+  )
 
   // 正文分段：按 entries 顺序拼，柯/枢各自的字色与徽标；
   // 老数据（有 content 但没有 entries）整段按柯的字迹显示，
@@ -384,16 +594,16 @@ const InkPage = ({
             </button>
             <button
               className="ink-page-iconbtn"
-              onClick={handOffToShu}
+              onClick={humanHandOffToShu}
               disabled={generating}
-              aria-label="交给枢写完"
-              title="交给枢写完"
+              aria-label={isTrulyEmpty ? '让枢先起笔' : '交给枢写完'}
+              title={isTrulyEmpty ? '让枢先起笔' : '交给枢写完'}
             >
               <HandOffIcon />
             </button>
             <button
               className="ink-page-iconbtn"
-              onClick={handOffToShuNew}
+              onClick={humanHandOffToShuNew}
               disabled={generating || isTrulyEmpty}
               aria-label="另起一篇"
               title="另起一篇"
@@ -422,32 +632,39 @@ const InkPage = ({
           <div className="ink-page-content">
             <div className="ink-page-eyebrow">柯与枢的接力手记</div>
 
+            {boards.length > 0 && (
+              <div className="ink-board-tabs">
+                <button
+                  className={`ink-board-tab${activeBoard === null ? ' is-active' : ''}`}
+                  onClick={() => setActiveBoard(null)}
+                >全部</button>
+                {boards.map(b => (
+                  <button
+                    key={b}
+                    className={`ink-board-tab${activeBoard === b ? ' is-active' : ''}`}
+                    onClick={() => setActiveBoard(b)}
+                  >{b}</button>
+                ))}
+              </div>
+            )}
+
             <button className="ink-note-new-btn" onClick={createNote}>
               <PlusIcon /> 新建一篇
             </button>
 
             {notesLoading && <div className="ink-note-empty">加载中…</div>}
-            {!notesLoading && (!notes || notes.length === 0) && (
-              <div className="ink-note-empty">还没有手记，点上面开始第一篇</div>
-            )}
+            {/* 空板块（或者压根还没有笔记）不放提示文字——就让深色的
+                页面背景自己空着，"新建一篇"已经是唯一需要的入口了 */}
 
-            <div className="ink-note-list">
-              {notes?.map(n => (
-                <div key={n.id} className="ink-note-card" onClick={() => openNote(n.id)}>
-                  <div className="ink-note-card-top">
-                    <span className="ink-note-card-title">{n.title || '未命名手记'}</span>
-                    {n.hasDraft && (
-                      <span className="ink-draft-badge"><span className="ink-draft-dot" />尚未完成</span>
-                    )}
-                  </div>
-                  {n.preview && <div className="ink-note-card-preview">{n.preview}</div>}
-                  <div className="ink-note-card-meta">
-                    <span>{n.entryCount || 0} 次落笔</span>
-                    <span>{daysLabel(daysSince(n.updated_at))}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {!notesLoading && pinnedNotes.length > 0 && (
+              <div className="ink-note-list">{pinnedNotes.map(renderNoteCard)}</div>
+            )}
+            {!notesLoading && pinnedNotes.length > 0 && restNotes.length > 0 && (
+              <div className="ink-pin-divider" />
+            )}
+            {!notesLoading && restNotes.length > 0 && (
+              <div className="ink-note-list">{restNotes.map(renderNoteCard)}</div>
+            )}
           </div>
         )}
 
@@ -503,15 +720,22 @@ const InkPage = ({
                   )}
                 </div>
 
-                {/* 枢刚写完：保留 / 删除；撞到长度上限的话还能让他再接一段 */}
+                {/* 枢刚写完：保留 / 删除。撞到长度上限、或者决策是 continue/new
+                    但自动接力额度已经用完，都在这里给出对应的续写入口 */}
                 {justGenerated && !generating && (
                   <div className="ink-keep-row">
                     <span className="ink-nudge-hint">
-                      {lastEntry?.truncated ? '枢写到长度上限停下了——' : '枢把这一段写完了——'}
+                      {lastEntry?.truncated ? '枢写到长度上限停下了——'
+                        : lastEntry?.decision === 'continue' ? '枢还想接着写，先攒了几轮给你看看——'
+                        : lastEntry?.decision === 'new' ? '枢想另起一段，先攒了几轮给你看看——'
+                        : '枢把这一段写完了——'}
                     </span>
                     <button className="ink-hold-btn" onClick={keepLastEntry}>保留</button>
-                    {lastEntry?.truncated && (
-                      <button className="ink-hold-btn" onClick={handOffToShu}>让他接着写完</button>
+                    {(lastEntry?.truncated || lastEntry?.decision === 'continue') && (
+                      <button className="ink-hold-btn" onClick={humanHandOffToShu}>让他接着写完</button>
+                    )}
+                    {!lastEntry?.truncated && lastEntry?.decision === 'new' && (
+                      <button className="ink-hold-btn" onClick={humanHandOffToShuNew}>让他另起一篇</button>
                     )}
                     <button className="ink-hold-btn is-danger" onClick={deleteLastEntry}>删除这段</button>
                   </div>
@@ -526,9 +750,10 @@ const InkPage = ({
                 )}
 
                 {isTrulyEmpty && !generating && (
-                  <button className="ink-empty-invite line-btn" onClick={handOffToShu}>
-                    让枢先起笔
-                  </button>
+                  <div className="ink-keep-row">
+                    <span className="ink-nudge-hint">还没有落笔——</span>
+                    <button className="ink-hold-btn" onClick={humanHandOffToShu}>让枢先起笔</button>
+                  </div>
                 )}
 
                 {generating && (
@@ -542,6 +767,73 @@ const InkPage = ({
           </div>
         )}
       </div>
+
+      {/* 长按笔记卡片：置顶 / 移动到 / 删除 */}
+      {cardMenu && (
+        <div className="modal-veil" style={{ zIndex: 2500 }} onClick={closeCardMenu}>
+          <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
+            <div className="ink-sheet-sub">{cardMenu.note.title || '未命名手记'}</div>
+            <div className="ink-sheet-list">
+              <button className="ink-sheet-btn" onClick={() => togglePin(cardMenu.note)}>
+                {cardMenu.note.pinned_at ? '取消置顶' : '置顶'}
+              </button>
+              <button className="ink-sheet-btn" onClick={() => openMoveSheet(cardMenu.note)}>移动到</button>
+              <button className="ink-sheet-btn" onClick={() => handleCardDelete(cardMenu.note)}>
+                {confirmCardDelete ? '再点一次删除' : '删除'}
+              </button>
+            </div>
+            <button className="ink-sheet-cancel" onClick={closeCardMenu}>取消</button>
+          </div>
+        </div>
+      )}
+
+      {/* 移动到：选一个已有板块，或者直接新建一个 */}
+      {moveSheet && (
+        <div className="modal-veil" style={{ zIndex: 2510 }} onClick={closeMoveSheet}>
+          <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
+            <div className="ink-sheet-sub">把「{moveSheet.note.title || '未命名手记'}」移动到</div>
+            <div className="ink-sheet-list">
+              {boards.filter(b => b !== moveSheet.note.board).map(b => (
+                <button key={b} className="ink-sheet-btn" onClick={() => moveNoteToBoard(moveSheet.note, b)}>{b}</button>
+              ))}
+              {moveSheet.note.board && (
+                <button className="ink-sheet-btn" onClick={() => moveNoteToBoard(moveSheet.note, null)}>移出板块（回到全部）</button>
+              )}
+            </div>
+            <div className="beacon-add-row" style={{ marginTop: 12 }}>
+              <input
+                className="field-input"
+                value={moveSheet.newBoard}
+                onChange={e => setMoveSheet(m => ({ ...m, newBoard: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Enter' && moveSheet.newBoard.trim()) moveNoteToBoard(moveSheet.note, moveSheet.newBoard.trim()) }}
+                placeholder="新板块名字"
+                maxLength={12}
+              />
+              <button
+                className="solid-btn"
+                style={{ padding: '0 16px', borderRadius: '12px', fontSize: '12px' }}
+                disabled={!moveSheet.newBoard.trim()}
+                onClick={() => moveNoteToBoard(moveSheet.note, moveSheet.newBoard.trim())}
+              >新建</button>
+            </div>
+            <button className="ink-sheet-cancel" onClick={closeMoveSheet}>取消</button>
+          </div>
+        </div>
+      )}
+
+      {/* 返回时尾巴还有字：问清楚存草稿还是直接保存 */}
+      {leaveConfirm && (
+        <div className="modal-veil" style={{ zIndex: 2520 }} onClick={cancelLeave}>
+          <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
+            <div className="ink-sheet-sub">这段还没个说法——</div>
+            <div className="ink-sheet-list">
+              <button className="ink-sheet-btn" onClick={leaveAsDraft}>存草稿</button>
+              <button className="ink-sheet-btn" onClick={leaveAsSaved}>保存</button>
+            </div>
+            <button className="ink-sheet-cancel" onClick={cancelLeave}>取消</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 

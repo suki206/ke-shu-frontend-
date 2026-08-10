@@ -2278,11 +2278,19 @@ button { font-family: inherit; }
    合墨 · INK —— 引力页全屏子页面，接力写作。沿用 .beacon-page /
    .token-dash-page 同一套骨架（fixed 全屏 + 头部返回键 + 可滚动
    body），内部自己切两级视图：笔记列表 .ink-note-list ↔ 单篇正文
-   .ink-doc-body。正文是一整段连续文本，不分段落卡片、不做聊天
-   气泡、不分左右——柯的字迹是白色，枢的字迹是 --c-accent-2（各
-   主题下都偏柔和，不刺眼），行首各带一个可读的 【ke】/【shu】
-   徽标。没有常驻的底部操作条：落笔相关的三个选项收进头部「✓」
-   点开的居中弹层，选一次立即执行，不会在生成完之后又自动弹一轮。
+   .ink-doc-body。
+   列表是一行行铭文，不是卡片——没有背景板、没有圆角、没有阴影，
+   行与行之间只留一条极细分隔线，状态全用静态小符号交代（草稿一个
+   不会动的小圆点，轮到枢写就在标题末尾缀一个「· shu」），没有会
+   动的呼吸动画，也不堆文字说明；空板块、空列表同理，不放提示文字，
+   就让页面本身的深色背景空着。
+   正文是一整段连续文本，不分段落卡片、不做聊天气泡、不做时间流——
+   柯的字迹是白色，不打任何标记（本来就是"我"在写）；枢的字迹是
+   --c-accent-2（各主题下都偏柔和，不刺眼），每一段落笔上方带一枚
+   安静的「· shu」小徽标：斜体小号、字距拉开，跟别处的微标签
+   （"INK · 合墨"、行 meta）是同一套字体语言，不是方括号那种打断
+   阅读的段落标签。没有常驻的底部操作条：落笔相关的几个选项都收进
+   头部图标，点一下立即执行，不会在生成完之后又自动弹一轮。
    ============================================================ */
 .ink-page {
   position: fixed;
@@ -2397,6 +2405,32 @@ button { font-family: inherit; }
 }
 
 /* ── 笔记列表 ──────────────────────────────────────────────── */
+/* 板块 tab 栏：【全部】+ 自定义板块，横向滑动切换。只有存在至少一个
+   自定义板块时才出现——一张笔记本还没分过类之前没必要多一行控件。
+   板块本身没有单独的表，tab 列表就是所有笔记 board 字段的去重值，
+   最后一篇笔记挪出某个板块，那个 tab 也就自然从这里消失 */
+.ink-board-tabs {
+  display: flex; gap: 8px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+  padding: 1px 1px 3px;
+}
+.ink-board-tabs::-webkit-scrollbar { display: none; }
+.ink-board-tab {
+  flex-shrink: 0;
+  padding: 7px 15px; border-radius: 999px;
+  background: transparent; border: var(--hair) solid var(--c-line);
+  color: var(--c-text-faint);
+  font-family: var(--font-accent); font-size: 11px; letter-spacing: 1.5px;
+  white-space: nowrap;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background .22s ease, border-color .22s ease, color .22s ease;
+}
+.ink-board-tab:hover  { color: var(--c-text); border-color: var(--c-line-strong); }
+.ink-board-tab.is-active {
+  background: var(--c-accent-soft); border-color: var(--c-accent); color: var(--c-text);
+}
+
 .ink-note-new-btn {
   display: flex; align-items: center; justify-content: center;
   gap: 8px;
@@ -2412,59 +2446,79 @@ button { font-family: inherit; }
 .ink-note-new-btn:hover  { color: var(--c-text); border-color: var(--c-accent); background: var(--c-accent-soft); }
 .ink-note-new-btn:active { transform: scale(0.985); }
 
-.ink-note-list { display: flex; flex-direction: column; gap: 12px; }
-.ink-note-card {
-  border-radius: 18px;
-  padding: 15px 18px;
-  background: var(--c-panel);
-  backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
-  -webkit-backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
-  border: var(--hair) solid var(--c-line);
+.ink-note-list { display: flex; flex-direction: column; }
+
+/* 置顶分隔线——跟正文里"另起一篇"用的那条渐隐光丝是同一个视觉语言，
+   只是横过来用在列表：置顶区在上，普通区在下，一条线隔开就够，
+   不需要额外的文字提示 */
+.ink-pin-divider {
+  height: 1px; width: 100%;
+  margin: 6px 0 10px;
+  background: linear-gradient(90deg, transparent, var(--c-line-strong) 50%, transparent);
+}
+
+/* 置顶笔记标题前的小图钉，颜色跟标题走，不单独抢色 */
+.ink-pin-icon { margin-right: 1px; vertical-align: -1px; flex-shrink: 0; opacity: .8; }
+
+/* 铭文行：不做成悬浮卡片——没有背景板、没有圆角、没有阴影，行与行
+   之间只留一条比头发丝还细的分隔线，读起来像手记目录，不是一堆
+   app 卡片。交互反馈也降到最低：hover/按下只给一层很淡的色块，
+   不挪位置、不描边、不缩放 */
+.ink-note-row {
+  padding: 14px 4px;
+  border-bottom: var(--hair) solid var(--c-line);
   cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: border-color .25s var(--ease), transform .2s ease;
-  animation: inkCardIn .5s var(--ease) both;
+  transition: background .18s ease;
 }
-.ink-note-card:hover  { border-color: var(--c-line-strong); }
-.ink-note-card:active { transform: scale(0.99); }
-@keyframes inkCardIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.ink-note-card-top {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+.ink-note-row:last-child { border-bottom: none; }
+.ink-note-row:hover  { background: var(--c-accent-soft); }
+.ink-note-row:active { background: var(--c-accent-soft); }
+
+.ink-note-row-title {
+  display: flex; align-items: baseline; gap: 6px;
 }
-.ink-note-card-title {
+.ink-note-row-title-text {
+  flex: 1; min-width: 0;
   font-family: var(--font-body); font-size: 14.5px; color: var(--c-text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ink-note-card-preview {
-  margin-top: 6px;
+/* 草稿：标题前一个不会动的小圆点，纯状态符号，不再是呼吸动画配
+   "尚未完成"这行字——没有草稿这个位置就什么都不放，留白本身就是
+   "没什么要看"，不需要另一个"已完成"符号去填满 */
+.ink-note-row-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--c-accent); flex-shrink: 0;
+}
+/* 轮到枢写：标题末尾一个安静的落款，跟正文里枢的段落徽标同一套
+   字体语言（斜体、小号、拉字距），不是重新发明一个新样式 */
+.ink-note-row-shu {
+  flex-shrink: 0;
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10px; letter-spacing: 1px;
+  color: var(--c-accent-2); opacity: .6;
+}
+
+.ink-note-row-preview {
+  margin-top: 5px;
   font-family: var(--font-body); font-size: 12.5px; line-height: 1.6;
   color: var(--c-text-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ink-note-card-meta {
-  margin-top: 10px;
+.ink-note-row-meta {
+  margin-top: 8px;
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   font-family: var(--font-accent); font-size: 9.5px; letter-spacing: 1px;
   color: var(--c-text-faint);
 }
+
 .ink-note-empty {
   text-align: center; padding: 40px 12px;
   font-family: var(--font-accent); font-style: italic; font-size: 12.5px;
   color: var(--c-text-faint);
 }
 
-/* 尚未完成——列表卡片右上角一个会自己一明一暗的小点 + 文字 */
-.ink-draft-badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-family: var(--font-accent); font-size: 9px; letter-spacing: 1.5px;
-  color: var(--c-accent); flex-shrink: 0;
-}
-.ink-draft-dot {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: var(--c-accent);
-  box-shadow: 0 0 6px var(--c-accent-soft);
-  animation: inkDraftBreath 2.6s ease-in-out infinite;
-}
-@keyframes inkDraftBreath { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
+/* 出现在其它页面的落笔弹层（长按菜单 / 移动到 / 返回确认）复用同一套
+   .ink-sheet 样式，见下方"弹层"一节 */
 
 /* ── 笔记详情头部：标题 + 日期/字数 ───────────────────────────── */
 .ink-doc-title {
@@ -2500,22 +2554,20 @@ button { font-family: inherit; }
 .ink-doc-ke-span, .ink-doc-shu-span { display: block; margin-top: 1.1em; }
 .ink-doc-confirmed > span:first-child { margin-top: 0; }
 
+/* 柯的段落不打标签——默认就是"我"在写，不需要自报家门 */
 .ink-doc-ke-span { color: #FFFFFF; }
-.ink-doc-ke-span::before {
-  content: '【ke】 ';
-  font-family: var(--font-accent); font-weight: 600;
-  font-size: 13px; letter-spacing: .5px;
-  color: #FFFFFF; opacity: .82;
-}
-.ink-doc-shu-span {
-  font-family: var(--font-accent); letter-spacing: .15px;
-  color: var(--c-accent-2);
-}
+
+/* 枢的段落：字迹用主题强调色区分，段前悬一枚极小的「· shu」徽标——
+   独立一行、比正文小得多、斜体拉字距，读起来像页边的一句安静落款，
+   不是嵌进正文里打断阅读的方括号标签 */
+.ink-doc-shu-span { color: var(--c-accent-2); }
 .ink-doc-shu-span::before {
-  content: '【shu】 ';
-  font-family: var(--font-accent); font-weight: 600;
-  font-size: 13px; letter-spacing: .5px;
-  color: var(--c-accent-2); opacity: .9;
+  content: '· shu';
+  display: block;
+  margin-bottom: .5em;
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10px; letter-spacing: 2px;
+  color: var(--c-accent-2); opacity: .55;
 }
 .ink-doc-streaming { white-space: pre-wrap; word-break: break-word; }
 .ink-doc-streaming::after {
@@ -2564,26 +2616,29 @@ button { font-family: inherit; }
 .ink-hold-btn.is-danger { opacity: .7; }
 .ink-hold-btn.is-danger:hover { opacity: 1; text-decoration: underline; }
 
-.ink-empty-invite {
-  margin-top: 16px;
-  padding: 11px 0; border-radius: 14px; width: 100%;
-  font-size: 11.5px; letter-spacing: 2px; text-align: center;
-}
 .ink-nudge-hint {
   font-family: var(--font-accent); font-style: italic;
   font-size: 10px; color: var(--c-text-faint);
   margin-top: 16px;
 }
 
-/* ── 落笔弹层：复用全局 .modal-veil / .modal-card，z-index 高过
-   .ink-page 本身（2300），保证盖在正文上面而不是被挡住 ─────── */
+/* ── 弹层：复用全局 .modal-veil / .modal-card，z-index 高过
+   .ink-page 本身（2300），保证盖在正文上面而不是被挡住。这套
+   .ink-sheet 样式原本是给旧版"落笔三选一"弹层用的，头部图标改版
+   之后一直空着——现在接上了长按笔记卡片弹出的菜单，以及"移动到"
+   的板块选择器 ─────────────────────────────────────────────── */
 .ink-sheet { padding: 26px 24px 20px; width: 296px; max-width: 86vw; text-align: center; }
 .ink-sheet-sub {
   font-family: var(--font-accent); font-style: italic;
   font-size: 11px; color: var(--c-text-faint);
   margin-bottom: 18px;
 }
-.ink-sheet-list { display: flex; flex-direction: column; gap: 8px; }
+/* 板块可能越攒越多，列表给个高度上限，多了就在弹层内部滚动，
+   不会把整张弹层撑到超出屏幕 */
+.ink-sheet-list {
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: 46vh; overflow-y: auto;
+}
 .ink-sheet-btn {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 13px 0; border-radius: 14px;
