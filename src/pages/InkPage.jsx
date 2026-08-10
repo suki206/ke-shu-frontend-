@@ -1312,7 +1312,7 @@ const InkPage = ({
 
       {/* 长按笔记卡片：置顶 / 移动到 / 删除 */}
       {cardMenu && (
-        <div className="modal-veil ink-sheet-veil" style={{ zIndex: 2500 }} onClick={closeCardMenu}>
+        <div className="modal-veil" style={{ zIndex: 2500 }} onClick={closeCardMenu}>
           <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
             <div className="ink-sheet-sub">{cardMenu.note.title || '未命名手记'}</div>
             <div className="ink-sheet-list">
@@ -1331,7 +1331,7 @@ const InkPage = ({
 
       {/* 移动到：选一个已有板块，或者直接新建一个 */}
       {moveSheet && (
-        <div className="modal-veil ink-sheet-veil" style={{ zIndex: 2510 }} onClick={closeMoveSheet}>
+        <div className="modal-veil" style={{ zIndex: 2510 }} onClick={closeMoveSheet}>
           <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
             <div className="ink-sheet-sub">把「{moveSheet.note.title || '未命名手记'}」移动到</div>
             <div className="ink-sheet-list">
@@ -1365,7 +1365,7 @@ const InkPage = ({
 
       {/* 返回时尾巴还有字：问清楚存草稿、直接保存，还是撤回这次改动 */}
       {leaveConfirm && (
-        <div className="modal-veil ink-sheet-veil" style={{ zIndex: 2520 }} onClick={cancelLeave}>
+        <div className="modal-veil" style={{ zIndex: 2520 }} onClick={cancelLeave}>
           <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
             <div className="ink-sheet-sub">这段还没个说法——</div>
             <div className="ink-sheet-list">

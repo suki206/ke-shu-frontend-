@@ -253,6 +253,11 @@ body {
 /* ── keyframes ─────────────────────────────────────────────── */
 @keyframes fadeIn    { from { opacity: 0; }                              to { opacity: 1; } }
 @keyframes scaleIn   { from { opacity: 0; transform: scale(0.96); }     to { opacity: 1; transform: scale(1); } }
+/* 给 .modal-veil / .modal-card 专用：只动 background-color / transform，
+   刻意不碰 opacity，避免跟同一元素上的 backdrop-filter 打架（见上面
+   两处用到它们的地方的注释） */
+@keyframes veilDimIn { from { background-color: transparent; }          to { background-color: var(--c-overlay); } }
+@keyframes popIn     { from { transform: scale(0.96); }                 to { transform: scale(1); } }
 @keyframes riseIn    { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes dotPulse  { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }
 @keyframes toastIn   { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
@@ -741,7 +746,14 @@ body {
   backdrop-filter: blur(14px) saturate(1.05);
   -webkit-backdrop-filter: blur(14px) saturate(1.05);
   display: flex; align-items: center; justify-content: center;
-  animation: fadeIn .24s ease;
+  /* 毛玻璃和淡入分开：backdrop-filter 从挂载那一刻起就是常量，不
+     参与动画；"淡入"的观感改用 background-color 从透明过渡到
+     --c-overlay 来做。原先是让整个元素的 opacity 从 0 冲到 1，
+     opacity 在过渡时浏览器要每帧重新合成"透明度 × 毛玻璃采样"，
+     这一层再叠上卡片自己那层 blur(34px) 一起跑，就是闪烁的根因。
+     background-color 只是换个颜色值，不会牵连 backdrop-filter 的
+     重新合成，两件事彻底不搭界。 */
+  animation: veilDimIn .24s ease;
 }
 .modal-card {
   background: var(--c-modal);
@@ -750,7 +762,11 @@ body {
   border: var(--hair) solid var(--c-line-strong);
   border-radius: 20px;
   box-shadow: 0 30px 80px var(--c-shadow), inset 0 1px 0 var(--c-highlight);
-  animation: scaleIn .28s var(--ease);
+  /* 同理，卡片自己的 backdrop-filter 也是常量——不再让 opacity 参与
+     进场动画，只用 transform 缩放做"弹出来"的动效。一挂载就是完全
+     不透明，毛玻璃从第一帧起就是稳定值，不会跟着缩放一起被反复
+     重新采样合成。 */
+  animation: popIn .28s var(--ease);
 }
 .modal-card-solid {
   background: var(--c-modal-solid);
@@ -2899,27 +2915,9 @@ button { font-family: inherit; }
 /* ── 弹层：复用全局 .modal-veil / .modal-card，z-index 高过
    .ink-page 本身（2300），保证盖在正文上面而不是被挡住。这套
    .ink-sheet 样式原本是给旧版"落笔三选一"弹层用的，头部图标改版
-   之后一直空着——现在接上了长按笔记卡片弹出的菜单、"移动到"的
-   板块选择器，以及返回时的"存草稿/保存/恢复原样"确认框 ─────── */
-/* 【透明改不透明】.modal-veil/.modal-card 默认是半透明 + 毛玻璃
-   （backdrop-filter: blur）。这三个弹层背后是 InkPage 会频繁重渲染
-   的内容（比如"保存并返回"这类操作，点一下背后正文/列表在同一瞬间
-   跟着变化），毛玻璃要跟着背后内容实时重新模糊取样，低性能设备上
-   看着就是一闪一闪；改成纯色不透明背景、去掉 blur，背后内容再怎么
-   变化也不会透出来，观感上就稳了，不再依赖背后画面。只影响这三个
-   合墨自己的弹层（靠下面的 .ink-sheet-veil 类名限定），不影响 app
-   里其它地方复用 .modal-veil/.modal-card 的弹窗 */
-.ink-sheet-veil {
-  background: var(--c-modal-solid);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-.ink-sheet {
-  padding: 26px 24px 20px; width: 296px; max-width: 86vw; text-align: center;
-  background: var(--c-modal-solid);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
+   之后一直空着——现在接上了长按笔记卡片弹出的菜单，以及"移动到"
+   的板块选择器 ─────────────────────────────────────────────── */
+.ink-sheet { padding: 26px 24px 20px; width: 296px; max-width: 86vw; text-align: center; }
 .ink-sheet-sub {
   font-family: var(--font-accent); font-style: italic;
   font-size: 11px; color: var(--c-text-faint);
