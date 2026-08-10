@@ -2282,12 +2282,13 @@ button { font-family: inherit; }
    .token-dash-page 同一套骨架（fixed 全屏 + 头部返回键 + 可滚动
    body），内部自己切两级视图：笔记列表 .ink-note-list ↔ 单篇正文
    .ink-doc-body。
-   列表是一条纵向蜿蜒、左右轻微摆动的塔罗星牌链（.ink-tarot-spread
-   单列，详见下方"塔罗星牌"一节）——牌与牌首尾重叠咬合、不断向下
-   延伸，每张牌菱形切角、四角缀纤细几何引导线、底部带模糊投影，
-   标题从牌顶探出成一枚更透的磨砂小标签。全部是静态 CSS，没有
-   animation，翻页/滚动不会有持续重绘；空板块、空列表不放提示文字，
-   就让页面本身的深色背景空着。
+   列表是一整面悬浮在深空里的调查墙——星尘墙（.ink-stardust-wall，
+   详见下方"星尘墙"一节）：笔记不再按行排列，而是像一张张被图钉
+   钉在虚空里的撕边便签，错落分布在整块墙面上，便签之间用光丝相连
+   像星座之间的星轨；便签本身用负 filter/scale 做出远近进深，靠
+   前后遮挡和悬浮投影撑出伪3D空间感。全部是静态 CSS + 一次性算好
+   坐标的布局函数，没有 animation，滚动不会有持续重绘；空板块、
+   空列表不放提示文字，就让页面本身的深色背景空着。
    正文是一整段连续文本，不分段落卡片、不做聊天气泡、不做时间流——
    柯的字迹是白色，不打任何标记（本来就是"我"在写）；枢的字迹是
    --c-accent-2（各主题下都偏柔和，不刺眼），每一段落笔上方带一枚
@@ -2472,311 +2473,285 @@ button { font-family: inherit; }
 .ink-pin-icon { margin-right: 1px; vertical-align: -1px; flex-shrink: 0; opacity: .8; }
 
 /* ============================================================
-   塔罗星牌（第十二批·蜿蜒重排）：不再是两列瀑布流里各自独立漂浮
-   的牌，而是一条单列的牌链——从上到下纵向蜿蜒，每张牌相对上一张
-   左右轻微摆动（--swing，见 JS 里的正弦叠加），牌与牌之间用负
-   margin 咬合、重叠一段，视觉上连成一串不断向下延伸、首尾相接的
-   长牌阵，而不是互相独立的散牌。
-   四个视觉层不变：
-   · .ink-tarot-shadow  牌下方一片模糊椭圆阴影
-   · .ink-tarot-card    牌本体，负责摆动位移 + 层叠顺序
-   · .ink-tarot-face    牌正面，光晕/高光/正文都在这层
-   · .ink-tarot-tab     从牌顶探出的标题标签
-   边框从原来的"卡纸厚度"描边换成一圈更纤细的星占仪式感线框——
-   四角配短短的引导线，呼应参考图那种占星卡背的几何感，而不是
-   实体卡片的物理厚度。标签也调得更透，磨砂后面隐约看得见牌面。
+   星尘墙（第十三批·从"塔罗星牌"重制）：列表不再是一条纵向的牌链，
+   改成一整面悬浮在深空里的调查墙——笔记不分行排列，而是像一张张
+   被图钉钉在虚空里的星尘便签，错落分布在整块墙面上，便签与便签
+   之间用光丝相连，像星座之间的星轨。布局算法见 InkPage.jsx 里的
+   layoutStardust/buildThreads：水平位置带"跟上一张离得够远"的软
+   约束，纵向落点也有抖动，不是一排一个的列表，也不是规整的网格。
+
+   每张便签四层结构（从后到前）：
+   · .ink-stardust-shadow  便签下方一小片模糊投影，让它看起来悬在
+     虚空上方，不是贴死在背景上。
+   · .ink-stardust-ply-2/1 侧面——两层更暗的撕边纸片，紧贴主纸面
+     错开几像素叠在后面，模拟"纸页叠起来的厚度"。三层共用同一份
+     --clip（撕纸轮廓，JS 算出来通过 CSS 变量传下来），错位量不同，
+     厚度感就从边缘的参差里透出来，不需要真的做 3D 变换。
+   · .ink-stardust-face    正面——半透光磨砂纸面，光晕焦点落在图钉
+     位置（便签是被这一点"照亮"的），左上角一道极细高光模拟纸面
+     反光。
+   · .ink-stardust-pin     图钉本体，钉在 transform-origin 所在的
+     那一点——便签整体的旋转是绕图钉转的，不是绕自己几何中心转，
+     视觉上更像"从钉子上垂下来歪了个角度"，图钉本身不随之明显位移。
+     三种款式对应"谁起笔/是否置顶"：极小的发光星核（置顶）、水晶
+     菱形钉（枢起笔）、微缩黑洞（柯起笔，默认）。
+
+   撕纸边缘（tornClipPath，JS 里生成、通过 --clip 变量传下来）取代
+   了原来菱形切角的规整轮廓——矩形四边各自切成几段，每段端点朝内
+   随机凹陷，拼出不规则毛边，拒绝完美的圆角矩形。
+
+   整套效果是静态的——没有 animation，没有持续重绘。便签的错落
+   角度、前后遮挡（z-index 按渲染顺序叠放）、--depth 控制的缩放
+   / 亮度 / 模糊（更"远"的便签更小更暗更虚，更"近"的更大更亮更实）、
+   悬浮投影和光丝网络，几层叠加起来就是伪3D空间感的全部来源。
    ============================================================ */
 
-.ink-tarot-spread {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* 两侧留出摆动 + 选中态放大的余量，配合 .ink-page-body 的
-     overflow-x: hidden，牌链左右摇摆再大也不会被横向裁切出一条
-     突兀的边 */
-  padding: 4px 14px 0;
-}
-.ink-tarot-card { break-inside: avoid; -webkit-column-break-inside: avoid; }
-
-.ink-tarot-card {
+/* 测宽容器：本身不参与视觉，纯粹是 ResizeObserver 量宽度的挂载点，
+   两面墙（置顶区/常规区）共用同一个测出来的 wallW，坐标系统一 */
+.ink-stardust-outer {
   position: relative;
-  width: 74%;
-  max-width: 310px;
-  /* 负 margin 让下一张牌的标签咬进上一张牌底部一点点，链条式衔接；
-     --swing 是左右摆动的横向偏移，两者一起做出"纵向蜿蜒、微微左右
-     摇摆、首尾相接"的效果。重叠量收得很浅——真正的安全区是
-     .ink-tarot-face 自己留的底部 padding，不管牌内容长短都够深，
-     这里的负 margin 只负责让标签"够得到"上一张牌的最底边，不承担
-     防止遮挡内容的责任。摆动越大的牌，视觉上离中轴越远，用
-     translateX 而不是 left/right 百分比，才不受牌自身宽度影响 */
-  margin: -6px 0 0;
-  padding: 30px 6px 14px;
-  cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transform: translateX(var(--swing, 0%)) rotate(var(--tilt, 0deg));
-  transform-origin: 50% 50%;
-  transition: transform .38s var(--ease), z-index 0s, margin .38s var(--ease);
-  /* 后出现的牌（更靠下）叠在更早的牌上面，链条从上往下一张压
-     一张，符合"向下延伸"的阅读顺序 */
-  z-index: calc(var(--i, 0) + 1);
-}
-.ink-tarot-spread > .ink-tarot-card:first-child { margin-top: 0; }
-
-/* 选中态紧邻的前一张/后一张：往反方向各自让开一点，被压住的选中
-   牌才能整张露出来，不只是从缝隙里探出一角 */
-.ink-tarot-card.is-neighbor-before {
-  transform: translateX(calc(var(--swing, 0%) - 10%)) rotate(var(--tilt, 0deg));
-}
-.ink-tarot-card.is-neighbor-after {
-  transform: translateX(calc(var(--swing, 0%) + 10%)) rotate(var(--tilt, 0deg));
-  margin-top: 4px;
+  width: 100%;
 }
 
-/* 选中态（"先选中、再确认"）：整张牌抬起——回正大半个角度、放大、
-   摆到牌链最前面。z-index 直接顶到最高，不再跟着 --i 走，确保
-   盖过链条里任何一张牌 */
-.ink-tarot-card.is-selected {
-  transform: translateX(0) rotate(calc(var(--tilt, 0deg) * .18)) scale(1.1) translateY(-6px);
-  z-index: 999;
-  margin-top: -6px;
+.ink-stardust-wall {
+  position: relative;
+  width: 100%;
+  /* height 由 JS 按这一批便签实际布局算出来，内联 style 设置 */
 }
 
-/* 底部模糊椭圆阴影：让牌看起来悬在星尘上方两厘米，不是贴死在
-   背景上。纯黑 + 较大 blur，在任何主题的深色背景下都读得出来 */
-.ink-tarot-shadow {
+/* 光丝网络：铺满整面墙的 SVG 图层，压在便签下方（z-index 低于
+   便签），线从图钉引出，像星座连线；每条线画两遍叠加出光晕 */
+.ink-stardust-threads {
+  position: absolute; top: 0; left: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.ink-thread-line {
+  stroke: var(--c-line-strong);
+  stroke-width: 1;
+  opacity: .55;
+}
+.ink-thread-line-glow {
+  stroke: var(--c-accent);
+  stroke-width: 3;
+  opacity: .10;
+}
+.ink-thread-dot {
+  fill: var(--c-star-bright);
+  opacity: .6;
+}
+
+.ink-stardust-note {
   position: absolute;
-  left: 20%; right: 20%; bottom: -6px;
-  height: 16px;
+  z-index: var(--i, 0);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  /* 关键：绕图钉转，不是绕几何中心转——transform-origin 落在
+     图钉的横坐标上，纵坐标钉在纸面最顶端附近 */
+  transform-origin: var(--tox, 50%) 6px;
+  transform:
+    rotate(var(--rot, 0deg))
+    scale(calc(0.9 + var(--depth, .5) * .18));
+  /* --depth 是"远近"刻度：越靠后的便签越暗、越虚，营造进深 */
+  filter:
+    brightness(calc(.82 + var(--depth, .5) * .24))
+    blur(calc((1 - var(--depth, .5)) * .35px));
+  transition: transform .32s var(--ease), filter .32s var(--ease), z-index 0s;
+}
+
+/* 选中态（先选中、再确认）：整枚便签脱离远近关系，回正大半个
+   角度、放大、亮度拉满，顶到墙面最前——不管它原本叠在哪一层下面 */
+.ink-stardust-note.is-selected {
+  z-index: 999;
+  filter: brightness(1.06) blur(0);
+  transform:
+    rotate(calc(var(--rot, 0deg) * .16))
+    translateY(-4px)
+    scale(calc(0.9 + var(--depth, .5) * .18 + .12));
+}
+
+/* 撕纸边缘的三层结构共用 --clip（JS 算出来的 polygon()），侧面两层
+   跟主纸面同一个轮廓、只是错位几像素叠在后面，露出的那圈毛边参差
+   就是"纸页叠起来的厚度"——不用真的做 3D 变换 */
+.ink-stardust-shadow {
+  position: absolute;
+  left: 14%; right: 14%; bottom: -8px;
+  height: 15px;
   border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.88) 0%, transparent 75%);
-  filter: blur(9px);
-  opacity: .7;
-  transform: rotate(calc(var(--tilt, 0deg) * .3)) translateX(calc(var(--tilt, 0deg) * 1.2px));
-  transition: opacity .32s var(--ease), transform .32s var(--ease), height .32s var(--ease), bottom .32s var(--ease);
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.85) 0%, transparent 75%);
+  filter: blur(8px);
+  opacity: .68;
   pointer-events: none;
 }
-.ink-tarot-card.is-selected .ink-tarot-shadow {
-  opacity: .9; height: 22px; bottom: -16px;
+.ink-stardust-note.is-selected .ink-stardust-shadow {
+  opacity: .88; height: 20px; bottom: -14px; filter: blur(10px);
 }
 
-/* 牌正面：菱形切角的磨砂玻璃，跟原来一样保留 clip-path 轮廓，但
-   描边换成星占卡背那种纤细几何线框——一圈极细的整体轮廓线，四角
-   各加一小段独立的引导角标（外扩、脱开主轮廓一点点），呼应参考
-   图里卡背四角那种"角标 + 中心放射纹"的仪式感边框，而不是卡纸的
-   厚度描边。角标本身用 ::before/::after 两个伪元素画，颜色跟随
-   状态色（柯/枢/置顶）走 */
-.ink-tarot-face {
+.ink-stardust-ply {
+  position: absolute; inset: 0;
+  clip-path: var(--clip);
+  background: linear-gradient(160deg, rgba(0,0,0,.30), rgba(0,0,0,.55));
+  box-shadow: 0 0 0 var(--hair) var(--c-line) inset;
+}
+.ink-stardust-ply-2 { transform: translate(3.5px, 4.5px); opacity: .55; }
+.ink-stardust-ply-1 { transform: translate(1.5px, 2px);   opacity: .75; }
+
+.ink-stardust-face {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  clip-path: polygon(
-    10% 0%, 90% 0%, 100% 10%, 100% 92%, 92% 100%, 8% 100%, 0% 92%, 0% 10%
-  );
-  /* 底部padding留够——不管这张牌内容多短，正文/meta 下面永远有一段
-     纯背景的安全区，下一张牌的标签落进来也不会压住文字。原来靠负
-     margin 硬吃深度，牌矮的时候（没有预览、只有一行 meta）反而更
-     容易被下一张的标签盖住，所以改成"面板本身留白"，重叠深度就
-     不再依赖内容长短 */
-  padding: 26px 17px 34px;
-  min-height: 140px;
-  display: flex; flex-direction: column; justify-content: flex-end;
+  width: 100%; height: 100%;
+  clip-path: var(--clip);
+  padding: 20px 15px 12px;
+  display: flex; flex-direction: column; justify-content: flex-start;
+  gap: 5px;
   background:
-    linear-gradient(155deg, var(--c-highlight), transparent 50%),
+    linear-gradient(155deg, var(--c-highlight), transparent 55%),
     var(--c-glass-bg);
-  backdrop-filter: blur(3px) saturate(var(--c-glass-sat));
-  -webkit-backdrop-filter: blur(3px) saturate(var(--c-glass-sat));
+  backdrop-filter: blur(2.5px) saturate(var(--c-glass-sat));
+  -webkit-backdrop-filter: blur(2.5px) saturate(var(--c-glass-sat));
   box-shadow:
-    0 0 0 1px var(--c-line) inset,
-    0 16px 26px -18px rgba(0,0,0,0.7);
-  transition: box-shadow .25s ease;
+    0 0 0 var(--hair) var(--c-line) inset,
+    0 14px 24px -16px rgba(0,0,0,0.72);
 }
-.ink-tarot-card.is-selected .ink-tarot-face {
+.ink-stardust-note.is-selected .ink-stardust-face {
   box-shadow:
-    0 0 0 1px var(--c-line-strong) inset,
-    0 24px 40px -18px rgba(0,0,0,0.75);
-}
-/* 四角引导线：细线画出的直角折角，脱开牌体轮廓 3px 左右悬空，
-   像星占卡背四角那种独立于卡面主图案的装饰线。用两条渐变短线
-   拼出"L"形，四个角各转一次向 */
-.ink-tarot-face::before,
-.ink-tarot-face::after {
-  content: '';
-  position: absolute;
-  width: 22px; height: 22px;
-  pointer-events: none;
-  opacity: .55;
-  z-index: 3;
-}
-.ink-tarot-face::before {
-  top: 7px; left: 7px;
-  border-top: var(--hair) solid var(--c-accent);
-  border-left: var(--hair) solid var(--c-accent);
-}
-.ink-tarot-face::after {
-  bottom: 7px; right: 7px;
-  border-bottom: var(--hair) solid var(--c-accent);
-  border-right: var(--hair) solid var(--c-accent);
-}
-.ink-tarot-card.is-shu-lit .ink-tarot-face::before,
-.ink-tarot-card.is-shu-lit .ink-tarot-face::after {
-  border-color: var(--c-accent-2);
-}
-.ink-tarot-card.is-selected .ink-tarot-face::before,
-.ink-tarot-card.is-selected .ink-tarot-face::after {
-  opacity: .85;
-}
-/* 另外两个角用一枚极小的空心菱形点缀，跟参考图卡背四角的小型
-   星芒符号呼应，同样脱开轮廓悬空 */
-.ink-tarot-glow::before,
-.ink-tarot-glow::after {
-  content: '';
-  position: absolute;
-  width: 5px; height: 5px;
-  border: var(--hair) solid var(--c-accent);
-  transform: rotate(45deg);
-  opacity: .5;
-}
-.ink-tarot-glow::before { top: 9px; right: 10px; }
-.ink-tarot-glow::after  { bottom: 9px; left: 10px; }
-.ink-tarot-card.is-shu-lit .ink-tarot-glow::before,
-.ink-tarot-card.is-shu-lit .ink-tarot-glow::after {
-  border-color: var(--c-accent-2);
+    0 0 0 var(--hair) var(--c-line-strong) inset,
+    0 22px 38px -16px rgba(0,0,0,0.78);
 }
 
-/* 光晕层：柔和的星芯，焦点位置由每张牌自己的 --glow-x/-y 决定 */
-.ink-tarot-glow {
+/* 光晕焦点落在图钉位置——便签是被"钉住的那一点"照亮的 */
+.ink-stardust-glow {
   position: absolute; inset: 0;
   pointer-events: none;
   background: radial-gradient(
-    circle at var(--glow-x, 50%) var(--glow-y, 40%),
-    var(--c-accent-soft) 0%, transparent 62%
+    circle at var(--glow-x, 50%) 6%,
+    var(--c-accent-soft) 0%, transparent 60%
   );
-  opacity: .5;
+  opacity: .55;
 }
-.ink-tarot-card.is-shu-lit .ink-tarot-glow {
+.ink-stardust-note.is-shu-lit .ink-stardust-glow {
   background: radial-gradient(
-    circle at var(--glow-x, 50%) var(--glow-y, 40%),
-    var(--c-accent-2-soft) 0%, transparent 62%
+    circle at var(--glow-x, 50%) 6%,
+    var(--c-accent-2-soft) 0%, transparent 60%
   );
 }
-.ink-tarot-card.is-pinned-lit .ink-tarot-glow { opacity: .8; }
-.ink-tarot-card.is-draft-lit  .ink-tarot-glow { opacity: .26; filter: saturate(.7); }
+.ink-stardust-note.is-pinned-lit .ink-stardust-glow { opacity: .85; }
+.ink-stardust-note.is-draft-lit  .ink-stardust-glow { opacity: .3; filter: saturate(.7); }
 
-/* 左上角一道极细高光斜线——模拟玻璃反光，静态、不随时间变化 */
-.ink-tarot-sheen {
+/* 左上角一道极细高光斜线，模拟磨砂纸面的反光，静态不闪烁 */
+.ink-stardust-sheen {
   position: absolute;
-  top: -40%; left: -30%;
-  width: 60%; height: 90%;
-  background: linear-gradient(115deg, rgba(255,255,255,0.16) 0%, transparent 45%);
+  top: -35%; left: -25%;
+  width: 55%; height: 85%;
+  background: linear-gradient(115deg, rgba(255,255,255,0.14) 0%, transparent 45%);
   pointer-events: none;
   transform: rotate(-8deg);
 }
 
-.ink-tarot-pin {
-  position: absolute; top: 10px; right: 12px;
+.ink-stardust-pinned-badge {
+  position: absolute; top: 8px; right: 10px;
   color: var(--c-accent); opacity: .85;
-  display: flex;
+  display: flex; z-index: 2;
 }
-
-.ink-tarot-preview {
-  position: relative;
-  font-family: var(--font-body); font-size: 12px; line-height: 1.65;
-  color: var(--c-text-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.ink-tarot-meta {
-  position: relative;
-  margin-top: 10px;
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
-  font-family: var(--font-accent); font-size: 9px; letter-spacing: .8px;
-  color: var(--c-text-faint);
-}
-.ink-tarot-author {
-  font-style: italic; font-size: 12px; letter-spacing: 1px;
-  opacity: .85;
-}
-.ink-tarot-author.is-shu { color: var(--c-accent-2); }
-.ink-tarot-author.is-ke  { color: var(--c-text); }
-.ink-tarot-meta-dot::before { content: '·'; margin-right: 8px; opacity: .6; }
-.ink-tarot-meta-dot:first-of-type::before { content: ''; margin-right: 0; }
-.ink-tarot-author + .ink-tarot-meta-dot::before { content: '·'; margin-right: 8px; }
-
-/* ── 探出标签：牌顶边缘垂直探出的小旗帜。第十二批调得更透——底色
-   alpha 大幅降低、饱和度略压低，磨砂玻璃后面能隐约看见牌面本身
-   的光晕和纹理透出来，不再是一整块实色小旗。标签本身仍保留厚度
-   感（.ink-tarot-tab 外壳 + .ink-tarot-tab-face 正面两层），只是
-   正面这层改用更薄的半透明底 ────────────────────────────── */
-.ink-tarot-tab {
-  position: absolute;
-  top: 0; left: 14%; right: 14%;
-  transform: translateY(-58%);
-  z-index: 2;
-  padding: 3px 3px 0;
-  border-radius: 7px 7px 3px 3px;
-  background: linear-gradient(180deg, var(--c-line-strong), transparent 70%);
-  box-shadow: 0 6px 14px -8px rgba(0,0,0,0.5);
-  transition: transform .32s var(--ease), left .32s var(--ease), right .32s var(--ease);
-}
-/* 选中态：标签跟着牌一起抬得更高，左右边界略微收窄（视觉上更
-   "立"起来），文字这时才允许换行完整显示 */
-.ink-tarot-card.is-selected .ink-tarot-tab {
-  left: 6%; right: 6%;
-  transform: translateY(-64%) scale(1.05);
-}
-.ink-tarot-tab-face {
-  position: relative;
-  isolation: isolate;
-  display: block;
-  padding: 5px 10px 6px;
-  border-radius: 6px 6px 2px 2px;
-  background:
-    linear-gradient(165deg, var(--c-highlight), transparent 60%),
-    color-mix(in srgb, var(--c-accent-soft) 55%, transparent);
-  backdrop-filter: blur(9px) saturate(1.3);
-  -webkit-backdrop-filter: blur(9px) saturate(1.3);
-  box-shadow: 0 0 0 var(--hair) var(--c-accent-soft) inset;
-  text-align: center;
-}
-.ink-tarot-card.is-shu-lit .ink-tarot-tab-face {
-  background:
-    linear-gradient(165deg, var(--c-highlight), transparent 60%),
-    color-mix(in srgb, var(--c-accent-2-soft) 55%, transparent);
-  box-shadow: 0 0 0 var(--hair) var(--c-accent-2-soft) inset;
-}
-/* 置顶：标签边框更实一点，跟牌面 is-pinned-lit 的光环强度呼应，
-   但底色依然保持透——置顶只是"更亮"，不是"更实" */
-.ink-tarot-card.is-pinned-lit .ink-tarot-tab-face {
-  box-shadow: 0 0 0 var(--hair) var(--c-accent) inset;
-}
-/* 草稿：标签左侧一个很小的静态圆点，颜色是强调色，不写"尚未完成"
-   四个字进标签——标签空间寸土寸金，一个点足够眼熟之后一眼认出 */
-.ink-tarot-tab-draft {
-  display: inline-block;
+/* 草稿：一枚很小的静态圆点，颜色是强调色——不写"尚未完成"四个字，
+   便签空间寸土寸金，一个点足够眼熟之后一眼认出 */
+.ink-stardust-draft-dot {
+  position: absolute; top: 10px; left: 12px;
   width: 5px; height: 5px; border-radius: 50%;
   background: var(--c-accent);
-  margin-right: 5px;
-  vertical-align: middle;
-  flex-shrink: 0;
+  z-index: 2;
 }
-.ink-tarot-tab-text {
-  font-family: var(--font-accent); font-style: italic;
-  font-size: 11px; letter-spacing: 1.4px;
+
+.ink-stardust-title {
+  position: relative;
+  font-family: var(--font-display); font-size: 13.5px; letter-spacing: .3px;
   color: var(--c-text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  display: block;
-}
-/* 选中态：标签展开，标题可以换行完整显示，不再截断——最多两行，
-   再长也不会把标签无限撑高 */
-.ink-tarot-card.is-selected .ink-tarot-tab-text {
-  white-space: normal;
-  overflow-wrap: break-word;
-  text-overflow: clip;
   display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.ink-stardust-note.is-selected .ink-stardust-title {
+  -webkit-line-clamp: 4;
+}
+.ink-stardust-preview {
+  position: relative;
+  font-family: var(--font-body); font-size: 10.5px; line-height: 1.55;
+  color: var(--c-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ink-stardust-meta {
+  position: relative;
+  margin-top: auto;
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-accent); font-size: 9px; letter-spacing: .6px;
+  color: var(--c-text-faint);
+}
+.ink-stardust-author {
+  font-style: italic; font-size: 11px; letter-spacing: 1px;
+  opacity: .85;
+}
+.ink-stardust-author.is-shu { color: var(--c-accent-2); }
+.ink-stardust-author.is-ke  { color: var(--c-text); }
+.ink-stardust-meta-dot::before { content: '·'; margin-right: 6px; opacity: .6; }
+.ink-stardust-author + .ink-stardust-meta-dot::before { content: '·'; margin-right: 6px; }
+
+/* ── 图钉：微型天体，钉在虚空里的固定点 ─────────────────────────
+   立体感靠三样东西堆出来：径向渐变本体（有明暗两端，不是平色块）+
+   顶部一枚极细高光点（::after）+ 底下贴一圈很暗的小投影，像是从
+   画面里往前凸出来一点点、真的插进了纸面 */
+.ink-stardust-pin {
+  position: absolute; top: -1px;
+  width: 11px; height: 11px;
+  margin-left: -5.5px;
+  z-index: 3;
+  pointer-events: none;
+}
+.ink-stardust-pin::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+}
+.ink-stardust-pin::after {
+  content: '';
+  position: absolute;
+  width: 2px; height: 2px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.9);
+  top: 2px; left: 2.5px;
+  opacity: .85;
+}
+/* 星核：置顶——最亮的一枚，暖芯 + 扩散光晕 */
+.ink-stardust-pin.is-star::before {
+  background: radial-gradient(circle at 35% 30%, #fff 0%, var(--c-accent) 45%, var(--c-accent-2) 100%);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.35),
+    0 0 7px 1px var(--c-accent-soft),
+    0 2px 3px rgba(0,0,0,.5);
+}
+/* 水晶菱形钉：枢起笔——转45度的小方块，斜切面明暗对半 */
+.ink-stardust-pin.is-crystal {
+  width: 9px; height: 9px; margin-left: -4.5px;
+}
+.ink-stardust-pin.is-crystal::before {
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--c-accent-2) 0%, rgba(0,0,0,.4) 100%);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.3), 0 2px 3px rgba(0,0,0,.5);
+}
+.ink-stardust-pin.is-crystal::after { top: 1.5px; left: 2px; }
+/* 微缩黑洞：柯起笔（默认）——深色核心 + 一圈极细的亮环 */
+.ink-stardust-pin.is-void::before {
+  background: radial-gradient(circle at 40% 35%, #3a3a3a 0%, #050505 60%, #000 100%);
+  box-shadow:
+    0 0 0 1px var(--c-line-strong),
+    0 0 5px 0 rgba(0,0,0,.6),
+    0 2px 3px rgba(0,0,0,.55);
+}
+.ink-stardust-pin.is-void::after { opacity: .55; }
 
 .ink-note-empty {
   text-align: center; padding: 40px 12px;

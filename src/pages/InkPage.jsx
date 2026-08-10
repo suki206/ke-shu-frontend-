@@ -159,6 +159,109 @@ const DRAFT_DEBOUNCE = 1200
 // 长按笔记卡片多久算"长按"，太短容易跟滚动手势打架
 const LONG_PRESS_MS = 480
 
+// ============================================================
+// 星尘墙（第十三批·从"塔罗星牌"重制）：列表不再是一条纵向的牌链，
+// 改成一整面悬浮在深空里的调查墙——每张笔记是一枚被图钉钉在虚空
+// 中的星尘便签，便签与便签之间用光丝相连，像星座之间的星轨。
+// 下面四个都是纯函数（不摸组件状态），布局只依赖"这一批笔记"和
+// "墙的实际像素宽度"两个输入，同一批输入永远算出同一个结果：
+// · seededRng     字符串哈希做种子的确定性伪随机数发生器——同一篇
+//   笔记（同一个 id）每次算出来的位置/角度/撕边形状永远一样，不会
+//   每次渲染都跳动，但整面墙不会长得像同一个模具刻的。
+// · tornClipPath  撕纸边缘。矩形四边各切成几段，每段端点朝内做
+//   小幅随机凹陷，拼出不规则毛边——拒绝完美的圆角矩形，纯粹靠
+//   "参差不齐的凹陷深浅"制造裂纹感，不做外凸（元素背景本来就画不
+//   到自己盒子外面，外凸没有意义）。
+// · layoutStardust 布局主体。水平位置带一条"跟上一张离得够远"的
+//   软约束，避免看起来像一排一个的列表；纵向落点本身也有抖动，不
+//   是整整齐齐的一行行。每张便签还算出一个 depth（0~1，远近），
+//   用来控制缩放/亮度/模糊，营造伪3D进深——数值本身没有意义，只
+//   是"更靠前"还是"更靠后"的相对刻度。便签的 transform-origin 落
+//   在图钉坐标上（不是几何中心），旋转时看起来像"从钉子上垂下来
+//   被轻轻转了个角度"，而不是整张纸绕自己中心打转。
+// · buildThreads  光丝网络。把一批便签的图钉按前后顺序连成一条
+//   主链，隔一张再补一条跳连线，链条不再是一条直线、偶尔分叉；
+//   每两段之间再撒一枚不属于任何便签的悬空星点做点缀，呼应参考图
+//   里那些"路过的"小点。同样是静态的，不跟着时间变化。
+// ============================================================
+const seededRng = (id) => {
+  let h = 0
+  const s = String(id ?? '')
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  if (h === 0) h = 2166136261
+  return () => {
+    h = (h * 1664525 + 1013904223) >>> 0
+    return h / 4294967296
+  }
+}
+
+const TORN_SEG = 5
+const tornClipPath = (rng) => {
+  const pts = []
+  const push = (x, y) => pts.push(`${x.toFixed(1)}% ${y.toFixed(1)}%`)
+  for (let i = 0; i <= TORN_SEG; i++) push((i / TORN_SEG) * 100, (i === 0 || i === TORN_SEG) ? rng() * 1.6 : rng() * 5.5)
+  for (let i = 1; i <= TORN_SEG; i++) push(100 - (i === TORN_SEG ? rng() * 1.6 : rng() * 5.5), (i / TORN_SEG) * 100)
+  for (let i = 1; i <= TORN_SEG; i++) push(100 - (i / TORN_SEG) * 100, 100 - (i === TORN_SEG ? rng() * 1.6 : rng() * 5.5))
+  for (let i = 1; i < TORN_SEG; i++) push(i === 1 ? rng() * 1.6 : rng() * 5.5, 100 - (i / TORN_SEG) * 100)
+  return `polygon(${pts.join(', ')})`
+}
+
+// 便签尺寸范围（px）与墙四周留白——布局常量，不随内容变化
+const NOTE_MIN_W = 150, NOTE_MAX_W = 182
+const NOTE_MIN_H = 96,  NOTE_MAX_H = 134
+const WALL_PAD = 8
+
+const layoutStardust = (list, wallW) => {
+  if (!wallW || !list?.length) return { items: [], height: 0 }
+  const items = []
+  let cursorY = 20
+  let prevCx = wallW / 2
+  list.forEach((n, i) => {
+    const rng = seededRng(n.id ?? `note-${i}`)
+    const w = NOTE_MIN_W + rng() * (NOTE_MAX_W - NOTE_MIN_W)
+    const h = NOTE_MIN_H + rng() * (NOTE_MAX_H - NOTE_MIN_H)
+    // 跟上一张的中心点保持至少大半个便签宽的距离——不是严格的
+    // 左右交替（那样太规律），是软约束，最多重试 4 次就认命
+    let cx, tries = 0
+    do {
+      cx = WALL_PAD + w / 2 + rng() * Math.max(1, wallW - w - WALL_PAD * 2)
+      tries++
+    } while (Math.abs(cx - prevCx) < w * 0.5 && tries < 4)
+    prevCx = cx
+    const rot = (rng() - 0.5) * 13 // ±6.5deg
+    const depth = rng()
+    const y = cursorY + (rng() - 0.5) * 22
+    const pinX = w * 0.32 + rng() * w * 0.36 // 图钉不总落在正中央
+    items.push({
+      note: n, x: cx - w / 2, y, w, h, rot, depth, pinX,
+      clip: tornClipPath(rng),
+      pinVariant: n.pinned_at ? 'star' : (n.firstAuthor === 'shu' ? 'crystal' : 'void'),
+    })
+    cursorY += 78 + rng() * 48
+  })
+  return { items, height: cursorY + 130 }
+}
+
+const buildThreads = (items) => {
+  const pins = items.map(it => ({ x: it.x + it.pinX, y: it.y + 9 }))
+  const lines = []
+  const dots = []
+  for (let i = 0; i < pins.length - 1; i++) {
+    lines.push([pins[i], pins[i + 1]])
+    const rng = seededRng(`${items[i].note.id}-thread-${i}`)
+    if (rng() < 0.7) {
+      const t = 0.32 + rng() * 0.34
+      dots.push({
+        x: pins[i].x + (pins[i + 1].x - pins[i].x) * t + (rng() - 0.5) * 24,
+        y: pins[i].y + (pins[i + 1].y - pins[i].y) * t + (rng() - 0.5) * 24,
+        r: 1.5 + rng() * 1.5,
+      })
+    }
+    if (i < pins.length - 2 && rng() < 0.4) lines.push([pins[i], pins[i + 2]])
+  }
+  return { pins, lines, dots }
+}
+
 const InkPage = ({
   notes, notesLoading, onFetchNotes, onCreateNote, onUpdateNote, onDeleteNote,
   activeNote, activeNoteLoading, onOpenNote,
@@ -780,113 +883,123 @@ const InkPage = ({
     setMoveSheet(null)
   }
 
-  // 每张卡片的光晕焦点位置、倾斜角度都做一点微妙的错落——同一篇
-  // 笔记算出来的偏移永远一样（纯字符串哈希，没有 Math.random），
-  // 不会每次渲染都跳动，但一整排卡片看起来不是同一个模具刻出来的。
-  // 倾斜角度控制在 ±4.5deg 内，像发牌时散在桌面上的自然角度，
-  // 不会大到影响阅读或显得"歪掉了"
-  const cardGlowOffset = (id) => {
-    const s = String(id || '')
-    let h = 0
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-    const gx = 28 + (h % 45)          // 28%~72%
-    const gy = 22 + ((h >> 5) % 40)   // 22%~62%
-    // 倾斜角度特意避开接近 0 的死区——真实的散牌不会有哪张恰好
-    // 是正的，用两段区间各留一半符号位，保证 |tilt| 落在 3~9deg
-    const tiltMag = 3 + ((h >> 11) % 60) / 10   // 3deg ~ 9deg
-    const tilt = ((h >> 17) % 2 === 0) ? tiltMag : -tiltMag
-    return { gx, gy, tilt }
-  }
+  // 墙面实际宽度：布局要跟着真实渲染宽度走，不能拍脑袋写死一个
+  // 数字——不同手机屏幕、不同缩放下 .ink-page-content 的真实宽度
+  // 不一样。ResizeObserver 只在宽度变化超过 8px 才更新，避免键盘
+  // 弹出这类无关的高度变化触发重排；只测一次挂载点，孤儿区/置顶区
+  // 共用同一个宽度
+  const wallMeasureRef = useRef(null)
+  const [wallW, setWallW] = useState(0)
+  useEffect(() => {
+    const el = wallMeasureRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let last = 0
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth
+      if (Math.abs(w - last) < 8) return
+      last = w
+      setWallW(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
-  // 塔罗星牌（第十一批）：从"铭文行/星体卡片"升级成一张张倾斜漂浮
-  // 的星牌。牌体本身是菱形裁切的磨砂玻璃，四周一道极细描边模拟卡纸
-  // 厚度，左上角一道极细高光模拟反光，底部一片模糊椭圆阴影让牌看起来
-  // 悬在星尘上方而不是贴死在背景上——这几层都是静态 CSS
-  // （clip-path + box-shadow + 独立的 ::after 阴影伪元素），没有
-  // animation，不烧性能。
-  // 标题不再写在牌面正中央，改成从牌顶边缘探出的一枚小标签——半透明
-  // 磨砂玻璃质感，正面亮、侧面暗，用渐变模拟标签自己的厚度；标签
-  // 底色随"谁起笔/是否置顶/是否草稿"变化，跟牌面光晕用的是同一套
-  // 状态判断，只是从"整张牌的光晕颜色"收窄成"一小片标签的底色"，
-  // 状态信息更聚焦、牌面本身可以更干净。
-  // 选中态（第十一批）：点一下先"抬起"——牌整体轻微放大上浮、标签
-  // 从省略号展开成完整标题；同一张牌再点一下才真正进入。见上方
+  const pinnedLayout  = useMemo(() => layoutStardust(pinnedNotes, wallW), [pinnedNotes, wallW])
+  const restLayout    = useMemo(() => layoutStardust(restNotes, wallW), [restNotes, wallW])
+  const pinnedThreads = useMemo(() => buildThreads(pinnedLayout.items), [pinnedLayout])
+  const restThreads   = useMemo(() => buildThreads(restLayout.items), [restLayout])
+
+  // 星尘便签：一张不规则撕边的磨砂纸片，被一枚微型天体图钉钉在
+  // 虚空里。选中态（先选中、再确认，交互沿用自塔罗星牌年代）——
+  // 点一下先"抬起"：脱离远近关系，整张回正大半个角度、放大、亮度
+  // 拉满，标题/摘要不再截断；同一张再点一下才真正进入笔记。见上方
   // selectedCardId/handleCardClick。
-  const renderNoteCard = (n, i, siblings) => {
-    const { gx, gy, tilt } = cardGlowOffset(n.id)
+  const renderStardustNote = (item) => {
+    const n = item.note
     const isSelected = selectedCardId === n.id
-    // 蜿蜒排布：左右轻微摆动的横向偏移，同一篇算出来的偏移永远一样
-    // （沿用 cardGlowOffset 的哈希，不额外起新的随机源）。用 sin 波
-    // 而不是简单的奇偶交替，摆动的弧度更自然、不像严格打拍子。
-    // 牌体本身已经占容器 74% 宽，摆动幅度收在约 ±13% 内，加上选中态
-    // 邻牌还要再让开 10%，两者叠加也不会把牌推出可视区域（容器有
-    // overflow-x: hidden 兜底）
-    const swing = Math.sin(i * 1.35) * 9 + Math.sin(i * 0.6) * 4 // 约 -13% ~ 13%
-    // 是否是当前选中牌紧邻的上一张/下一张——链条里前后两张牌压住了
-    // 被选中的这张，选中态需要让它们各自往反方向让开一点，选中的
-    // 牌才能整张露出来，不是只露出没被压住的那一角
-    const isPrevOfSelected = selectedCardId && siblings?.[i + 1]?.id === selectedCardId
-    const isNextOfSelected = selectedCardId && siblings?.[i - 1]?.id === selectedCardId
-    const cardClass = [
-      'ink-tarot-card',
+    const glowX = (item.pinX / item.w) * 100
+    const noteClass = [
+      'ink-stardust-note',
       n.firstAuthor === 'shu' ? 'is-shu-lit' : 'is-ke-lit',
       n.pinned_at ? 'is-pinned-lit' : '',
       n.hasDraft ? 'is-draft-lit' : '',
       isSelected ? 'is-selected' : '',
-      isPrevOfSelected ? 'is-neighbor-before' : '',
-      isNextOfSelected ? 'is-neighbor-after' : '',
     ].filter(Boolean).join(' ')
     return (
-    <div
-      key={n.id}
-      className={cardClass}
-      style={{ '--glow-x': `${gx}%`, '--glow-y': `${gy}%`, '--tilt': `${tilt}deg`, '--swing': `${swing}%`, '--i': i }}
-      onClick={() => handleCardClick(n)}
-      onTouchStart={() => startLongPress(n)}
-      onTouchEnd={cancelLongPress}
-      onTouchMove={cancelLongPress}
-      onMouseDown={() => startLongPress(n)}
-      onMouseUp={cancelLongPress}
-      onMouseLeave={cancelLongPress}
-      onContextMenu={(e) => { e.preventDefault(); openCardMenu(n) }}
-      role="button"
-      tabIndex={0}
-      aria-label={n.title || '未命名手记'}
-      aria-expanded={isSelected}
-    >
-      <span className="ink-tarot-shadow" aria-hidden="true" />
+      <div
+        key={n.id}
+        className={noteClass}
+        style={{
+          left: `${item.x}px`, top: `${item.y}px`,
+          width: `${item.w}px`, height: `${item.h}px`,
+          '--rot': `${item.rot}deg`, '--tox': `${item.pinX}px`,
+          '--depth': item.depth, '--clip': item.clip,
+          '--glow-x': `${glowX}%`,
+        }}
+        onClick={() => handleCardClick(n)}
+        onTouchStart={() => startLongPress(n)}
+        onTouchEnd={cancelLongPress}
+        onTouchMove={cancelLongPress}
+        onMouseDown={() => startLongPress(n)}
+        onMouseUp={cancelLongPress}
+        onMouseLeave={cancelLongPress}
+        onContextMenu={(e) => { e.preventDefault(); openCardMenu(n) }}
+        role="button"
+        tabIndex={0}
+        aria-label={n.title || '未命名手记'}
+        aria-expanded={isSelected}
+      >
+        {/* 底部一小片模糊投影——便签悬在虚空里，不是贴死在背景上 */}
+        <span className="ink-stardust-shadow" aria-hidden="true" />
 
-      <div className="ink-tarot-face">
-        <span className="ink-tarot-glow" aria-hidden="true" />
-        <span className="ink-tarot-sheen" aria-hidden="true" />
+        {/* 侧面：紧挨主纸面叠两层更暗的撕边，模拟纸页叠起来的厚度 */}
+        <span className="ink-stardust-ply ink-stardust-ply-2" aria-hidden="true" />
+        <span className="ink-stardust-ply ink-stardust-ply-1" aria-hidden="true" />
 
-        {n.pinned_at && <span className="ink-tarot-pin"><PinIcon /></span>}
+        <div className="ink-stardust-face">
+          <span className="ink-stardust-glow" aria-hidden="true" />
+          <span className="ink-stardust-sheen" aria-hidden="true" />
+          {n.pinned_at && <span className="ink-stardust-pinned-badge"><PinIcon /></span>}
+          {n.hasDraft && <span className="ink-stardust-draft-dot" aria-hidden="true" title="尚未完成" />}
 
-        {n.preview && <div className="ink-tarot-preview">{n.preview}</div>}
+          <div className="ink-stardust-title">{n.title || '未命名手记'}</div>
+          {item.h > 108 && n.preview && <div className="ink-stardust-preview">{n.preview}</div>}
 
-        <div className="ink-tarot-meta">
-          {n.firstAuthor && (
-            <span className={`ink-tarot-author${n.firstAuthor === 'shu' ? ' is-shu' : ' is-ke'}`}>
-              · {n.firstAuthor}
-            </span>
-          )}
-          <span className="ink-tarot-meta-dot">{n.board ? `${n.board} · ` : ''}{n.entryCount || 0} 次落笔</span>
-          <span className="ink-tarot-meta-dot">{daysLabel(daysSince(n.updated_at))}</span>
+          <div className="ink-stardust-meta">
+            {n.firstAuthor && (
+              <span className={`ink-stardust-author${n.firstAuthor === 'shu' ? ' is-shu' : ' is-ke'}`}>
+                · {n.firstAuthor}
+              </span>
+            )}
+            <span className="ink-stardust-meta-dot">{daysLabel(daysSince(n.updated_at))}</span>
+          </div>
         </div>
-      </div>
 
-      {/* 探出标签：图书馆书脊分类签的感觉，正面亮、侧面暗模拟厚度；
-          未选中时标题截断带省略号，选中态展开成完整标题、标签本身
-          也跟着牌面一起"抬起" */}
-      <div className="ink-tarot-tab">
-        <span className="ink-tarot-tab-face">
-          {n.hasDraft && <span className="ink-tarot-tab-draft" aria-hidden="true" />}
-          <span className="ink-tarot-tab-text">{n.title || '未命名手记'}</span>
-        </span>
+        {/* 图钉：固定点落在牌面 transform-origin 上，便签绕它转，
+            视觉上像是从这一点垂下来的，不随旋转明显位移 */}
+        <span className={`ink-stardust-pin is-${item.pinVariant}`} style={{ left: `${item.pinX}px` }} aria-hidden="true" />
       </div>
-    </div>
     )
   }
+
+  // 光丝网络的 SVG 图层：viewBox 直接用墙的真实像素宽高，1 单位＝
+  // 1px，跟便签的绝对定位坐标严丝合缝，不会因为百分比换算跟真实
+  // 宽度错位。每条线画两遍——一条稍宽、糊开当光晕垫底，一条细的
+  // 压在上面当实线，纯 CSS/SVG 静态叠加，没有 animation
+  const renderThreadLayer = (threads, height) => (
+    <svg
+      className="ink-stardust-threads" aria-hidden="true"
+      width={wallW} height={height} viewBox={`0 0 ${wallW} ${height}`} preserveAspectRatio="none"
+    >
+      {threads.lines.map(([a, b], i) => (
+        <Fragment key={i}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="ink-thread-line-glow" />
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="ink-thread-line" />
+        </Fragment>
+      ))}
+      {threads.dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={d.r} className="ink-thread-dot" />)}
+    </svg>
+  )
 
   // 正文分段：按 entries 顺序拼，柯/枢各自的字色与徽标；
   // 老数据（有 content 但没有 entries）整段按柯的字迹显示，
@@ -1000,19 +1113,26 @@ const InkPage = ({
             {/* 空板块（或者压根还没有笔记）不放提示文字——就让深色的
                 页面背景自己空着，"新建一篇"已经是唯一需要的入口了 */}
 
-            {!notesLoading && pinnedNotes.length > 0 && (
-              <div className="ink-tarot-spread">
-                {pinnedNotes.map((n, i) => renderNoteCard(n, i, pinnedNotes))}
-              </div>
-            )}
-            {!notesLoading && pinnedNotes.length > 0 && restNotes.length > 0 && (
-              <div className="ink-pin-divider" />
-            )}
-            {!notesLoading && restNotes.length > 0 && (
-              <div className="ink-tarot-spread">
-                {restNotes.map((n, i) => renderNoteCard(n, i + pinnedNotes.length, restNotes))}
-              </div>
-            )}
+            {/* 星尘墙：真正撑起测宽的是这一层——置顶区/常规区两面墙
+                共用同一个测出来的 wallW，坐标系统一，光丝网络才能
+                跨区连贯。没有笔记时这层本身也不占高度，不用额外判空 */}
+            <div className="ink-stardust-outer" ref={wallMeasureRef}>
+              {!notesLoading && pinnedNotes.length > 0 && (
+                <div className="ink-stardust-wall" style={{ height: pinnedLayout.height }}>
+                  {wallW > 0 && renderThreadLayer(pinnedThreads, pinnedLayout.height)}
+                  {pinnedLayout.items.map(renderStardustNote)}
+                </div>
+              )}
+              {!notesLoading && pinnedNotes.length > 0 && restNotes.length > 0 && (
+                <div className="ink-pin-divider" />
+              )}
+              {!notesLoading && restNotes.length > 0 && (
+                <div className="ink-stardust-wall" style={{ height: restLayout.height }}>
+                  {wallW > 0 && renderThreadLayer(restThreads, restLayout.height)}
+                  {restLayout.items.map(renderStardustNote)}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
