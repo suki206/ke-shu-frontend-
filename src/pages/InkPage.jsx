@@ -41,14 +41,9 @@ import { daysLabel } from './dustCommon'
 //    的草稿标记又写回去——列表和详情页会诈尸出一个「尚未完成」。
 //    现在同一篇笔记的写请求严格按发起顺序执行，后一个永远等前一个
 //    真正落地了才发出，不会再被网络时序打乱。
-// 10) 枢决策自动流转（第四批）：后端在枢每次写完的正文末尾解析出
-//    entries.decision（finalize/continue/new），前端拿它自动接着触发
-//    下一轮——decision=continue 自动"交给枢"，=new 自动"另起一篇"，
-//    =finalize（或者模型没交出这个标记）就落回今天这套"保留/删除
-//    这段"的人工确认。为了不让枢自己跟自己写个没完，设了
-//    AUTO_CHAIN_LIMIT 上限，连续自动接力到顶就把主动权交还给真人；
-//    真人任何一次手动操作（点头部图标、点"我再添一笔"、开一篇新
-//    笔记）都会把这个计数清零，重新攒一轮新的自动接力额度。
+// 10) 枢决策自动流转（第四批，第七批已废弃见 13①）：曾经的做法是
+//    decision=continue/new 时自动接着触发下一轮生成，枢自己跟自己
+//    写下去，到 AUTO_CHAIN_LIMIT 才停。这个自动接力已经整个去掉了。
 // 11) 列表页板块系统（第五批）：顶部一条横向滑动的板块 tab（【全部】
 //    +自定义板块），长按笔记卡片弹出【置顶】【移动到】【删除】——
 //    这套菜单和"移动到"的板块选择器复用的是原来"落笔弹层"那一套
@@ -58,17 +53,33 @@ import { daysLabel } from './dustCommon'
 //    互不干扰，一篇笔记可以又置顶又挂在某个板块下。
 // 12) 列表页美化（第六批）：卡片改铭文行——去掉背景板/圆角/阴影，
 //    行与行之间只留一条极细分隔线，读起来更像手记目录而不是一堆
-//    悬浮的 app 卡片。状态也从"文字徽标+呼吸动画"改成纯静态小符号：
-//    草稿是标题前一个不会动的小圆点，没有草稿就什么都不显示（不用
-//    另一个"已完成"符号去填满，留白本身就是"没什么要看"）；轮到
-//    枢写（最后一条是柯写的，或者笔记还空着）在标题末尾缀一个安静
-//    的「· shu」，跟正文里枢的段落徽标同一套字体语言。空板块／空
-//    列表不再放提示文字，就让页面本身的深色背景空着，"新建一篇"
-//    已经是唯一需要的入口。返回时如果尾巴还有没处理的字，弹窗问
-//    「存草稿」还是「保存」，不再默认悄悄存成草稿——这一步顺带把
-//    tailTextRef 和 tailText 状态没有严格同步的一个小豁口也补上了
-//    （落笔/交给枢/另起一篇清空尾巴时，ref 现在跟 state 同一时刻
-//    清零，不用等下一帧的 effect 才追上）。
+//    悬浮的 app 卡片。空板块／空列表不再放提示文字，就让页面本身的
+//    深色背景空着，"新建一篇"已经是唯一需要的入口。返回时如果尾巴
+//    还有没处理的字，弹窗问「存草稿」还是「保存」，不再默认悄悄存
+//    成草稿——这一步顺带把 tailTextRef 和 tailText 状态没有严格同步
+//    的一个小豁口也补上了（落笔/交给枢/另起一篇清空尾巴时，ref 现在
+//    跟 state 同一时刻清零，不用等下一帧的 effect 才追上）。
+// 13) 第七批：① 枢写笔记不再是跟对话完全脱钩的另一个模型——生成
+//    请求现在也会拿题目/正文去 Ombre Brain 检索一遍「你记得的事」，
+//    跟 /api/chat/stream 用的是同一套记忆，系统提示词里也把"你还是
+//    平时聊天那个枢，不是从零开始不认识对方的新模型"这层说清楚，
+//    不再让它套用"AI 无法感知痛苦"这类通用模板腔调（见 server.js
+//    runInkStream）。② 列表卡片上的落款从"轮到谁写"的动态提示改成
+//    "起笔人"——谁先落下第一笔这一篇就署谁的名，草稿阶段（还没有
+//    任何 entries）落笔人只可能是真人，不再诈尸出一个「· shu」；
+//    这个落款现在常驻显示（不再只在"轮到某人"时才出现），字号也
+//    调大了一档。③ "尚未完成"从笔记详情页顶部挪到外部列表卡片上，
+//    而且是看得见的文字标签，不再是只有 aria-label、肉眼看不出意思
+//    的小圆点。④ 一篇笔记如果从头到尾没落过一个字，点返回就直接
+//    删掉这篇，不再留一条空白笔记杵在列表里。⑤ 去掉了枢的决策自动
+//    流转（原第 10 条那一套）——枢每写完一段一定会停下来，不会自己
+//    接着往下接力写。justGenerated 那个面板现在只给一句状态：「他
+//    写完了」/「他想让你续写」/「他想让你另起一篇」，对应 decision
+//    的 finalize/continue/new；点"续写"是真人自己在原来这段后面接着
+//    写（reopenTail），点"另起一篇"也是真人自己写，只是这一段落笔
+//    时会强制标成 mode:'new'（nextModeRef），带上分隔线，视觉上跟
+//    "枢自己另起一篇"（头部图标，handOffToShuNew）一致，但执笔的是
+//    真人，不是又喊一次枢来写。
 // ============================================================
 
 const BackIcon = () => (
@@ -127,9 +138,6 @@ const fmtDate = (iso) => {
 // 下面还留得住刚写的两三行
 const CARET_ANCHOR = 0.38
 const DRAFT_DEBOUNCE = 1200
-// 枢决策自动流转最多连续接力几次：防止 decision 一直是 continue/new，
-// 枢自己跟自己没完没了地写下去——到这个数就把主动权交还给真人
-const AUTO_CHAIN_LIMIT = 3
 // 长按笔记卡片多久算"长按"，太短容易跟滚动手势打架
 const LONG_PRESS_MS = 480
 
@@ -168,7 +176,7 @@ const InkPage = ({
   const noteIdRef      = useRef(null)
   const lastSavedRef   = useRef('')
   const pendingWriteRef = useRef(Promise.resolve()) // 见下方 enqueueWrite
-  const autoChainRef   = useRef(0)      // 枢决策自动接力已经连续走了几轮
+  const nextModeRef     = useRef(null)  // 下一次真人落笔要不要强制标成 'new'（枢建议"另起一篇"、真人自己落笔那一段要带分隔线）
   const longPressTimer = useRef(null)
   const longPressFired = useRef(false)
 
@@ -310,36 +318,22 @@ const InkPage = ({
     }
   }, [note, keepCaretInView])
 
-  // 枢写完那一刻：先看这一段带没带决策标记——continue/new 就在自动
-  // 接力额度没用完的情况下直接触发下一轮，不用真人每次都点；额度用完、
-  // 标记是 finalize、或者模型压根没交出这个标记，都落回"保留/删除
-  // 这段"的人工确认窗口，不自动把输入框塞回来
+  // 枢写完那一刻：不管决策标记是什么，都停下来交给真人看——枢不会
+  // 自己跟自己接力写下去，"continue/new"只是他自己的判断，摆给真人
+  // 看之后要不要照做（续写/另起一篇）由真人决定，见下方 justGenerated
+  // 那个面板
   useEffect(() => {
     if (prevGenerating.current && !generating) {
-      const decision  = lastEntry?.author === 'shu' ? lastEntry?.decision : null
-      const canAutoChain = !lastEntry?.truncated && autoChainRef.current < AUTO_CHAIN_LIMIT
-      if (decision === 'continue' && canAutoChain) {
-        autoChainRef.current += 1
-        setJustGenerated(false); setForceWrite(false)
-        handOffToShu()
-      } else if (decision === 'new' && canAutoChain) {
-        autoChainRef.current += 1
-        setJustGenerated(false); setForceWrite(false)
-        handOffToShuNew()
-      } else {
-        setJustGenerated(true)
-        setForceWrite(false)
-      }
+      setJustGenerated(true)
+      setForceWrite(false)
     }
     prevGenerating.current = generating
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generating])
 
   // ── 导航 ──────────────────────────────────────────────────
   const openNote = async (id) => {
     loadedNoteRef.current = null
     lastSavedRef.current = ''
-    autoChainRef.current = 0
     setOpenNoteId(id); setView('note'); setConfirmDelete(false)
     await onOpenNote?.(id)
   }
@@ -347,8 +341,12 @@ const InkPage = ({
   const goBackToList = async () => {
     clearTimeout(draftTimer.current)
     const pending = tailTextRef.current
-    // 没点保存就返回：这一段照样留成草稿，列表上会亮"尚未完成"
-    if (pending !== lastSavedRef.current) {
+    if (!hasBody && !pending.trim()) {
+      // 从头到尾没落过一个字（正文和草稿尾巴都还是空的）：这一篇
+      // 本来就是白纸，直接删掉，不留一条空白笔记杵在列表里
+      await onDeleteNote?.(openNoteId)
+    } else if (pending !== lastSavedRef.current) {
+      // 没点保存就返回：这一段照样留成草稿，列表上会亮"尚未完成"
       await persistDraft(pending, openNoteId)
       if (pending.trim()) showToast?.('这段留着，标了尚未完成')
     }
@@ -405,40 +403,51 @@ const InkPage = ({
   const showTail = !generating && !activeNoteLoading && (myTurn || forceWrite)
 
   // ── 三个动作：保存 / 交给枢 / 撤掉枢那段 ────────────────────
+  // 真人这一段落笔时用什么 mode：平时就是 derivedMode（continue/original），
+  // 但如果是从枢的"想让你另起一篇"建议点进来写的，nextModeRef 会被
+  // 标成 'new'，这一段落笔就带上分隔线，跟"另起一篇"在正文里的视觉
+  // 效果一致——用完立刻清空，只管这一次落笔，不影响后面
+  const takeNextMode = () => {
+    const m = nextModeRef.current || derivedMode
+    nextModeRef.current = null
+    return m
+  }
+
   // ✓ ＝ 直接落笔存下，不弹任何选择
   const saveNow = async () => {
     if (generating || !hasTailText) return
     clearTimeout(draftTimer.current)
-    autoChainRef.current = 0
     const text = tailText.trim()
-    await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode }))
+    await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: takeNextMode() }))
     setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
     setJustGenerated(false); setForceWrite(false)
     showToast?.('已落笔')
   }
 
-  // 交给枢：有尾巴就先把我这段落下，然后让他一口气写完，中途不问
+  // 交给枢：有尾巴就先把我这段落下，然后让他写完这一段，中途不问。
+  // 枢写完之后不会自己接着往下写——一段写完永远停下来，交给真人在
+  // justGenerated 那个面板里看他的决策标记、自己决定下一步
   const handOffToShu = async () => {
     if (generating) return
     clearTimeout(draftTimer.current)
     const text = tailText.trim()
     if (text) {
-      await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode }))
+      await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: takeNextMode() }))
       setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
     }
     setJustGenerated(false); setForceWrite(false)
     await onGenerateEntry?.(openNoteId, (hasBody || text) ? 'continue' : 'original')
   }
 
-  // 另起一篇：尾巴里有字的话先落自己这段（跟交给枢一样，算我自己
-  // 的落笔），然后让枢基于目前的全文，另开一个新方向/场景写完整
-  // 一段——不承接上一段情节，是独立的新起点，接在后面
+  // 另起一篇（头部图标）：尾巴里有字的话先落自己这段（跟交给枢一样，
+  // 算我自己的落笔），然后让枢基于目前的全文，另开一个新方向/场景
+  // 写完整一段——不承接上一段情节，是独立的新起点，接在后面
   const handOffToShuNew = async () => {
     if (generating || isTrulyEmpty) return
     clearTimeout(draftTimer.current)
     const text = tailText.trim()
     if (text) {
-      await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode }))
+      await enqueueWrite(() => onFinalizeEntry?.(openNoteId, { content: text, mode: takeNextMode() }))
       setTailText(''); lastSavedRef.current = ''; tailTextRef.current = ''
     }
     setJustGenerated(false); setForceWrite(false)
@@ -452,17 +461,23 @@ const InkPage = ({
     showToast?.('这段和它留下的记忆都删掉了')
   }
   const reopenTail = () => {
-    autoChainRef.current = 0 // 真人主动要求再添一笔，自动接力额度重新攒
     setForceWrite(true); setJustGenerated(false)
     requestAnimationFrame(() => {
       tailRef.current?.focus()
       requestAnimationFrame(() => keepCaretInView())
     })
   }
-  // 头部图标 / 正文里的续写类按钮都是真人主动点的——点之前先把自动
-  // 接力计数清零，这一次手动操作之后重新攒一轮新的自动接力额度
-  const humanHandOffToShu    = () => { autoChainRef.current = 0; handOffToShu() }
-  const humanHandOffToShuNew = () => { autoChainRef.current = 0; handOffToShuNew() }
+  // 枢建议"想让你另起一篇"：打开输入框让真人自己写，但这一段落笔时
+  // 要标成 'new'（分隔线），不是真的再喊一次枢来写——跟头部"另起
+  // 一篇"图标（handOffToShuNew，枢自己写）是两件不同的事
+  const writeNewBranch = () => {
+    nextModeRef.current = 'new'
+    setForceWrite(true); setJustGenerated(false)
+    requestAnimationFrame(() => {
+      tailRef.current?.focus()
+      requestAnimationFrame(() => keepCaretInView())
+    })
+  }
 
   // ── 板块（第五批）：从 notes 里出现过的 board 值去重，就是 tab 列表；
   //    activeBoard=null 表示【全部】。板块存在与否完全由笔记自己的
@@ -527,10 +542,12 @@ const InkPage = ({
     setMoveSheet(null)
   }
 
-  // 铭文行：草稿用一个静态小圆点标在标题前（不再是会呼吸的动画圆点
-  // 配"尚未完成"文字），没有草稿就什么都不显示；轮到枢写（最后一条
-  // 是柯写的，或者笔记还空着谁都没写）就在标题末尾缀一个安静的
-  // "· shu"，跟正文里枢的段落徽标是同一套字体语言
+  // 铭文行：草稿在标题前给一个看得见的"尚未完成"标签——不再是只靠
+  // aria-label 撑门面、肉眼看不出意思的小圆点，外部列表上就要能一眼
+  // 扫到哪篇还没写完，不用点进去才知道；标题末尾常驻一个"起笔人"
+  // 落款（· ke / · shu），谁先落下第一笔这一篇就署谁的名，不再是
+  // "轮到谁写"的动态提示——所以不管有没有草稿、写没写完，每张卡片
+  // 右上角随时都能看出这一篇是谁开的头
   const renderNoteCard = (n) => (
     <div
       key={n.id}
@@ -546,9 +563,13 @@ const InkPage = ({
     >
       <div className="ink-note-row-title">
         {n.pinned_at && <PinIcon />}
-        {n.hasDraft && <span className="ink-note-row-dot" aria-label="尚未完成" />}
+        {n.hasDraft && <span className="ink-note-row-draftflag">尚未完成</span>}
         <span className="ink-note-row-title-text">{n.title || '未命名手记'}</span>
-        {n.lastAuthor !== 'shu' && <span className="ink-note-row-shu">· shu</span>}
+        {n.firstAuthor && (
+          <span className={`ink-note-row-author${n.firstAuthor === 'shu' ? ' is-shu' : ' is-ke'}`}>
+            · {n.firstAuthor}
+          </span>
+        )}
       </div>
       {n.preview && <div className="ink-note-row-preview">{n.preview}</div>}
       <div className="ink-note-row-meta">
@@ -594,7 +615,7 @@ const InkPage = ({
             </button>
             <button
               className="ink-page-iconbtn"
-              onClick={humanHandOffToShu}
+              onClick={handOffToShu}
               disabled={generating}
               aria-label={isTrulyEmpty ? '让枢先起笔' : '交给枢写完'}
               title={isTrulyEmpty ? '让枢先起笔' : '交给枢写完'}
@@ -603,7 +624,7 @@ const InkPage = ({
             </button>
             <button
               className="ink-page-iconbtn"
-              onClick={humanHandOffToShuNew}
+              onClick={handOffToShuNew}
               disabled={generating || isTrulyEmpty}
               aria-label="另起一篇"
               title="另起一篇"
@@ -680,7 +701,6 @@ const InkPage = ({
             />
             <div className="ink-doc-meta">
               {fmtDate(note?.updated_at || note?.created_at)} · {charCount} 字
-              {(hasTailText || note?.draft_content) ? <span className="ink-doc-draft-flag"> · 尚未完成</span> : null}
             </div>
 
             {activeNoteLoading && <div className="ink-note-empty">加载中…</div>}
@@ -720,23 +740,28 @@ const InkPage = ({
                   )}
                 </div>
 
-                {/* 枢刚写完：保留 / 删除。撞到长度上限、或者决策是 continue/new
-                    但自动接力额度已经用完，都在这里给出对应的续写入口 */}
+                {/* 枢写完一段，一定会停下来，不会自己接着往下接力写。这里
+                    只给一句清楚的状态——他写完了 / 他想让你续写 / 他想让你
+                    另起一篇——告诉真人接下来轮到自己做什么，具体怎么做
+                    永远是真人自己点出来的 */}
                 {justGenerated && !generating && (
                   <div className="ink-keep-row">
                     <span className="ink-nudge-hint">
-                      {lastEntry?.truncated ? '枢写到长度上限停下了——'
-                        : lastEntry?.decision === 'continue' ? '枢还想接着写，先攒了几轮给你看看——'
-                        : lastEntry?.decision === 'new' ? '枢想另起一段，先攒了几轮给你看看——'
-                        : '枢把这一段写完了——'}
+                      {lastEntry?.truncated ? '枢写到长度上限，先停在这儿了——'
+                        : lastEntry?.decision === 'continue' ? '他写完了，想让你续写。'
+                        : lastEntry?.decision === 'new' ? '他写完了，想让你根据这段另起一篇。'
+                        : '他写完了。'}
                     </span>
-                    <button className="ink-hold-btn" onClick={keepLastEntry}>保留</button>
-                    {(lastEntry?.truncated || lastEntry?.decision === 'continue') && (
-                      <button className="ink-hold-btn" onClick={humanHandOffToShu}>让他接着写完</button>
+                    {lastEntry?.truncated && (
+                      <button className="ink-hold-btn" onClick={handOffToShu}>让他接着写完</button>
+                    )}
+                    {!lastEntry?.truncated && lastEntry?.decision === 'continue' && (
+                      <button className="ink-hold-btn" onClick={reopenTail}>续写</button>
                     )}
                     {!lastEntry?.truncated && lastEntry?.decision === 'new' && (
-                      <button className="ink-hold-btn" onClick={humanHandOffToShuNew}>让他另起一篇</button>
+                      <button className="ink-hold-btn" onClick={writeNewBranch}>另起一篇</button>
                     )}
+                    <button className="ink-hold-btn" onClick={keepLastEntry}>自存</button>
                     <button className="ink-hold-btn is-danger" onClick={deleteLastEntry}>删除这段</button>
                   </div>
                 )}
@@ -752,7 +777,7 @@ const InkPage = ({
                 {isTrulyEmpty && !generating && (
                   <div className="ink-keep-row">
                     <span className="ink-nudge-hint">还没有落笔——</span>
-                    <button className="ink-hold-btn" onClick={humanHandOffToShu}>让枢先起笔</button>
+                    <button className="ink-hold-btn" onClick={handOffToShu}>让枢先起笔</button>
                   </div>
                 )}
 

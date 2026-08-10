@@ -2482,21 +2482,31 @@ button { font-family: inherit; }
   font-family: var(--font-body); font-size: 14.5px; color: var(--c-text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* 草稿：标题前一个不会动的小圆点，纯状态符号，不再是呼吸动画配
-   "尚未完成"这行字——没有草稿这个位置就什么都不放，留白本身就是
-   "没什么要看"，不需要另一个"已完成"符号去填满 */
-.ink-note-row-dot {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: var(--c-accent); flex-shrink: 0;
+/* 草稿："尚未完成"是一个看得见的文字小标签，不再是只靠 aria-label
+   撑门面、肉眼看不出意思的小圆点——外部列表就要能一眼扫到哪篇还
+   没写完，不用点进去才知道；没有草稿这个位置就什么都不放，留白
+   本身就是"没什么要看"，不需要另一个"已完成"符号去填满 */
+.ink-note-row-draftflag {
+  flex-shrink: 0;
+  font-family: var(--font-accent); font-size: 10.5px; letter-spacing: .5px;
+  color: var(--c-accent); opacity: .85;
+  border: var(--hair) solid var(--c-accent);
+  border-radius: 20px; padding: 1px 7px;
 }
-/* 轮到枢写：标题末尾一个安静的落款，跟正文里枢的段落徽标同一套
-   字体语言（斜体、小号、拉字距），不是重新发明一个新样式 */
-.ink-note-row-shu {
+/* 起笔人落款：谁先落下第一笔这一篇就署谁的名，常驻在标题末尾——
+   不再是"轮到谁写"的动态提示，草稿阶段（还没有任何 entries）落笔
+   人只可能是真人，不会再诈尸出一个「· shu」。柯／枢分别用各自的
+   字迹色区分；字号比原来的"轮到谁写"提示放大一档——正文段落前的
+   「· shu」徽标（10px）是给大段文字间隔用的小字号，这里是列表上
+   唯一的身份标识，得让人一眼看清 */
+.ink-note-row-author {
   flex-shrink: 0;
   font-family: var(--font-accent); font-style: italic;
-  font-size: 10px; letter-spacing: 1px;
-  color: var(--c-accent-2); opacity: .6;
+  font-size: 13px; letter-spacing: 1px;
+  opacity: .8;
 }
+.ink-note-row-author.is-shu { color: var(--c-accent-2); }
+.ink-note-row-author.is-ke  { color: var(--c-text); }
 
 .ink-note-row-preview {
   margin-top: 5px;
@@ -2534,7 +2544,8 @@ button { font-family: inherit; }
   color: var(--c-text-faint);
   margin-bottom: 4px;
 }
-.ink-doc-draft-flag { color: var(--c-accent); }
+/* "尚未完成"这个提示挪到外部列表卡片上了（.ink-note-row-draftflag），
+   笔记详情页顶部不再重复一遍 */
 
 /* ── 正文：一整块连续文本，全屏书写，不是小输入框 ────────────
    .ink-doc-confirmed 是已经落笔的部分（entries 拼出来的只读文本），
