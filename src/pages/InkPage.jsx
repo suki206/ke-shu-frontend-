@@ -19,6 +19,11 @@ import { daysLabel } from './dustCommon'
 // 4) 没点保存就返回，尾巴自动存成草稿，列表照常显示"尚未完成"；
 //    输入停顿 1.2 秒、切后台、组件卸载也各存一次。
 // 5) 轮次：枢接完之后不再默认给一个空输入框，想再添笔要主动点。
+// 6) 头部新增「另起一篇」：跟「交给枢」并排，专门用来让枢基于已经
+//    写下的内容，另开一个新方向/新场景写一整段——不是接着上一段的
+//    情节往下接，而是单独成一段，正文里会有一条分隔线跟前面隔开。
+//    只有正文已经有内容（或者尾巴里有还没存的字）时才能点；一张
+//    白纸时没有"已经写下的内容"可供另起，跟「交给枢」共用起笔逻辑。
 // ============================================================
 
 const BackIcon = () => (
@@ -47,6 +52,15 @@ const HandOffIcon = () => (
     <path d="M3.5 19.5c5-.8 9-4 11.5-9.5" />
     <path d="M20.5 3.5C19.4 12 14 17.6 5.5 19.2" />
     <path d="M8.6 4.2l.75 1.55 1.55.75-1.55.75-.75 1.55-.75-1.55L6.3 6.5l1.55-.75z" />
+  </svg>
+)
+// 另起一篇：从写好的这条主线上分出一条新枝
+const BranchIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 21v-8" />
+    <path d="M12 13c0-4.5-2.8-6.7-6.6-7.7" />
+    <path d="M12 13c0-4.5 2.8-6.7 6.6-7.7" />
+    <circle cx="12" cy="21" r="1.5" fill="currentColor" stroke="none" />
   </svg>
 )
 
@@ -305,6 +319,21 @@ const InkPage = ({
     await onGenerateEntry?.(openNoteId, (hasBody || text) ? 'continue' : 'original')
   }
 
+  // 另起一篇：尾巴里有字的话先落自己这段（跟交给枢一样，算我自己
+  // 的落笔），然后让枢基于目前的全文，另开一个新方向/场景写完整
+  // 一段——不承接上一段情节，是独立的新起点，接在后面
+  const handOffToShuNew = async () => {
+    if (generating || isTrulyEmpty) return
+    clearTimeout(draftTimer.current)
+    const text = tailText.trim()
+    if (text) {
+      await onFinalizeEntry?.(openNoteId, { content: text, mode: derivedMode })
+      setTailText(''); lastSavedRef.current = ''
+    }
+    setJustGenerated(false); setForceWrite(false)
+    await onGenerateEntry?.(openNoteId, 'new')
+  }
+
   const keepLastEntry   = () => setJustGenerated(false)
   const deleteLastEntry = async () => {
     setJustGenerated(false)
@@ -361,6 +390,15 @@ const InkPage = ({
               title="交给枢写完"
             >
               <HandOffIcon />
+            </button>
+            <button
+              className="ink-page-iconbtn"
+              onClick={handOffToShuNew}
+              disabled={generating || isTrulyEmpty}
+              aria-label="另起一篇"
+              title="另起一篇"
+            >
+              <BranchIcon />
             </button>
             <div style={{ position: 'relative' }}>
               <button className="ink-page-iconbtn" onClick={() => setShowMoreMenu(v => !v)} aria-label="更多">

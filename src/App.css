@@ -2382,7 +2382,7 @@ button { font-family: inherit; }
   word-break: break-word;
   overflow-wrap: anywhere;
 }
-/* 头部右侧三个图标：保存 / 交给枢 / 更多 */
+/* 头部右侧四个图标：保存 / 交给枢续写 / 另起一篇 / 更多 */
 .ink-head-actions { display: flex; align-items: center; gap: 2px; }
 .ink-page-content {
   display: flex; flex-direction: column; gap: 14px;
