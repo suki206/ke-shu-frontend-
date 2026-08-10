@@ -2624,8 +2624,13 @@ button { font-family: inherit; }
   background:
     linear-gradient(155deg, var(--c-highlight), transparent 55%),
     var(--c-glass-bg);
-  backdrop-filter: blur(2.5px) saturate(var(--c-glass-sat));
-  -webkit-backdrop-filter: blur(2.5px) saturate(var(--c-glass-sat));
+  /* 原来这里带 backdrop-filter: blur(2.5px) saturate(...)，一张便签
+     还好，一整面墙铺开几十张、每张都要现场采样背后画面再模糊一遍，
+     "返回列表"时这些便签全部重新挂载，几十份 backdrop-filter 一起
+     绘制就是卡顿的真正源头——跟任何弹窗、任何进场动画都没关系。
+     这里的磨砂质感本来就是靠 --c-glass-bg 这层半透明色 + 上面那条
+     斜向高光撑出来的，去掉"实时模糊背后内容"这一步，肉眼观感差别
+     很小，但省掉的是全墙最贵的那部分开销。 */
   box-shadow:
     0 0 0 var(--hair) var(--c-line) inset,
     0 14px 24px -16px rgba(0,0,0,0.72);
@@ -2919,23 +2924,26 @@ button { font-family: inherit; }
    的板块选择器 ─────────────────────────────────────────────── */
 
 /* 合墨专用降级：星尘墙一屏铺开几十张便签，每张自己就带一层
-   backdrop-filter（.ink-stardust-face 的磨砂纸面）叠上 filter:blur
-  （--depth 算出来的远近虚化），这些弹窗再摞一层 backdrop-filter 现场
-   采样"这一整摞已经很重的画面"，浏览器算不过来——闪烁和卡顿就是
-   这么来的，跟这三个弹窗本身的动画写法没关系了，是背后要实时模糊
-   的东西太多。写作页返回确认虽然背后没有星尘墙，但同一批弹窗共用
-   一套类，干脆一起降级，不用分情况。
-   直接不用 backdrop-filter，换成一层够暗的纯色/近纯色遮罩——不再
-   现场采样背后内容，这一整块开销直接消失，不用在"怎么让 blur 更
-   便宜"上继续想办法。 */
+   backdrop-filter（.ink-stardust-face 的磨砂纸面，见下方该规则的
+   同款说明）叠上 filter:blur（--depth 算出来的远近虚化）。这批弹窗
+   原本还想现场再采样一层这已经很重的画面，去掉 backdrop-filter 后
+   仍然卡——说明真正的重量级开销根本不在弹窗身上：点"返回"回到列表
+   页、压根没弹窗出来时也卡，卡的是"列表页整段重新挂载"这件事本身
+   （list 视图是条件渲染，从写作页切回来等于把几十张便签的 DOM 全部
+   重新创建一遍，每张都要重新走一次 clip-path / box-shadow / 渐变 /
+   之前的 backdrop-filter 这一整套布局与绘制）。弹窗这头，干脆连
+   进场动画也不要了——腾出来的每一帧都给这个更重的挂载让路，不用再
+   兼顾"淡入的同时还要保证流畅"这两件事。 */
 .ink-modal-veil {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  animation: none;
 }
 .modal-card.ink-sheet {
   background: var(--c-modal-solid);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  animation: none;
 }
 
 .ink-sheet { padding: 26px 24px 20px; width: 296px; max-width: 86vw; text-align: center; }
