@@ -2324,9 +2324,17 @@ button { font-family: inherit; }
   background: var(--c-bg-solid);
   padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
   padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+  /* 这个过渡只有写作视图真正需要——打字时键盘弹出，这一页跟着平滑
+     变矮，光标才不会被生硬地遮住。列表视图不需要它：点"返回"离开
+     写作视图的同一瞬间，键盘正好在收起、--kb-height 正在变化，
+     而列表那几十张便签也在同一瞬间被重新挂载——页面高度还在过渡
+     叠上便签在被重新绘制，两件事抢同一段时间，就是"回到合墨界面
+     闪一下"的来源。切回列表那一刻让 bottom 直接跳到位，不再跟便签
+     的重新挂载抢时间。 */
   transition: bottom .18s var(--ease);
   animation: inkPageIn .32s var(--ease) both;
 }
+.ink-page.is-list { transition: none; }
 /* 键盘顶上来时底部安全区那条留白纯属浪费，收掉能多露一行字 */
 .kb-open .ink-page { padding-bottom: 0; }
 
@@ -2939,6 +2947,14 @@ button { font-family: inherit; }
   -webkit-backdrop-filter: none;
   animation: none;
 }
+/* 返回确认弹窗专用：全局 .modal-veil 有条 bottom: var(--kb-height,0px)
+   的规则，是为"打字时键盘弹出，弹窗别被压在键盘底下"设计的——但这个
+   弹窗恰恰是在点"返回"离开写作视图、键盘正在往下收的那一刻才出现，
+   此时 --kb-height 还没归零、且正在变化中，弹窗跟着这个还没走完的
+   数值走，视觉上就成了"从上面一点一点挪到正中间"，跟键盘收起的节奏
+   绑在一起，才会显得一卡一卡。这个弹窗不是在打字时弹出来的，压根不
+   需要给键盘让位，直接钉死在 bottom:0，从第一帧就在正中间。 */
+.modal-veil.ink-leave-veil { bottom: 0; }
 .modal-card.ink-sheet {
   background: var(--c-modal-solid);
   backdrop-filter: none;

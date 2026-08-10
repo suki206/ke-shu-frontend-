@@ -1365,7 +1365,7 @@ const InkPage = ({
 
       {/* 返回时尾巴还有字：问清楚存草稿、直接保存，还是撤回这次改动 */}
       {leaveConfirm && (
-        <div className="modal-veil ink-modal-veil" style={{ zIndex: 2520 }} onClick={cancelLeave}>
+        <div className="modal-veil ink-modal-veil ink-leave-veil" style={{ zIndex: 2520 }} onClick={cancelLeave}>
           <div className="modal-card ink-sheet" onClick={e => e.stopPropagation()}>
             <div className="ink-sheet-sub">这段还没个说法——</div>
             <div className="ink-sheet-list">
