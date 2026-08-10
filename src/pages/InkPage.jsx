@@ -92,9 +92,14 @@ const PlusIcon = () => (
     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
   </svg>
 )
-const MoreIcon = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-    <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
+// 删除：一个简洁的垃圾桶，直接对应"删除这篇"这一个动作，不用再
+// 经过"更多"菜单绕一层
+const TrashIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 7h16" />
+    <path d="M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7" />
+    <path d="M6 7l1 12.2c.05.99.87 1.8 1.86 1.8h6.28c.99 0 1.81-.81 1.86-1.8L18 7" />
+    <path d="M10 11v6" /><path d="M14 11v6" />
   </svg>
 )
 const CheckIcon = () => (
@@ -144,7 +149,7 @@ const LONG_PRESS_MS = 480
 const InkPage = ({
   notes, notesLoading, onFetchNotes, onCreateNote, onUpdateNote, onDeleteNote,
   activeNote, activeNoteLoading, onOpenNote,
-  onSaveDraft, onFinalizeEntry, onGenerateEntry, onStopGenerate, onDeleteLastEntry,
+  onSaveDraft, onFinalizeEntry, onGenerateEntry, onStopGenerate, onDeleteLastEntry, onUpdateEntry,
   generating, streamText,
   showToast, onClose,
 }) => {
@@ -152,11 +157,18 @@ const InkPage = ({
   const [openNoteId, setOpenNoteId] = useState(null)
   const [tailText, setTailText]     = useState('')
   const [titleDraft, setTitleDraft] = useState('')
-  const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [justGenerated, setJustGenerated] = useState(false) // 枢刚写完，给"保留/删除这段"的窗口
   const [forceWrite, setForceWrite]       = useState(false) // 枢接完之后，我主动要求再添一笔
   const [leaveConfirm, setLeaveConfirm]   = useState(false) // 返回时尾巴还有字，问"存草稿"还是"保存"
+
+  // ── 编辑自己已经落笔的段落（第八批）：只有 author='ke' 的段落能点开编辑，
+  //    枢写的段落没有编辑入口。editHistory/editHistoryIndex 撑起编辑框
+  //    自己的撤销/重做，不依赖浏览器的 Ctrl+Z（手机上也用得了） ──────
+  const [editingEntry, setEditingEntry] = useState(null) // { id, text } | null
+  const [editHistory, setEditHistory]   = useState([])
+  const [editHistoryIndex, setEditHistoryIndex] = useState(0)
+  const editHistoryTimer = useRef(null)
 
   // ── 板块 tab（第五批）：null = 全部 ───────────────────────────
   const [activeBoard, setActiveBoard] = useState(null)
@@ -303,9 +315,9 @@ const InkPage = ({
     const draft = note.draft_content || ''
     setTailText(draft)
     lastSavedRef.current = draft
-    setTitleDraft(note.title || '')
-    setShowMoreMenu(false); setConfirmDelete(false)
+    setConfirmDelete(false)
     setJustGenerated(false); setForceWrite(false)
+    setEditingEntry(null); setEditHistory([]); setEditHistoryIndex(0)
 
     if (draft) {
       requestAnimationFrame(() => {
@@ -326,9 +338,49 @@ const InkPage = ({
     if (prevGenerating.current && !generating) {
       setJustGenerated(true)
       setForceWrite(false)
+      // 枢起笔（这一篇眼下只有他自己写的这一条）写完之后，后端可能顺手
+      // 把标题也起好了——重新拉一次这篇笔记的详情，把新标题同步过来，
+      // 顺便刷新列表（起笔人／预览都要跟着更新）
+      if (entries.length === 1 && entries[0]?.author === 'shu') {
+        onOpenNote?.(noteIdRef.current)
+        onFetchNotes?.()
+      }
     }
     prevGenerating.current = generating
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generating])
+
+  // 标题输入框跟着 note.title 同步——枢起笔时后端可能顺手生成了标题，
+  // 这里只认标题字符串本身变没变，不会被草稿自动保存这类不相关的
+  // note 更新触发，也不会跟真人正在手动改标题打架（改完是 onBlur 才提交）
+  useEffect(() => {
+    setTitleDraft(note?.title || '')
+  }, [note?.title])
+
+  // ── 枢写字时的呈现效果：不要打字机那种逐字刷新+闪烁光标，改成
+  //    一小块一小块地浮现。streamText 是父组件那边不断变长的整段
+  //    文本，这里只把"这次新到的部分"切成一个独立的小块（带自己的
+  //    key），已经出现过的部分不再重新渲染，所以只有新到的字会触发
+  //    一次淡入动画，不会每次都让整段文字重新闪一下 ────────────
+  const [streamChunks, setStreamChunks] = useState([])
+  const streamChunksRef = useRef([])
+  const streamLenRef    = useRef(0)
+  const chunkKeyRef      = useRef(0)
+  useEffect(() => {
+    if (!generating) {
+      streamLenRef.current = 0
+      streamChunksRef.current = []
+      setStreamChunks([])
+      return
+    }
+    const full = streamText || ''
+    if (full.length <= streamLenRef.current) return
+    const delta = full.slice(streamLenRef.current)
+    streamLenRef.current = full.length
+    const next = [...streamChunksRef.current, { key: chunkKeyRef.current++, text: delta }]
+    streamChunksRef.current = next
+    setStreamChunks(next)
+  }, [streamText, generating])
 
   // ── 导航 ──────────────────────────────────────────────────
   const openNote = async (id) => {
@@ -351,8 +403,9 @@ const InkPage = ({
       if (pending.trim()) showToast?.('这段留着，标了尚未完成')
     }
     setView('list'); setOpenNoteId(null); setTailText('')
-    setConfirmDelete(false); setShowMoreMenu(false)
+    setConfirmDelete(false)
     setJustGenerated(false); setForceWrite(false)
+    setEditingEntry(null); setEditHistory([]); setEditHistoryIndex(0)
     loadedNoteRef.current = null
     onFetchNotes?.()
   }
@@ -384,7 +437,6 @@ const InkPage = ({
   const handleDeleteNote = () => {
     if (!confirmDelete) { setConfirmDelete(true); setTimeout(() => setConfirmDelete(false), 3000); return }
     onDeleteNote?.(openNoteId)
-    setShowMoreMenu(false)
     goBackToList()
   }
 
@@ -477,6 +529,47 @@ const InkPage = ({
       tailRef.current?.focus()
       requestAnimationFrame(() => keepCaretInView())
     })
+  }
+
+  // ── 编辑自己已经落笔的段落：只有 author='ke' 的段落能点开，枢的
+  //    段落没有编辑入口（渲染那边就没绑点击事件）。撤销/重做走自己
+  //    这套 editHistory，不依赖浏览器原生 Ctrl+Z——手机上也用得了 ──
+  const startEditEntry = (id, text) => {
+    if (generating || !id) return
+    setEditingEntry({ id, text })
+    setEditHistory([text]); setEditHistoryIndex(0)
+  }
+  const cancelEditEntry = () => {
+    setEditingEntry(null); setEditHistory([]); setEditHistoryIndex(0)
+  }
+  const changeEditText = (text) => {
+    setEditingEntry(prev => (prev ? { ...prev, text } : prev))
+    clearTimeout(editHistoryTimer.current)
+    editHistoryTimer.current = setTimeout(() => {
+      setEditHistory(h => [...h.slice(0, editHistoryIndex + 1), text])
+      setEditHistoryIndex(i => i + 1)
+    }, 500)
+  }
+  const undoEdit = () => {
+    if (editHistoryIndex <= 0) return
+    const idx = editHistoryIndex - 1
+    setEditHistoryIndex(idx)
+    setEditingEntry(prev => (prev ? { ...prev, text: editHistory[idx] } : prev))
+  }
+  const redoEdit = () => {
+    if (editHistoryIndex >= editHistory.length - 1) return
+    const idx = editHistoryIndex + 1
+    setEditHistoryIndex(idx)
+    setEditingEntry(prev => (prev ? { ...prev, text: editHistory[idx] } : prev))
+  }
+  const saveEditEntry = async () => {
+    if (!editingEntry) return
+    const text = editingEntry.text.trim()
+    if (!text) { showToast?.('内容不能为空'); return }
+    await onUpdateEntry?.(openNoteId, editingEntry.id, { content: text })
+    setEditingEntry(null); setEditHistory([]); setEditHistoryIndex(0)
+    showToast?.('已修改')
+    onOpenNote?.(openNoteId) // 重新拉一次，拿服务端按 entries 顺序重新拼过的正文
   }
 
   // ── 板块（第五批）：从 notes 里出现过的 board 值去重，就是 tab 列表；
@@ -586,12 +679,13 @@ const InkPage = ({
     if (entries.length) {
       return entries.map((e, i) => ({
         key: e.id ?? `seg-${i}`,
+        id: e.id ?? null,
         text: e.content || '',
         author: e.author,
         divider: e.mode === 'new' && i > 0,
       }))
     }
-    if (note?.content) return [{ key: 'legacy', text: note.content, author: 'ke', divider: false }]
+    if (note?.content) return [{ key: 'legacy', id: null, text: note.content, author: 'ke', divider: false }]
     return []
   }, [entries, note?.content])
 
@@ -601,7 +695,7 @@ const InkPage = ({
         <button className="ink-page-iconbtn" onClick={handleBack} aria-label="返回">
           <BackIcon />
         </button>
-        <div className="ink-page-title">INK · 合墨</div>
+        <div className="ink-page-title">{view === 'list' ? 'INK · 合墨' : ''}</div>
         {view === 'note' ? (
           <div className="ink-head-actions">
             <button
@@ -616,7 +710,7 @@ const InkPage = ({
             <button
               className="ink-page-iconbtn"
               onClick={handOffToShu}
-              disabled={generating}
+              disabled={generating || !myTurn}
               aria-label={isTrulyEmpty ? '让枢先起笔' : '交给枢写完'}
               title={isTrulyEmpty ? '让枢先起笔' : '交给枢写完'}
             >
@@ -625,22 +719,20 @@ const InkPage = ({
             <button
               className="ink-page-iconbtn"
               onClick={handOffToShuNew}
-              disabled={generating || isTrulyEmpty}
+              disabled={generating || isTrulyEmpty || !myTurn}
               aria-label="另起一篇"
               title="另起一篇"
             >
               <BranchIcon />
             </button>
-            <div style={{ position: 'relative' }}>
-              <button className="ink-page-iconbtn" onClick={() => setShowMoreMenu(v => !v)} aria-label="更多">
-                <MoreIcon />
-              </button>
-              {showMoreMenu && (
-                <div className="ink-more-menu">
-                  <button onClick={handleDeleteNote}>{confirmDelete ? '再点一次删除' : '删除这篇'}</button>
-                </div>
-              )}
-            </div>
+            <button
+              className={`ink-page-iconbtn${confirmDelete ? ' is-danger' : ''}`}
+              onClick={handleDeleteNote}
+              aria-label={confirmDelete ? '再点一次删除' : '删除这篇'}
+              title={confirmDelete ? '再点一次删除' : '删除这篇'}
+            >
+              <TrashIcon />
+            </button>
           </div>
         ) : <span className="ink-page-header-spacer" />}
       </div>
@@ -712,15 +804,37 @@ const InkPage = ({
                     {segments.map(seg => (
                       <Fragment key={seg.key}>
                         {seg.divider && <span className="ink-doc-divider" />}
-                        <span className={seg.author === 'shu' ? 'ink-doc-shu-span' : 'ink-doc-ke-span'}>
-                          {seg.text}
-                        </span>
+                        {editingEntry?.id === seg.id ? (
+                          <span className="ink-doc-ke-span ink-doc-editing">
+                            <textarea
+                              className="ink-doc-edit-textarea"
+                              value={editingEntry.text}
+                              onChange={e => changeEditText(e.target.value)}
+                              autoFocus
+                            />
+                            <span className="ink-edit-controls">
+                              <button className="ink-hold-btn" onClick={undoEdit} disabled={editHistoryIndex <= 0}>撤销</button>
+                              <button className="ink-hold-btn" onClick={redoEdit} disabled={editHistoryIndex >= editHistory.length - 1}>重做</button>
+                              <button className="ink-hold-btn" onClick={cancelEditEntry}>取消</button>
+                              <button className="ink-hold-btn" onClick={saveEditEntry}>保存修改</button>
+                            </span>
+                          </span>
+                        ) : (
+                          <span
+                            className={`${seg.author === 'shu' ? 'ink-doc-shu-span' : 'ink-doc-ke-span'}${seg.author === 'ke' && seg.id ? ' is-editable' : ''}`}
+                            onClick={() => { if (seg.author === 'ke' && seg.id) startEditEntry(seg.id, seg.text) }}
+                          >
+                            {seg.text}
+                          </span>
+                        )}
                       </Fragment>
                     ))}
                   </span>
 
                   {generating && (
-                    <span className="ink-doc-shu-span ink-doc-streaming">{streamText}</span>
+                    <span className="ink-doc-shu-span ink-doc-streaming">
+                      {streamChunks.map(c => <span key={c.key} className="ink-fade-chunk">{c.text}</span>)}
+                    </span>
                   )}
 
                   {showTail && (
@@ -763,14 +877,6 @@ const InkPage = ({
                     )}
                     <button className="ink-hold-btn" onClick={keepLastEntry}>自存</button>
                     <button className="ink-hold-btn is-danger" onClick={deleteLastEntry}>删除这段</button>
-                  </div>
-                )}
-
-                {/* 轮到枢收尾之后：默认不给输入框，想再添笔自己点 */}
-                {!generating && !justGenerated && !showTail && (
-                  <div className="ink-keep-row">
-                    <span className="ink-nudge-hint">这一篇枢已经接完了。</span>
-                    <button className="ink-hold-btn" onClick={reopenTail}>我再添一笔</button>
                   </div>
                 )}
 

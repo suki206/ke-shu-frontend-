@@ -2337,35 +2337,14 @@ button { font-family: inherit; }
 .ink-page-iconbtn:hover  { color: var(--c-text); }
 .ink-page-iconbtn:active { transform: scale(0.88); }
 .ink-page-iconbtn:disabled { opacity: .35; cursor: default; }
+/* 删除图标：再点一次才真的删，这一下先变成警示色提醒一下 */
+.ink-page-iconbtn.is-danger { color: #E5735C; }
 .ink-page-title {
   font-family: var(--font-display);
   font-size: 13px; letter-spacing: 3px;
   color: var(--c-text);
 }
 .ink-page-header-spacer { width: 32px; flex-shrink: 0; }
-
-.ink-more-menu {
-  position: absolute; right: 0; top: calc(100% + 4px);
-  z-index: 5;
-  background: var(--c-panel);
-  backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
-  -webkit-backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
-  border: var(--hair) solid var(--c-line-strong);
-  border-radius: 12px;
-  padding: 4px;
-  min-width: 118px;
-  animation: inkCardIn .18s var(--ease) both;
-}
-.ink-more-menu button {
-  display: block; width: 100%;
-  padding: 9px 12px; border-radius: 8px;
-  background: transparent; border: none;
-  color: var(--c-text-muted);
-  font-family: var(--font-accent); font-size: 11.5px; letter-spacing: 1px;
-  text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: background .2s ease, color .2s ease;
-}
-.ink-more-menu button:hover { background: var(--c-accent-soft); color: var(--c-text); }
 
 .ink-page-body {
   position: relative;
@@ -2581,13 +2560,16 @@ button { font-family: inherit; }
   color: var(--c-accent-2); opacity: .55;
 }
 .ink-doc-streaming { white-space: pre-wrap; word-break: break-word; }
-.ink-doc-streaming::after {
-  content: ''; display: inline-block;
-  width: 2px; height: 15px; margin-left: 1px;
-  background: var(--c-accent); vertical-align: -2px;
-  animation: inkCaretBlink 1s step-end infinite;
+/* 枢写字的呈现效果：不要打字机+闪烁光标那种，新到的每一小块文字
+   各自单独淡入，读起来是"慢慢浮现"而不是"啪一下蹦出来再一闪一闪" */
+.ink-fade-chunk {
+  display: inline;
+  animation: inkFadeChunk .7s ease both;
 }
-@keyframes inkCaretBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes inkFadeChunk {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 
 /* "另起一篇"分隔——从中心向两端渐隐的极细光丝，跟合墨天体本体的
    光丝动效是同一个视觉语言，块级元素嵌在行内文本里会自然换行 */
@@ -2612,6 +2594,30 @@ button { font-family: inherit; }
 .ink-doc-confirmed:empty + .ink-doc-tail,
 .ink-doc-confirmed:empty + .ink-doc-shu-span.ink-doc-streaming { margin-top: 0; }
 
+/* 柯自己写的段落可以点开编辑——鼠标停上去给个提示，跟纯展示的枢的
+   段落区分开（枢的段落没绑点击事件，也就没有这个手型提示） */
+.ink-doc-ke-span.is-editable { cursor: text; }
+.ink-doc-ke-span.is-editable:hover { opacity: .85; }
+
+/* 编辑态：把静态段落换成一个跟 .ink-doc-tail 视觉一致的输入框，
+   下面配一排撤销/重做/取消/保存——撤销重做走自己的 editHistory，
+   不依赖浏览器原生 Ctrl+Z，手机上也能用 */
+.ink-doc-editing { display: block; margin-top: 1.1em; }
+.ink-doc-edit-textarea {
+  display: block; width: 100%;
+  background: transparent;
+  border: var(--hair) solid var(--c-line-strong); border-radius: 10px;
+  outline: none; resize: vertical;
+  color: #FFFFFF;
+  font-family: var(--font-body); font-size: 16px; line-height: 1.95;
+  padding: 10px 12px; margin: 0;
+  min-height: 4em;
+}
+.ink-edit-controls {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 8px;
+}
+
 /* 枢刚写完那一刻的"保留/删除这段"——只出现这一次，处理完就消失，
    不会像原来那样又弹出续写/另起一篇的选择 */
 .ink-keep-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
@@ -2624,6 +2630,8 @@ button { font-family: inherit; }
   transition: color .2s ease;
 }
 .ink-hold-btn:hover { color: var(--c-text); }
+.ink-hold-btn:disabled { opacity: .3; cursor: default; }
+.ink-hold-btn:disabled:hover { color: var(--c-text-faint); }
 .ink-hold-btn.is-danger { opacity: .7; }
 .ink-hold-btn.is-danger:hover { opacity: 1; text-decoration: underline; }
 

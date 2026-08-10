@@ -1015,7 +1015,8 @@ const ChatPage = () => {
 
   // 枢续写/另写：SSE 流式，token 事件只更新 inkStreamText（实时预览，
   // 不进 entries），done 事件才把清洗后的正文一次性并入
-  // note.content 并追加一条 entries 日志，同时带回 decision
+  // note.content 并追加一条 entries 日志，同时带回 decision；如果
+  // 这次是枢起笔（后端顺手生成了标题），autoTitle 也一并同步过来
   const readInkSSEStream = async (res, noteId, mode) => {
     const reader  = res.body.getReader()
     const decoder = new TextDecoder()
@@ -1041,6 +1042,7 @@ const ChatPage = () => {
                 // truncated：撞到模型输出长度上限被切断了，界面会给
                 // 一个「让他接着写完」的入口
                 truncated: !!ev.truncated,
+                decision: ev.decision,
                 tokens_input: ev.tokens?.input, tokens_output: ev.tokens?.output,
                 created_at: new Date().toISOString(),
               }
@@ -1051,10 +1053,13 @@ const ChatPage = () => {
                   ...prev.note,
                   content: (prev.note.content ? `${prev.note.content}\n\n` : '') + ev.content,
                   updated_at: new Date().toISOString(),
+                  ...(ev.autoTitle ? { title: ev.autoTitle } : {}),
                 },
               }
             })
-            setInkNotes(nPrev => nPrev.map(n => n.id === noteId ? { ...n, updated_at: new Date().toISOString() } : n))
+            setInkNotes(nPrev => nPrev.map(n => n.id === noteId
+              ? { ...n, updated_at: new Date().toISOString(), ...(ev.autoTitle ? { title: ev.autoTitle } : {}) }
+              : n))
           }
         } catch {}
       }
@@ -1086,6 +1091,25 @@ const ChatPage = () => {
   }
 
   const stopInkGenerate = () => { inkAbortRef.current?.abort() }
+
+  // 编辑一条自己写的段落：只有柯自己的段落允许改，枢写的段落接口
+  // 那边会直接拒绝（403）。改完之后正文不是简单"接在末尾"了——服务端
+  // 按 entries 顺序把整篇 content 重新拼过，本地直接拿这份结果整个
+  // 替换，不做本地拼接（编辑可能发生在正文中间，拼不对）
+  const updateInkEntry = async (noteId, entryId, { content }) => {
+    try {
+      const res = await axios.put(`${API_BASE}/notes/${noteId}/entries/${entryId}`, { content })
+      setActiveInkNote(prev => (prev && prev.note?.id === noteId)
+        ? {
+            ...prev,
+            entries: prev.entries.map(e => e.id === entryId ? { ...e, content } : e),
+            note: { ...prev.note, content: res.data.content },
+          }
+        : prev)
+      setInkNotes(nPrev => nPrev.map(n => n.id === noteId ? { ...n, preview: res.data.content.slice(0, 60) } : n))
+      return res.data
+    } catch { showToast('修改失败'); return null }
+  }
 
   // 撤销枢刚写的那一段（生成完之后的"删除这段"）：本地也把最后一条
   // entries 和对应长度的 content 尾巴一起摘掉，跟后端保持同步
@@ -1970,7 +1994,7 @@ const ChatPage = () => {
               activeInkNote={activeInkNote} activeInkNoteLoading={activeInkNoteLoading} onOpenInkNote={fetchInkEntries}
               onSaveInkDraft={saveInkDraft} onFinalizeInkEntry={finalizeInkEntry}
               onGenerateInkEntry={generateInkEntry} onStopInkGenerate={stopInkGenerate} inkGenerating={inkGenerating}
-              onDeleteLastInkEntry={deleteLastInkEntry}
+              onDeleteLastInkEntry={deleteLastInkEntry} onUpdateInkEntry={updateInkEntry}
               inkStreamText={inkStreamText}
             />
           )}
