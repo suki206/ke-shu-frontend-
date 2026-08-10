@@ -335,6 +335,18 @@ const InkPage = ({
   // 不落笔也不存草稿，正文/草稿状态跟打开前一模一样
   const originalTailRef = useRef('')
 
+  // 【bug 修复】本篇笔记在"这次打开期间"是否已经真正落过笔——独立于
+  // props 里的 entries/note.content。落笔（saveNow / handOffToShu /
+  // handOffToShuNew）走的是"先调完成接口，再清空尾巴"，但父组件把
+  // 新落的这段合并回 activeNote 是异步的；如果落笔接口一返回、还没
+  // 等父组件那次 setState 真正传回新的 entries，人就手快点了返回，
+  // goBackToList 里"正文和草稿都是空的就直接删掉这篇白纸"的判断此时
+  // 拿到的还是旧的 entries（长度 0）——于是把刚存下来的这篇笔记当成
+  // 白纸删掉了。手机上网络延迟更大，这个时间窗口被明显放大，看起来
+  // 就是"保存了却什么都没留下"。用这个 ref 记一笔"我这次真的落过
+  // 笔"，不依赖 props 是否已经追上，从根上堵住误删。
+  const committedRef = useRef(false)
+
   const note    = activeNote?.note
   const entries = activeNote?.entries || []
 
@@ -468,6 +480,10 @@ const InkPage = ({
     setTailText(draft)
     lastSavedRef.current = draft
     originalTailRef.current = draft
+    // 用这篇笔记真实的 content/entries 给 committedRef 定个准确的初始值
+    // ——不是无脑清零，不然带着已有正文打开的笔记也会被判定成"还没
+    // 落过笔"
+    committedRef.current = entries.length > 0 || !!(note.content && note.content.trim())
     setConfirmDelete(false)
     setJustGenerated(false); setForceWrite(false)
     setEditingEntry(null)
@@ -542,6 +558,7 @@ const InkPage = ({
   const openNote = async (id) => {
     loadedNoteRef.current = null
     lastSavedRef.current = ''
+    committedRef.current = false
     setOpenNoteId(id); setView('note'); setConfirmDelete(false)
     await onOpenNote?.(id)
   }
@@ -608,7 +625,10 @@ const InkPage = ({
   }
 
   // ── 正文状态 ──────────────────────────────────────────────
-  const hasBody      = entries.length > 0 || !!(note?.content && note.content.trim())
+  // 【bug 修复】加上 committedRef：即使 props 里的 entries/note.content
+  // 还没追上刚落的那一笔，本组件自己也记得"这次已经真落过笔"，
+  // goBackToList 的误删判断和下面这几个派生状态都从这里一并堵住
+  const hasBody      = entries.length > 0 || !!(note?.content && note.content.trim()) || committedRef.current
   const derivedMode  = hasBody ? 'continue' : 'original'
   const lastEntry    = entries.length ? entries[entries.length - 1] : null
   const lastAuthor   = lastEntry?.author || null
@@ -641,6 +661,10 @@ const InkPage = ({
     writeHistoryTargetRef.current = 'tail'
     writeHistoryIndexRef.current = 0
     setWriteHistory(['']); setWriteHistoryIndex(0)
+    // 这里只会在 onFinalizeEntry 真正成功之后才被调用——落笔已经
+    // 落地了，不管父组件的 activeNote props 什么时候追上，本地先
+    // 记一笔，防止刚返回列表就被 goBackToList 当白纸删掉
+    committedRef.current = true
   }
 
   // ✓ ＝ 直接落笔存下，不弹任何选择
