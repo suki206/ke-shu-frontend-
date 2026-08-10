@@ -2428,6 +2428,16 @@ button { font-family: inherit; }
   margin: 0 auto;
 }
 .ink-page-content.is-note { max-width: 580px; gap: 0; }
+/* 星尘墙常驻挂载后用来"隐身"的状态——不用 display:none（那样宽度
+   会归零，ResizeObserver 一测到 0 就会把 wallW 也带歪），改用
+   visibility:hidden 挪出正常文档流：不占 .ink-page-body 的滚动
+   高度、不响应点击，但盒子本身的宽度还在，量出来的 wallW 还是准的。 */
+.ink-page-content.is-hidden {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
 .ink-page-eyebrow {
   font-family: var(--font-accent); font-style: italic;
   font-size: 10px; letter-spacing: 2.5px; color: var(--c-text-faint);

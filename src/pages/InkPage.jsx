@@ -610,7 +610,16 @@ const InkPage = ({
   const handleBack = () => {
     if (view !== 'note') { onClose?.(); return }
     const pending = tailTextRef.current
-    if (pending.trim() && pending !== lastSavedRef.current) { setLeaveConfirm(true); return }
+    if (pending.trim() && pending !== lastSavedRef.current) {
+      // 键盘正在收起（离开写作视图时尾巴输入框跟着失焦），这段时间
+      // 里可视视口本身还在变化——不管弹窗的 CSS 怎么写，只要它在
+      // 这个当口挂载，就会跟着视口一起长大，看起来像从上往下滑。
+      // 先手动失焦、让键盘开始收，等这个过程稳定下来了再让弹窗
+      // 出现，它出来的时候视口已经不再变了，直接就在正中间。
+      tailRef.current?.blur()
+      setTimeout(() => setLeaveConfirm(true), 260)
+      return
+    }
     goBackToList()
   }
 
@@ -1132,8 +1141,19 @@ const InkPage = ({
         {/* 量光标位置的镜像层，用户看不见 */}
         <div className="ink-caret-mirror" ref={mirrorRef} aria-hidden="true" />
 
-        {view === 'list' && (
-          <div className="ink-page-content" onClick={(e) => { if (e.target === e.currentTarget) deselectCard() }}>
+        {/* 星尘墙常驻挂载，靠 CSS 隐藏切换，不再靠 {view==='list' &&}
+            整段拆掉重建：便签一多，clip-path + 多层box-shadow + 渐变
+            这些东西一次性创建/绘制几十份本身就很贵，之前每次"返回"
+            都相当于把这一整墙拆了再重新造一遍，闪的就是这个重新绘制
+            的瞬间——不是哪个动画的问题，是这个"拆了重建"的动作本身。
+            现在挂载只做一次，切换视图只是 visibility 的开关，便宜
+            很多。ResizeObserver 量的 wallMeasureRef 宽度也不会因为
+            隐藏就归零（visibility:hidden 不影响布局，只影响绘制），
+            wallW 不会跟着重置，也就不用每次切回来再量一遍。 */}
+        <div
+          className={`ink-page-content${view !== 'list' ? ' is-hidden' : ''}`}
+          onClick={(e) => { if (e.target === e.currentTarget) deselectCard() }}
+        >
             <div className="ink-page-eyebrow">柯与枢的接力手记</div>
 
             {boards.length > 0 && (
@@ -1180,8 +1200,7 @@ const InkPage = ({
                 </div>
               )}
             </div>
-          </div>
-        )}
+        </div>
 
         {view === 'note' && (
           <div className="ink-page-content is-note">
