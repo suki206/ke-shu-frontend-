@@ -762,16 +762,44 @@ const InkPage = ({
     setMoveSheet(null)
   }
 
-  // 铭文行：草稿在标题前给一个看得见的"尚未完成"标签——不再是只靠
+  // 每张卡片的光晕焦点位置做一点微妙的错落——同一篇笔记算出来的
+  // 偏移永远一样（纯字符串哈希，没有 Math.random），不会每次渲染
+  // 都跳动，但一整排卡片看起来不会像同一个模具刻出来的。只用来算
+  // 两个百分比坐标，运行时开销可以忽略不计
+  const cardGlowOffset = (id) => {
+    const s = String(id || '')
+    let h = 0
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+    const gx = 28 + (h % 45)          // 28%~72%
+    const gy = 22 + ((h >> 5) % 40)   // 22%~62%
+    return { gx, gy }
+  }
+
+  // 铭文行升级成星体卡片（第十批）：不再是一条条一模一样的目录线，
+  // 每张卡片背后悬一层静态的径向光晕——柯起笔的偏暖金、枢起笔的偏
+  // 冷调（复用引力页天体本来就在用的强调色变量，换主题时跟着换，
+  // 不写死颜色）；置顶的卡片额外带一圈更亮的光环，草稿卡片的光晕
+  // 压得更暗更散，呼应"这一篇还没写完"。全部是 radial-gradient +
+  // box-shadow 一次性画出来的静态效果，没有 animation，不烧性能。
+  // 草稿在标题前给一个看得见的"尚未完成"标签——不再是只靠
   // aria-label 撑门面、肉眼看不出意思的小圆点，外部列表上就要能一眼
   // 扫到哪篇还没写完，不用点进去才知道；标题末尾常驻一个"起笔人"
   // 落款（· ke / · shu），谁先落下第一笔这一篇就署谁的名，不再是
   // "轮到谁写"的动态提示——所以不管有没有草稿、写没写完，每张卡片
   // 右上角随时都能看出这一篇是谁开的头
-  const renderNoteCard = (n) => (
+  const renderNoteCard = (n) => {
+    const { gx, gy } = cardGlowOffset(n.id)
+    const cardClass = [
+      'ink-note-row',
+      n.firstAuthor === 'shu' ? 'is-shu-lit' : 'is-ke-lit',
+      n.pinned_at ? 'is-pinned-lit' : '',
+      n.hasDraft ? 'is-draft-lit' : '',
+    ].filter(Boolean).join(' ')
+    return (
     <div
       key={n.id}
-      className="ink-note-row"
+      className={cardClass}
+      style={{ '--glow-x': `${gx}%`, '--glow-y': `${gy}%` }}
       onClick={() => handleCardClick(n)}
       onTouchStart={() => startLongPress(n)}
       onTouchEnd={cancelLongPress}
@@ -781,6 +809,7 @@ const InkPage = ({
       onMouseLeave={cancelLongPress}
       onContextMenu={(e) => { e.preventDefault(); openCardMenu(n) }}
     >
+      <span className="ink-note-row-glow" aria-hidden="true" />
       <div className="ink-note-row-title">
         {n.pinned_at && <PinIcon />}
         {n.hasDraft && <span className="ink-note-row-draftflag">尚未完成</span>}
@@ -797,7 +826,8 @@ const InkPage = ({
         <span>{daysLabel(daysSince(n.updated_at))}</span>
       </div>
     </div>
-  )
+    )
+  }
 
   // 正文分段：按 entries 顺序拼，柯/枢各自的字色与徽标；
   // 老数据（有 content 但没有 entries）整段按柯的字迹显示，
@@ -817,7 +847,7 @@ const InkPage = ({
   }, [entries, note?.content])
 
   const page = (
-    <div className="ink-page">
+    <div className={`ink-page${view === 'list' ? ' is-list' : ''}`}>
       <div className="ink-page-header">
         <div className="ink-head-actions">
           <button className="ink-page-iconbtn" onClick={handleBack} aria-label="返回">

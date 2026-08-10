@@ -25,6 +25,7 @@
   --c-accent:     #E5C288;
   --c-accent-2:   #C79E60;
   --c-accent-soft:  rgba(229, 194, 136, 0.16);
+  --c-accent-2-soft: rgba(199, 158, 96, 0.20);
   --c-accent-text:  #241809;
 
   --c-line:        rgba(238, 214, 168, 0.16);
@@ -86,6 +87,7 @@
   --c-accent:     #88B4E5;
   --c-accent-2:   #6090C8;
   --c-accent-soft:  rgba(136, 180, 229, 0.16);
+  --c-accent-2-soft: rgba(96, 144, 200, 0.20);
   --c-accent-text:  #010d1e;
 
   --c-line:        rgba(136, 180, 229, 0.16);
@@ -144,6 +146,7 @@
   --c-accent:     #DCD3C3;
   --c-accent-2:   #B4AA98;
   --c-accent-soft:  rgba(220, 211, 195, 0.13);
+  --c-accent-2-soft: rgba(180, 170, 152, 0.17);
   --c-accent-text:  #0a0a0c;
 
   --c-line:        rgba(255, 255, 255, 0.13);
@@ -2370,6 +2373,27 @@ button { font-family: inherit; }
   overflow-wrap: anywhere;
 }
 /* 头部右侧四个图标：保存 / 交给枢续写 / 另起一篇 / 更多 */
+/* 一层极淡的静态星尘，只在笔记列表出现（不进写作视图）——八组不同
+   位置的小径向渐变叠出稀疏星点，贴在 fixed 定位的 .ink-page 上，
+   画一次就不再变化，卡片在它前面滚动时星星本身不跟着动，是"星幕
+   在后、卡片在前"的层次，不是背景图案本身在滚。没有 animation，
+   没有任何持续重绘，纯粹是静态背景质感 */
+.ink-page.is-list::before {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: .5;
+  background-image:
+    radial-gradient(1px 1px at 10% 15%, var(--c-star-bright), transparent),
+    radial-gradient(1px 1px at 82% 8%,  var(--c-star-bright), transparent),
+    radial-gradient(1px 1px at 34% 62%, var(--c-star-bright), transparent),
+    radial-gradient(1px 1px at 68% 74%, var(--c-star-bright), transparent),
+    radial-gradient(1px 1px at 92% 44%, var(--c-star-bright), transparent),
+    radial-gradient(1px 1px at 18% 88%, var(--c-star-bright), transparent),
+    radial-gradient(1.5px 1.5px at 52% 28%, var(--c-star-bright), transparent),
+    radial-gradient(1px 1px at 6% 46%,  var(--c-star-bright), transparent);
+  background-repeat: no-repeat;
+}
 .ink-head-actions { display: flex; align-items: center; gap: 2px; }
 .ink-page-content {
   display: flex; flex-direction: column; gap: 14px;
@@ -2408,15 +2432,23 @@ button { font-family: inherit; }
 .ink-board-tab:hover  { color: var(--c-text); border-color: var(--c-line-strong); }
 .ink-board-tab.is-active {
   background: var(--c-accent-soft); border-color: var(--c-accent); color: var(--c-text);
+  box-shadow: 0 0 0 1px var(--c-accent-soft) inset;
 }
 
+/* "新建一篇"：虚线描边保留（这是唯一的"入口"，跟正文卡片刻意做出
+   区分），中心叠一枚很淡的静态星芯光晕，呼应整体星海基调，但不做
+   实体卡片化——它是"开口"，不是"内容" */
 .ink-note-new-btn {
+  position: relative;
+  isolation: isolate;
   display: flex; align-items: center; justify-content: center;
   gap: 8px;
   padding: 14px 18px;
   border-radius: 18px;
   border: var(--hair) dashed var(--c-line-strong);
-  background: transparent;
+  background:
+    radial-gradient(circle at 50% 40%, var(--c-accent-soft), transparent 70%),
+    transparent;
   color: var(--c-text-muted);
   font-family: var(--font-accent); font-size: 12px; letter-spacing: 2px;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
@@ -2439,21 +2471,79 @@ button { font-family: inherit; }
 /* 置顶笔记标题前的小图钉，颜色跟标题走，不单独抢色 */
 .ink-pin-icon { margin-right: 1px; vertical-align: -1px; flex-shrink: 0; opacity: .8; }
 
-/* 铭文行：不做成悬浮卡片——没有背景板、没有圆角、没有阴影，行与行
-   之间只留一条比头发丝还细的分隔线，读起来像手记目录，不是一堆
-   app 卡片。交互反馈也降到最低：hover/按下只给一层很淡的色块，
-   不挪位置、不描边、不缩放 */
+/* 铭文行升级成星体卡片（第十批）：不再是一条条一模一样的目录线，
+   每张卡片是一小块悬在深空里的半透明玉石——外沿一圈极细的玻璃描边，
+   内部一层径向光晕（焦点位置由 JSX 里传下来的 --glow-x/--glow-y
+   决定，每篇笔记算出来的位置固定不变，不会跳动，只是让一排卡片
+   看起来不是同一个模具刻出来的），配合内外两层 box-shadow 做出
+   "微微凸起、悬浮在背景之上"的伪3D体积感。全部是静态 CSS，没有
+   animation，翻页/滚动都不会有任何持续重绘的开销。
+   起笔人／置顶／草稿三个维度决定卡片的"材质"：
+   · 柯起笔 → 暖金光晕；枢起笔 → 冷调光晕（跟 .ink-doc-shu-span
+     用的是同一个 --c-accent-2，换主题会一起换）
+   · 置顶 → 光环更亮更满，呼应引力页 pulsar/giant 的光效语言，但
+     降级成静态渲染
+   · 草稿（尚未完成）→ 光晕故意压暗、边界更散，视觉上就是"这一篇
+     还没写完、还悬在半空" */
+.ink-note-list { display: flex; flex-direction: column; gap: 10px; }
+
 .ink-note-row {
-  padding: 14px 4px;
-  border-bottom: var(--hair) solid var(--c-line);
+  position: relative;
+  isolation: isolate;
+  padding: 16px 16px 14px;
+  border-radius: 16px;
+  border: var(--hair) solid var(--c-line);
+  background:
+    linear-gradient(155deg, var(--c-highlight), transparent 46%),
+    var(--c-glass-bg);
+  box-shadow:
+    0 1px 0 var(--c-highlight) inset,
+    0 14px 30px -20px var(--c-shadow),
+    0 1px 3px var(--c-shadow);
   cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: background .18s ease;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  overflow: hidden;
 }
-.ink-note-row:last-child { border-bottom: none; }
-.ink-note-row:hover  { background: var(--c-accent-soft); }
-.ink-note-row:active { background: var(--c-accent-soft); }
+.ink-note-row:hover  { border-color: var(--c-line-strong); }
+.ink-note-row:active {
+  box-shadow: 0 1px 0 var(--c-highlight) inset, 0 6px 16px -14px var(--c-shadow);
+}
+
+/* 光晕层：一颗柔和的星芯，焦点位置由每张卡片自己的 --glow-x/-y
+   决定；用 ::before 独立叠一层而不是直接画在卡片背景上，是为了
+   跟上面 linear-gradient 的玻璃高光互不干扰，颜色也好按维度切换 */
+.ink-note-row-glow {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at var(--glow-x, 50%) var(--glow-y, 40%),
+    var(--c-accent-soft) 0%, transparent 62%
+  );
+  opacity: .55;
+}
+.ink-note-row.is-shu-lit .ink-note-row-glow {
+  background: radial-gradient(
+    circle at var(--glow-x, 50%) var(--glow-y, 40%),
+    var(--c-accent-2-soft) 0%, transparent 62%
+  );
+}
+/* 置顶：光环更亮更满，边缘再叠一圈极淡的描边光 */
+.ink-note-row.is-pinned-lit {
+  border-color: var(--c-line-strong);
+}
+.ink-note-row.is-pinned-lit .ink-note-row-glow { opacity: .85; }
+.ink-note-row.is-pinned-lit::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px var(--c-accent-soft) inset;
+}
+/* 草稿：还没写完，光晕压暗、更散，像悬在半空还没落定 */
+.ink-note-row.is-draft-lit .ink-note-row-glow { opacity: .28; filter: saturate(.7); }
 
 .ink-note-row-title {
+  position: relative;
   display: flex; align-items: baseline; gap: 6px;
 }
 .ink-note-row-title-text {
