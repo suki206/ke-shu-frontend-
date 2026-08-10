@@ -812,21 +812,35 @@ const InkPage = ({
   // 选中态（第十一批）：点一下先"抬起"——牌整体轻微放大上浮、标签
   // 从省略号展开成完整标题；同一张牌再点一下才真正进入。见上方
   // selectedCardId/handleCardClick。
-  const renderNoteCard = (n) => {
+  const renderNoteCard = (n, i, siblings) => {
     const { gx, gy, tilt } = cardGlowOffset(n.id)
     const isSelected = selectedCardId === n.id
+    // 蜿蜒排布：左右轻微摆动的横向偏移，同一篇算出来的偏移永远一样
+    // （沿用 cardGlowOffset 的哈希，不额外起新的随机源）。用 sin 波
+    // 而不是简单的奇偶交替，摆动的弧度更自然、不像严格打拍子。
+    // 牌体本身已经占容器 74% 宽，摆动幅度收在约 ±13% 内，加上选中态
+    // 邻牌还要再让开 10%，两者叠加也不会把牌推出可视区域（容器有
+    // overflow-x: hidden 兜底）
+    const swing = Math.sin(i * 1.35) * 9 + Math.sin(i * 0.6) * 4 // 约 -13% ~ 13%
+    // 是否是当前选中牌紧邻的上一张/下一张——链条里前后两张牌压住了
+    // 被选中的这张，选中态需要让它们各自往反方向让开一点，选中的
+    // 牌才能整张露出来，不是只露出没被压住的那一角
+    const isPrevOfSelected = selectedCardId && siblings?.[i + 1]?.id === selectedCardId
+    const isNextOfSelected = selectedCardId && siblings?.[i - 1]?.id === selectedCardId
     const cardClass = [
       'ink-tarot-card',
       n.firstAuthor === 'shu' ? 'is-shu-lit' : 'is-ke-lit',
       n.pinned_at ? 'is-pinned-lit' : '',
       n.hasDraft ? 'is-draft-lit' : '',
       isSelected ? 'is-selected' : '',
+      isPrevOfSelected ? 'is-neighbor-before' : '',
+      isNextOfSelected ? 'is-neighbor-after' : '',
     ].filter(Boolean).join(' ')
     return (
     <div
       key={n.id}
       className={cardClass}
-      style={{ '--glow-x': `${gx}%`, '--glow-y': `${gy}%`, '--tilt': `${tilt}deg` }}
+      style={{ '--glow-x': `${gx}%`, '--glow-y': `${gy}%`, '--tilt': `${tilt}deg`, '--swing': `${swing}%`, '--i': i }}
       onClick={() => handleCardClick(n)}
       onTouchStart={() => startLongPress(n)}
       onTouchEnd={cancelLongPress}
@@ -987,13 +1001,17 @@ const InkPage = ({
                 页面背景自己空着，"新建一篇"已经是唯一需要的入口了 */}
 
             {!notesLoading && pinnedNotes.length > 0 && (
-              <div className="ink-tarot-spread">{pinnedNotes.map(renderNoteCard)}</div>
+              <div className="ink-tarot-spread">
+                {pinnedNotes.map((n, i) => renderNoteCard(n, i, pinnedNotes))}
+              </div>
             )}
             {!notesLoading && pinnedNotes.length > 0 && restNotes.length > 0 && (
               <div className="ink-pin-divider" />
             )}
             {!notesLoading && restNotes.length > 0 && (
-              <div className="ink-tarot-spread">{restNotes.map(renderNoteCard)}</div>
+              <div className="ink-tarot-spread">
+                {restNotes.map((n, i) => renderNoteCard(n, i + pinnedNotes.length, restNotes))}
+              </div>
             )}
           </div>
         )}
