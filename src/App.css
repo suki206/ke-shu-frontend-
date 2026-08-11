@@ -1358,7 +1358,14 @@ button { font-family: inherit; }
 }
 @keyframes tabPageIn {
   from { opacity: 0; transform: scale(0.985); }
-  to   { opacity: 1; transform: scale(1); }
+  /* 同 echoPageIn 那条注释——scale(1) 视觉上等于没缩放，但仍是非
+     none 的 transform，animation:...both 会让它收尾后一直挂着，
+     使 .tab-page 变成自己所有 fixed 后代的包含块。这正是本轮之前
+     "回声挡住SAVE"和"聊天页首次聚焦闪烁"两个 bug 的根源——当时是
+     绕开它做的（.no-shell-transition 临时禁用过渡、composer 首次
+     聚焦抑制），现在直接把根上这条动画修掉，更彻底，那两处workaround
+     留着当双保险，不冲突。 */
+  to   { opacity: 1; transform: none; }
 }
 
 /* 为底部导航留出空间 */
@@ -2125,7 +2132,7 @@ button { font-family: inherit; }
 }
 @keyframes tokenDashIn {
   from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 
 .token-dash-header {
@@ -2206,7 +2213,7 @@ button { font-family: inherit; }
    永久左移自身宽度的一半，导致卡片被切掉一半、贴在屏幕左边 */
 @keyframes tokenDashHeroIn {
   from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 .token-dash-hero-row {
   display: flex; align-items: center; justify-content: center; gap: 22px;
@@ -2316,7 +2323,9 @@ button { font-family: inherit; }
 }
 @keyframes beaconPageIn {
   from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
+  /* 同 echoPageIn 那条注释，收尾改成 none，避免 .beacon-page 变成
+     内部弹层（比如删除确认）的意外包含块 */
+  to   { opacity: 1; transform: none; }
 }
 .beacon-page-header {
   position: relative;
@@ -2370,7 +2379,7 @@ button { font-family: inherit; }
 .beacon-page-card:nth-child(3) { animation-delay: .1s; }
 @keyframes beaconCardIn {
   from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 .beacon-page-card-label {
   font-family: var(--font-accent);
@@ -2398,7 +2407,14 @@ button { font-family: inherit; }
 }
 @keyframes echoPageIn {
   from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
+  /* 收尾故意写成 transform:none 而不是 translateY(0)——两者视觉上
+     完全一样，但 translateY(0) 仍是"一个非 none 的 transform 值"，
+     animation:...both 会让它在动画结束后一直挂着，使这个元素变成
+     自己所有 position:fixed 后代的"包含块"。.echo-page/.cocoon-page/
+     .backup-page 都共用这条动画——数据备份页里"导出对话"那个选择
+     清单弹窗（.modal-veil/.modal-card）一出来就闪一下，根因就是这个，
+     跟合墨那边 inkPageIn 早就修过的是同一个坑，这里补齐。 */
+  to   { opacity: 1; transform: none; }
 }
 .echo-page-header {
   position: relative;
@@ -2453,7 +2469,7 @@ button { font-family: inherit; }
 .echo-page-card:nth-child(4) { animation-delay: .15s; }
 @keyframes echoCardIn {
   from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 .echo-page-card-label {
   font-family: var(--font-accent);
@@ -3413,7 +3429,7 @@ button { font-family: inherit; }
   filter: drop-shadow(0 0 16px rgba(240, 232, 210, .3));
   animation: chronosMoonIn .7s var(--ease) both, chronosMoonBreathe 7s ease-in-out .7s infinite;
 }
-@keyframes chronosMoonIn { from { opacity: 0; transform: scale(.88); } to { opacity: 1; transform: scale(1); } }
+@keyframes chronosMoonIn { from { opacity: 0; transform: scale(.88); } to { opacity: 1; transform: none; } }
 @keyframes chronosMoonBreathe { 0%, 100% { filter: drop-shadow(0 0 14px rgba(240,232,210,.24)); } 50% { filter: drop-shadow(0 0 22px rgba(240,232,210,.4)); } }
 .chronos-moon-base { fill: var(--c-line-strong); opacity: .4; }
 .chronos-moon-lit  { fill: #f2ecd9; }
@@ -3469,7 +3485,7 @@ button { font-family: inherit; }
 /* ── 小面板：锚点 / 新增倒计时 / 倒计时详情 / 经期记录 ──────── */
 @keyframes gravityZoomIn {
   from { opacity: 0; transform: scale(0.82); }
-  to   { opacity: 1; transform: scale(1); }
+  to   { opacity: 1; transform: none; }
 }
 .chronos-sheet-veil { z-index: 2400; animation: fadeIn .22s ease; }
 .chronos-sheet-card {
@@ -3872,7 +3888,7 @@ button { font-family: inherit; }
 }
 @keyframes dustSheetIn {
   from { opacity: 0; transform: translateY(26px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 .dust-sheet-grip {
   width: 34px; height: 2px; border-radius: 2px;
@@ -4197,7 +4213,7 @@ body   { height: 100%; }
 }
 @keyframes chatSidebarIn {
   from { opacity: 0; transform: translateX(-14px); }
-  to   { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: none; }
 }
 .chat-sidebar-head {
   flex-shrink: 0;
