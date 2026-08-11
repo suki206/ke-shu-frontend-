@@ -102,6 +102,28 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
 
   const persist = (next) => { setConfig(next); onSaveConfig(next) }
 
+  // ── Temperature：本地草稿字符串，不直接把 <input> 的 value 绑定到
+  //    Number(config.temperature) ──────────────────────────────
+  // 根因：原来 onChange 里 e.target.value 一敲完立刻 Number() 转换回写
+  // config，再用 config.temperature 反过来当 value——用户打"0."这种
+  // 合法的中间态时，Number("0.") === 0，下一帧 value 就从 "0." 被程序
+  // 强行改写成 "0"，等于在输入法还开着、光标还在输入框里的时候由
+  // React 直接篡改了 DOM 的 value。手机端（尤其这种第三方输入法的自定义
+  // 数字键盘）会把这种"聚焦中的输入框值被非用户操作改掉"当成一次布局
+  // 变化，重新触发它自己的"把输入框滚到键盘上方"逻辑、进而带出
+  // visualViewport resize——ChatPage.jsx 里 --kb-height 的测量/写入
+  // 又是全局节流监听这个事件的，一乱就可能算出一个偏大的键盘高度，
+  // .echo-page 的 bottom 被顶得过多，可视区域猛地收窄，底下引力页那层
+  // 就从收窄出来的缝隙里露出来了——这正是"输入温度时跳到顶部、把引力页
+  // 顶出来"的根因，只发生在温度这一个字段，也是因为整个回声页里只有它
+  // 的 onChange 做了这种"输入即转数字回写"的处理，人格/模型/提供商那些
+  // 字段全是原样存字符串，不会触发这个问题。
+  // 现在改成：input 本身受控于这个纯字符串 state，中间态（"0."、""、
+  // 单独一个"."）都原样保留、绝不用 Number() 转一圈再塞回去；只在能
+  // 解析成合法数字时才顺手同步一份到 config.temperature（供其它地方
+  // 读取最新值），失焦时再兜底纠正成合法范围内的数字。
+  const [tempDraft, setTempDraft] = useState(() => String(config?.temperature ?? 0.7))
+
   // ── 手动新增模型（保留原有路径，适合不在"获取模型列表"里的情况）──
   const [showAddModel, setShowAddModel] = useState(false)
   const [modelForm, setModelForm] = useState({ label: '', baseUrl: '', requestModel: '', apiKey: '', protocol: 'openai' })
@@ -430,9 +452,28 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
           <div className="echo-page-card">
             <div className="echo-page-card-label">TEMPERATURE · 温度</div>
             <input
-              className="field-input" type="number" step="0.1" min="0" max="1.5"
-              value={config?.temperature ?? 0.7}
-              onChange={e => setConfig(p => ({ ...p, temperature: Number(e.target.value) }))}
+              className="field-input" type="text" inputMode="decimal"
+              value={tempDraft}
+              onChange={e => {
+                const raw = e.target.value
+                // 只放行"数字 + 最多一个小数点"的中间态，其它字符直接
+                // 吞掉；空字符串和单独一个"."也放行（用户正在打字，
+                // 不该被打断），但都不回写 config，等失焦时再兜底
+                if (raw !== '' && !/^\d*\.?\d*$/.test(raw)) return
+                setTempDraft(raw)
+                const n = Number(raw)
+                if (raw !== '' && raw !== '.' && !Number.isNaN(n)) {
+                  setConfig(p => ({ ...p, temperature: n }))
+                }
+              }}
+              onBlur={() => {
+                const n = Number(tempDraft)
+                const safe = (tempDraft === '' || tempDraft === '.' || Number.isNaN(n))
+                  ? (config?.temperature ?? 0.7)
+                  : Math.min(1.5, Math.max(0, n))
+                setTempDraft(String(safe))
+                setConfig(p => ({ ...p, temperature: safe }))
+              }}
               style={{ marginTop: 12 }}
             />
             <div className="sensitivity-hint" style={{ marginTop: 8 }}>越高越有创造性和随机性，越低越稳定保守</div>
