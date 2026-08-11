@@ -2523,6 +2523,20 @@ button { font-family: inherit; }
    淡入/缩放动效（只动 background-color 和 transform，本来就不背这个
    锅）照常保留，不用再等实测闪烁了才回头修 */
 .echo-modal-veil { backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* 2026-08-11 追加修复："点击修改"打开这个弹窗时会自动 focus 里面的输入框、
+   拉起系统键盘，这一路会触发 ChatPage.jsx 里节流写入 --kb-height 的那段逻辑，
+   而全局 .modal-veil 自带一条 bottom: var(--kb-height,0px)（本意是给"打字时会
+   被键盘挡住"的弹窗让位置）。问题是这条规则没有 transition，--kb-height 每次
+   变化都是当帧瞬时跳变；.echo-page 自己的 bottom 却是 .18s 的 CSS 过渡，两边
+   对不上同一个节奏——键盘展开动画跑到一半时，.modal-veil 已经按最新的
+   --kb-height 收成一个很矮的框，flex 居中的卡片被顶到框顶部（也就是屏幕顶部
+   附近），而 .echo-page 的高度还没收到位，两者之间那圈缝隙没有任何东西覆盖，
+   引力页就从缝隙里露出来了——这正是"点温度、输入框跳到顶部、引力页被带
+   出来"的根因。这个弹窗内容很短（一个数字输入框 + 两个按钮），压根不需要为
+   键盘让位，直接学下面 .ink-leave-veil 那条先例，钉死在 bottom:0：弹窗永远
+   铺满整屏，从第一帧起就稳稳停在正中间，不再跟着 --kb-height 逐帧挪动，
+   键盘弹出/收起全程页面纹丝不动，也不会再露出下面的引力页 */
+.modal-veil.echo-modal-veil { bottom: 0; }
 .modal-card.echo-sheet {
   background: var(--c-modal-solid);
   backdrop-filter: none; -webkit-backdrop-filter: none;

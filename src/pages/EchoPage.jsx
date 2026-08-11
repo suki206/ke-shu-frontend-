@@ -516,7 +516,18 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
           z-index 层叠上下文，backdrop-filter 嵌在这种结构里现场采样背后
           内容会不稳定而一闪一闪，这是合墨那边已经诊断并修过的坑，这里
           直接照搬同一个降级方案，不用再踩一遍。点遮罩（不是卡片本体）
-          等价于取消 */}
+          等价于取消。
+
+          2026-08-11 追加修复：下面这个 input 挂载后会自动 focus 拉起系统
+          键盘（见上面 showTempModal 的 useEffect），全局 .modal-veil 自带
+          bottom: var(--kb-height,0px) 想让弹窗跟着键盘收缩重新居中，但这条
+          规则没有 transition、每帧瞬时跳变，跟 .echo-page 自己 .18s 的
+          bottom 过渡对不上节奏——键盘展开到一半时弹窗已经按最新键盘高度
+          收成一个很矮的框、卡片被顶到屏幕顶部附近，.echo-page 还没收到位，
+          中间露出的缝隙就把引力页带出来了。已经在 App.css 里给
+          .modal-veil.echo-modal-veil 加了 bottom:0，让这个弹窗彻底不参与
+          这套键盘避让机制，永远铺满整屏、稳稳停在正中间——弹窗内容就一个
+          数字输入框，压根不需要为键盘让位 */}
       {showTempModal && (
         <div
           className="modal-veil echo-modal-veil"
