@@ -2,12 +2,33 @@ import { useState } from 'react'
 
 // ============================================================
 // 回声 · ECHO —— 引力页气态巨行星子页面，全屏跃迁（与数据罗盘/
-// 信标同款）。原本是弹窗里塞人格 / 模型切换 / Temperature 三块，
-// 本批换成和其余功能天体一致的全屏骨架，三块各自成卡。
+// 信标同款）。人格 / 模型（提供商 + 已启用模型）/ Temperature
+// 三块，各自成卡。
 // 人格与 Temperature 沿用原本的交互——本地先改，点底部 SAVE 才落盘；
 // 模型的选中 / 新增 / 删除维持原本"即改即存"，避免切完模型还要
 // 多点一次保存、下一句话却用错了模型。
+//
+// 2026-08-11 改造记录：
+// 之前"内置 DeepSeek · 无需填 key"是写死的一条，且后端真正发给 API
+// 的模型名硬编码成了 deepseek-chat——这个名字 DeepSeek 官方已在
+// 2026-07-24 15:59 UTC 下线，调用直接报错（官方文档：
+// https://api-docs.deepseek.com/news/news260424/）。
+// 现在把 MODEL 卡片拆成两层：
+//   PROVIDERS·提供商——DeepSeek 变成一个普通条目，密钥可以直接在这
+//     编辑（留空则退回服务器环境变量，兼容原来"不用填 key"的便利），
+//     点"获取模型列表"通过 onDiscoverModels 这个 prop（一路从
+//     ChatPage → GravityPage 传下来，实现在 ChatPage 的
+//     discoverModels，跟 onFetchTokenStats/onCreateInkNote 那些是
+//     同一种写法）请求该提供商官方的 /models 接口，勾选真实存在的
+//     模型（如 deepseek-v4-flash / deepseek-v4-pro）。
+//   已启用的模型——勾选后落进这里，交互跟原来完全一样：点选中、
+//     垃圾桶删除、"即改即存"。
+// 后端相应改动见 server.js 的 resolveModel() 与新增的
+// /api/models/discover。
 // ============================================================
+
+const DEEPSEEK_PROVIDER_ID = 'deepseek'
+const DEEPSEEK_DEFAULT_BASEURL = 'https://api.deepseek.com/chat/completions'
 
 const BackIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -21,13 +42,25 @@ const TrashIcon = () => (
   </svg>
 )
 
-const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose }) => {
-  const [showAddModel, setShowAddModel] = useState(false)
-  const [modelForm, setModelForm] = useState({ label: '', baseUrl: '', requestModel: '', apiKey: '' })
-  const modelList = config?.models || []
-  const activeModelId = config?.model || 'deepseek-chat'
+const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDiscoverModels }) => {
+  const modelList     = config?.models || []
+  const activeModelId = config?.model || ''
+  const activeModelObj = modelList.find(m => m.id === activeModelId) || null
+
+  const customProviders = config?.providers || []
+  // DeepSeek 永远存在这个列表里；用户若编辑过它的 baseUrl/apiKey，
+  // 存在 config.providers 里的那份会覆盖下面这份默认值
+  const deepseekOverride = customProviders.find(p => p.id === DEEPSEEK_PROVIDER_ID)
+  const providers = [
+    { id: DEEPSEEK_PROVIDER_ID, label: 'DeepSeek', baseUrl: DEEPSEEK_DEFAULT_BASEURL, apiKey: '', builtin: true, ...deepseekOverride },
+    ...customProviders.filter(p => p.id !== DEEPSEEK_PROVIDER_ID),
+  ]
 
   const persist = (next) => { setConfig(next); onSaveConfig(next) }
+
+  // ── 手动新增模型（保留原有路径，适合不在"获取模型列表"里的情况）──
+  const [showAddModel, setShowAddModel] = useState(false)
+  const [modelForm, setModelForm] = useState({ label: '', baseUrl: '', requestModel: '', apiKey: '' })
 
   const submitAddModel = () => {
     const label = modelForm.label.trim()
@@ -40,9 +73,119 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose }) => {
     setShowAddModel(false)
   }
   const removeModel = (id) => {
-    persist({ ...config, models: modelList.filter(m => m.id !== id), model: activeModelId === id ? 'deepseek-chat' : activeModelId })
+    const nextModels = modelList.filter(m => m.id !== id)
+    const nextActive = activeModelId === id ? (nextModels[0]?.id || '') : activeModelId
+    persist({ ...config, models: nextModels, model: nextActive })
   }
   const selectModel = (id) => persist({ ...config, model: id })
+
+  // ── 提供商：展开编辑 + 获取模型列表 + 勾选 ─────────────────────
+  const [expandedProviderId, setExpandedProviderId] = useState(null)
+  const [providerForm, setProviderForm] = useState({ baseUrl: '', apiKey: '' })
+  const [discovering, setDiscovering] = useState(false)
+  const [discoverError, setDiscoverError] = useState('')
+  const [discoverResult, setDiscoverResult] = useState(null) // { providerId, ids, picked: Set }
+
+  const toggleProvider = (p) => {
+    if (expandedProviderId === p.id) { setExpandedProviderId(null); return }
+    setExpandedProviderId(p.id)
+    setProviderForm({ baseUrl: p.baseUrl, apiKey: p.apiKey || '' })
+    setDiscoverResult(null)
+    setDiscoverError('')
+  }
+
+  const upsertProvider = (providerId, baseUrl, apiKey) => {
+    const label = providers.find(p => p.id === providerId)?.label || providerId
+    const others = customProviders.filter(p => p.id !== providerId)
+    return [...others, { id: providerId, label, baseUrl, apiKey }]
+  }
+
+  // 只保存提供商的地址/密钥，不改动已选模型——换密钥场景走这个，
+  // 已经勾过的模型条目会同步换成新密钥，不用重新勾一遍
+  const saveProviderKey = (providerId) => {
+    const baseUrl = providerForm.baseUrl.trim()
+    const apiKey  = providerForm.apiKey.trim()
+    const nextProviders = upsertProvider(providerId, baseUrl, apiKey)
+    const nextModels = modelList.map(m => m.providerId === providerId ? { ...m, baseUrl, apiKey } : m)
+    persist({ ...config, providers: nextProviders, models: nextModels })
+    showToast?.('已保存')
+  }
+
+  const deleteProvider = (id) => {
+    const nextModels = modelList.filter(m => m.providerId !== id)
+    const removedActive = !nextModels.find(m => m.id === activeModelId)
+    persist({
+      ...config,
+      providers: customProviders.filter(p => p.id !== id),
+      models: nextModels,
+      model: removedActive ? (nextModels[0]?.id || '') : activeModelId,
+    })
+    if (expandedProviderId === id) setExpandedProviderId(null)
+  }
+
+  const discoverModels = async (providerId) => {
+    const baseUrl = providerForm.baseUrl.trim()
+    if (!baseUrl) { showToast?.('先填接口地址'); return }
+    if (!onDiscoverModels) { showToast?.('当前环境不支持获取模型列表'); return }
+    setDiscovering(true); setDiscoverError('')
+    try {
+      const ids = (await onDiscoverModels(baseUrl, providerForm.apiKey.trim(), providerId)).map(m => m.id)
+      const already = new Set(modelList.filter(m => m.providerId === providerId).map(m => m.requestModel))
+      setDiscoverResult({ providerId, ids, picked: new Set(ids.filter(id => already.has(id))) })
+    } catch (err) {
+      setDiscoverError(err.response?.data?.error || err.message)
+      setDiscoverResult(null)
+    }
+    setDiscovering(false)
+  }
+
+  const togglePicked = (id) => setDiscoverResult(prev => {
+    if (!prev) return prev
+    const picked = new Set(prev.picked)
+    picked.has(id) ? picked.delete(id) : picked.add(id)
+    return { ...prev, picked }
+  })
+
+  // 确定勾选：保存提供商信息 + 把「这个提供商名下」的模型条目同步成
+  // 勾中的那些（新增缺的、删掉取消勾的），不动其它提供商或手动加的模型
+  const confirmDiscover = () => {
+    if (!discoverResult) return
+    const { providerId, picked } = discoverResult
+    const baseUrl = providerForm.baseUrl.trim()
+    const apiKey  = providerForm.apiKey.trim()
+    const nextProviders = upsertProvider(providerId, baseUrl, apiKey)
+
+    const keepOthers = modelList.filter(m => m.providerId !== providerId)
+    const fromThisProvider = [...picked].map(mid => {
+      const existing = modelList.find(m => m.providerId === providerId && m.requestModel === mid)
+      return { id: existing?.id || `${providerId}:${mid}`, label: mid, requestModel: mid, providerId, baseUrl, apiKey }
+    })
+    const nextModels = [...keepOthers, ...fromThisProvider]
+    const nextActive = nextModels.find(m => m.id === activeModelId) ? activeModelId : (nextModels[0]?.id || '')
+
+    persist({ ...config, providers: nextProviders, models: nextModels, model: nextActive })
+    setDiscoverResult(null)
+    setExpandedProviderId(null)
+    showToast?.('已保存')
+  }
+
+  // ── 新增自定义提供商（DeepSeek 以外，任意 OpenAI 兼容服务）──────
+  const [showAddProvider, setShowAddProvider] = useState(false)
+  const [newProviderForm, setNewProviderForm] = useState({ label: '', baseUrl: '', apiKey: '' })
+
+  const submitAddProvider = () => {
+    const label = newProviderForm.label.trim()
+    const baseUrl = newProviderForm.baseUrl.trim()
+    const apiKey = newProviderForm.apiKey.trim()
+    if (!label || !baseUrl) { showToast?.('至少要填名称和接口地址'); return }
+    const id = `custom-provider-${Date.now()}`
+    persist({ ...config, providers: [...customProviders, { id, label, baseUrl, apiKey }] })
+    setNewProviderForm({ label: '', baseUrl: '', apiKey: '' })
+    setShowAddProvider(false)
+    setExpandedProviderId(id)
+    setProviderForm({ baseUrl, apiKey })
+    setDiscoverResult(null)
+  }
 
   const saveAll = () => { onSaveConfig(); showToast?.('已保存') }
 
@@ -72,29 +215,26 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose }) => {
             />
           </div>
 
-          {/* 模型切换 */}
+          {/* 模型：已启用的模型 + 提供商 */}
           <div className="echo-page-card">
             <div className="echo-page-card-label">MODEL · 模型</div>
+            <div className="sensitivity-hint" style={{ marginTop: 10 }}>
+              {activeModelObj
+                ? `当前使用：${activeModelObj.label} · 实际请求模型名 ${activeModelObj.requestModel}`
+                : '当前未指定具体模型，会使用默认值 deepseek-v4-flash（服务器环境变量密钥）'}
+            </div>
+
             <div style={{ marginTop: 12 }}>
-              <div
-                className={`model-item${activeModelId === 'deepseek-chat' ? ' is-active' : ''}`}
-                onClick={() => selectModel('deepseek-chat')}
-              >
-                <div className="model-item-main">
-                  <span className="model-item-dot" />
-                  <div>
-                    <div className="model-item-label">DeepSeek</div>
-                    <div className="model-item-sub">内置默认 · 无需填 key</div>
-                  </div>
-                </div>
-              </div>
+              {modelList.length === 0 && (
+                <div className="sensitivity-hint">还没有已启用的模型——去下面「提供商」获取模型列表，或手动新增</div>
+              )}
               {modelList.map(m => (
                 <div key={m.id} className={`model-item${activeModelId === m.id ? ' is-active' : ''}`} onClick={() => selectModel(m.id)}>
                   <div className="model-item-main">
                     <span className="model-item-dot" />
                     <div style={{ minWidth: 0 }}>
                       <div className="model-item-label">{m.label}</div>
-                      <div className="model-item-sub">{m.apiKey ? '已填 key' : '未填 key，走环境变量'}</div>
+                      <div className="model-item-sub">{m.requestModel}</div>
                     </div>
                   </div>
                   <span className="icon-btn" onClick={e => { e.stopPropagation(); removeModel(m.id) }} style={{ cursor: 'pointer', color: 'var(--c-text-faint)', padding: '4px', flexShrink: 0 }}>
@@ -106,7 +246,7 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose }) => {
 
             {showAddModel ? (
               <div className="model-add-form">
-                <div className="model-add-title">新增模型</div>
+                <div className="model-add-title">手动新增模型</div>
                 <input className="field-input" placeholder="名称（如 Claude）" value={modelForm.label} onChange={e => setModelForm(p => ({ ...p, label: e.target.value }))} />
                 <input className="field-input" placeholder="接口地址 baseUrl（OpenAI 兼容 /chat/completions）" value={modelForm.baseUrl} onChange={e => setModelForm(p => ({ ...p, baseUrl: e.target.value }))} />
                 <input className="field-input" placeholder="请求用的模型名（不填则用名称）" value={modelForm.requestModel} onChange={e => setModelForm(p => ({ ...p, requestModel: e.target.value }))} />
@@ -118,9 +258,90 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose }) => {
               </div>
             ) : (
               <button onClick={() => setShowAddModel(true)} className="line-btn" style={{ width: '100%', marginTop: 10, padding: '10px 0', borderRadius: '12px', fontSize: '11px', letterSpacing: '1.5px' }}>
-                + 新增模型
+                + 手动新增模型
               </button>
             )}
+
+            {/* 提供商 */}
+            <div className="echo-page-card-label" style={{ marginTop: 26 }}>PROVIDERS · 提供商</div>
+            <div className="sensitivity-hint" style={{ marginTop: 6 }}>选提供商、填密钥，"获取模型列表"里勾选要用的模型</div>
+
+            <div style={{ marginTop: 12 }}>
+              {providers.map(p => (
+                <div key={p.id}>
+                  <div className={`model-item${expandedProviderId === p.id ? ' is-active' : ''}`} onClick={() => toggleProvider(p)}>
+                    <div className="model-item-main">
+                      <span className="model-item-dot" />
+                      <div style={{ minWidth: 0 }}>
+                        <div className="model-item-label">{p.label}</div>
+                        <div className="model-item-sub">{p.apiKey ? '已设置密钥' : (p.builtin ? '未设置，使用服务器环境变量密钥' : '未设置密钥')}</div>
+                      </div>
+                    </div>
+                    {!p.builtin && (
+                      <span className="icon-btn" onClick={e => { e.stopPropagation(); deleteProvider(p.id) }} style={{ cursor: 'pointer', color: 'var(--c-text-faint)', padding: '4px', flexShrink: 0 }}>
+                        <TrashIcon />
+                      </span>
+                    )}
+                  </div>
+
+                  {expandedProviderId === p.id && (
+                    <div className="model-add-form">
+                      <input className="field-input" placeholder="接口地址 baseUrl（OpenAI 兼容 /chat/completions）" value={providerForm.baseUrl} onChange={e => setProviderForm(f => ({ ...f, baseUrl: e.target.value }))} />
+                      <input
+                        className="field-input" type="password"
+                        placeholder={p.builtin ? 'API Key（留空则用服务器环境变量）' : 'API Key'}
+                        value={providerForm.apiKey}
+                        onChange={e => setProviderForm(f => ({ ...f, apiKey: e.target.value }))}
+                      />
+
+                      {discoverError && <div className="sensitivity-hint">获取失败：{discoverError}</div>}
+
+                      {discoverResult?.providerId === p.id ? (
+                        <>
+                          <div className="model-pick-list">
+                            {discoverResult.ids.length === 0 && <div className="sensitivity-hint">没有获取到可用模型</div>}
+                            {discoverResult.ids.map(mid => (
+                              <label key={mid} className="model-pick-row">
+                                <input type="checkbox" checked={discoverResult.picked.has(mid)} onChange={() => togglePicked(mid)} />
+                                <span>{mid}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                            <button onClick={() => setDiscoverResult(null)} className="line-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>取消</button>
+                            <button onClick={confirmDiscover} className="solid-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>确定（{discoverResult.picked.size}）</button>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                          <button onClick={() => saveProviderKey(p.id)} className="line-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>仅保存密钥</button>
+                          <button onClick={() => discoverModels(p.id)} disabled={discovering} className="solid-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>
+                            {discovering ? '获取中…' : '获取模型列表'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {showAddProvider ? (
+                <div className="model-add-form">
+                  <div className="model-add-title">新增提供商</div>
+                  <input className="field-input" placeholder="名称（如 Moonshot）" value={newProviderForm.label} onChange={e => setNewProviderForm(p => ({ ...p, label: e.target.value }))} />
+                  <input className="field-input" placeholder="接口地址 baseUrl（OpenAI 兼容 /chat/completions）" value={newProviderForm.baseUrl} onChange={e => setNewProviderForm(p => ({ ...p, baseUrl: e.target.value }))} />
+                  <input className="field-input" type="password" placeholder="API Key" value={newProviderForm.apiKey} onChange={e => setNewProviderForm(p => ({ ...p, apiKey: e.target.value }))} />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                    <button onClick={() => setShowAddProvider(false)} className="line-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>取消</button>
+                    <button onClick={submitAddProvider} className="solid-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>保存</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowAddProvider(true)} className="line-btn" style={{ width: '100%', marginTop: 10, padding: '10px 0', borderRadius: '12px', fontSize: '11px', letterSpacing: '1.5px' }}>
+                  + 新增提供商
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Temperature */}
@@ -133,6 +354,9 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose }) => {
               style={{ marginTop: 12 }}
             />
             <div className="sensitivity-hint" style={{ marginTop: 8 }}>越高越有创造性和随机性，越低越稳定保守</div>
+            {/^deepseek-v4/i.test(activeModelObj?.requestModel || 'deepseek-v4-flash') && (
+              <div className="sensitivity-hint" style={{ marginTop: 4 }}>该模型默认开启思考模式，开启时这个参数不生效（DeepSeek 官方说明）</div>
+            )}
           </div>
 
           <button onClick={saveAll} className="solid-btn" style={{ width: '100%', padding: '13px 0', borderRadius: '14px', fontSize: '12px', letterSpacing: '3px' }}>

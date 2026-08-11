@@ -1549,6 +1549,18 @@ button { font-family: inherit; }
 }
 .model-add-title { font-size: 10.5px; letter-spacing: 1.5px; color: var(--c-text-faint); font-family: var(--font-accent); }
 
+/* 模型发现勾选列表——EchoPage「提供商」卡片"获取模型列表"后展示，
+   紧跟在 .model-add-form 里，配色沿用同一套变量 */
+.model-pick-list { max-height: 220px; overflow-y: auto; margin: 2px 0; }
+.model-pick-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 2px; font-size: 12.5px; color: var(--c-text);
+  border-bottom: var(--hair) solid var(--c-line);
+  cursor: pointer;
+}
+.model-pick-row:last-child { border-bottom: none; }
+.model-pick-row input[type="checkbox"] { accent-color: var(--c-accent); width: 15px; height: 15px; flex-shrink: 0; }
+
 /* ============================================================
    信标（便签）—— 现挂载于「引力」页脉冲星子页面（原常数页已迁出）
    ============================================================ */

@@ -44,7 +44,7 @@ const BODIES = [
 const daysBetween = (a, b) => Math.round((b.getTime() - a.getTime()) / 86400000)
 
 const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggleBeacon, onDeleteBeacon, showToast,
-  config, setConfig, onSaveConfig, onEnablePush,
+  config, setConfig, onSaveConfig, onDiscoverModels, onEnablePush,
   tokenStats, tokenStatsLoading, onFetchTokenStats,
   inkNotes, inkNotesLoading, onFetchInkNotes, onCreateInkNote, onUpdateInkNote, onDeleteInkNote,
   activeInkNote, activeInkNoteLoading, onOpenInkNote,
@@ -192,6 +192,7 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
           config={config || {}}
           setConfig={setConfig}
           onSaveConfig={onSaveConfig}
+          onDiscoverModels={onDiscoverModels}
           showToast={showToast}
           onClose={() => setOpenBody(null)}
         />

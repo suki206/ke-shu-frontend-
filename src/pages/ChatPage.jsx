@@ -159,6 +159,15 @@ function parseMsgContent(raw) {
 
 // 把后端返回的一条消息（quoted_text / is_edited / tokens_input / tokens_output / truncated
 // 等真实列）归一化成前端内部统一使用的字段形状；对仍带旧版零宽标记的历史数据做兜底兼容。
+//
+// reasoning: m.reasoning_content —— 数据库列叫 reasoning_content，但下面
+// renderMsgItem 里判断"这条消息有没有思考过程"用的是 msg.reasoning（跟
+// 流式过程中 readSSEStream 边收边攒到 msg.reasoning 上的字段名保持一致）。
+// 这两个名字之前没接上：凡是从后端重新拉回来的历史消息（切会话、翻旧
+// 记录、刷新页面——包括应用一打开就会自动加载上次会话这一步），
+// reasoning_content 里其实好好存着数据，却因为字段名对不上而显示不出来，
+// 只有还停留在本次会话实时流式状态里、没经过这次"从后端重新加载"的
+// 消息才显示得出来。这里补上映射，历史消息的思考过程就能正常展开了。
 function normalizeMsg(m) {
   if (!m) return m
   const legacy = parseMsgContent(m.content)
@@ -169,6 +178,7 @@ function normalizeMsg(m) {
     edited: !!m.is_edited || legacy.edited,
     truncated: !!m.truncated,
     tokens: (m.tokens_input != null || m.tokens_output != null) ? { input: m.tokens_input, output: m.tokens_output } : null,
+    reasoning: m.reasoning_content ?? m.reasoning ?? null,
   }
 }
 
@@ -723,8 +733,8 @@ const ChatPage = () => {
     system_prompt: '你是温柔贴心的AI伴侣，简短自然回复', temperature: 0.7, compress_threshold: 3000, compress_keep_rounds: 4, show_reasoning: false,
     memory_sensitivity: 'medium',   // 记忆敏感度（C级）：low / medium / high
     memory_paused: false,           // 记忆暂停开关（C级）
-    model: 'deepseek-chat',         // 当前选中的模型 id（C级 模型切换）
-    models: [],                     // 用户自己添加的模型列表（C级 模型切换）
+    model: '',                      // 当前选中的模型 id（C级 模型切换）；留空时后端 resolveModel 兜底到 deepseek-v4-flash
+    models: [],                     // 用户配置的模型列表（C级 模型切换，EchoPage「提供商」拉取或手动新增）
   })
   const [archivedList,  setArchivedList]  = useState([])
   const [hasOlderArchive, setHasOlderArchive] = useState(false)
@@ -1466,6 +1476,16 @@ const ChatPage = () => {
   const getSettings  = async () => { try { const res = await axios.get(`${API_BASE}/settings`); setConfig(prev => ({ ...prev, ...res.data })) } catch {} }
   const saveSettings = async (overrideConfig) => { try { await axios.post(`${API_BASE}/settings`, overrideConfig || config); if (!overrideConfig) showToast('已保存') } catch (err) { showToast('保存失败：' + err.message) } }
 
+  // ── EchoPage「提供商」卡片"获取模型列表"用：代理请求该提供商的
+  //    /models 列表接口（真正的转发在后端 /api/models/discover，
+  //    这里只是把 GravityPage → EchoPage 传下来的调用接到 API_BASE
+  //    上）。不在这里 catch——让错误原样抛给 EchoPage 自己的 try/catch，
+  //    它要读 err.response.data.error 里后端给的具体失败原因。
+  const discoverModels = async (baseUrl, apiKey, providerId) => {
+    const res = await axios.post(`${API_BASE}/models/discover`, { baseUrl, apiKey, providerId })
+    return res.data?.models || []
+  }
+
   // ── 到点提醒：Web Push 订阅 ──────────────────────────────────
   // VAPID 公钥是 base64url 字符串，pushManager.subscribe 要的是
   // Uint8Array，这个转换是标准写法，别处也这么写
@@ -1998,7 +2018,7 @@ const ChatPage = () => {
               beacons={beacons} beaconText={beaconText} setBeaconText={setBeaconText}
               onAddBeacon={addBeacon} onToggleBeacon={toggleBeacon} onDeleteBeacon={deleteBeacon}
               showToast={showToast}
-              config={config} setConfig={setConfig} onSaveConfig={saveSettings}
+              config={config} setConfig={setConfig} onSaveConfig={saveSettings} onDiscoverModels={discoverModels}
               tokenStats={tokenStats} tokenStatsLoading={tokenStatsLoading} onFetchTokenStats={fetchTokenStats}
               onEnablePush={enablePushReminders}
               inkNotes={inkNotes} inkNotesLoading={inkNotesLoading} onFetchInkNotes={fetchInkNotes}
