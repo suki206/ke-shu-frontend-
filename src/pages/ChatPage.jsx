@@ -80,28 +80,42 @@ const MarkdownText = ({ text }) => {
 
 // ============================================================
 // 流式浮现渲染（替代打字机效果）
-// 已经"稳定"的正文交给 MarkdownText 正常解析、静止不动；
-// 只把最新收到的一小段尾巴（TAIL_WINDOW 个字符）用纯文本包一层
-// .reveal-tail 做淡入+虚焦变清晰的动画，随着后面文字持续到达，
-// 这段尾巴不断往后滑动、不断重新播放动画——视觉上像文字不断从
-// 雾气里浮现出来，而不是逐字蹦出来的打字机。
-// 代价：尾巴窗口内如果正好卡在一个 markdown 符号中间（比如 **加粗**
-// 被切成两半），会有极短暂的原始符号闪现，等这段文字滑入稳定区、
-// 被 MarkdownText 完整解析后就会恢复正常——原来的逐字打字机效果
-// 本就有同样的局限，这里没有变得更差。
+// 已经"稳定"的正文交给 MarkdownText 正常解析、静止不动；最近到达的
+// 若干个数据块（chunks，即 SSE 里一次次 ev.token 的原始分片）各自
+// 包一层 .reveal-tail 做淡入+虚焦→清晰的动画。
+//
+// 2026-08-11 修复：原来是拿"整条 tail 字符串"配 key={text.length}，
+// 每来一个新字符 text.length 就变，React 会把整条尾巴当成全新元素
+// 卸载重挂——哪怕某个字几帧前就已经淡入完成了，只要它还留在窗口内、
+// 后面又来了新字符，它也会被强制打回 opacity:0 重新淡入一次。
+// 一段 26 字符的窗口被这样反复重播，视觉上就是密集的连续闪烁，
+// 跟"逐字蹦出来的打字机"没有本质区别，只是多了层模糊——这正是本该
+// 替代的效果又变相重现了。
+// 现在按 chunk 分别渲染，key 用该 chunk 在 chunks 数组里的下标（只增不减，
+// 稳定不变）：一个 chunk 一旦挂载播完动画，后面无论再来多少新 chunk，
+// 都不会让它重新播放——每一小段文字只从雾气里浮现一次，就定住不动了。
+// 窗口改成按"最近 N 个 chunk"而不是"最近 N 个字符"圈定，逻辑更简单；
+// chunk 粒度本来就细，效果上跟原来的字符窗口相近。
+// 代价跟原来一样：尾巴窗口内如果正好卡在一个 markdown 符号中间（比如
+// **加粗** 被切成两半），会有极短暂的原始符号闪现，等它滑入稳定区、
+// 被 MarkdownText 完整解析后就恢复正常。
 // ============================================================
-const TAIL_WINDOW = 26
-const StreamingText = ({ text }) => {
+const TAIL_CHUNKS = 10
+const StreamingText = ({ text, chunks }) => {
   if (!text) return null
-  let splitAt = Math.max(0, text.length - TAIL_WINDOW)
-  // 避免把 UTF-16 代理对（比如某些 emoji）从中间切开
-  if (splitAt > 0 && /[\uD800-\uDBFF]/.test(text[splitAt - 1] || '')) splitAt -= 1
-  const settled = text.slice(0, splitAt)
-  const tail    = text.slice(splitAt)
+  // 兜底：没有分块信息（理论上不会发生，除非是老缓存数据），没法逐块
+  // 稳定播放动画，直接整体展示，不强行拆分
+  if (!chunks || chunks.length === 0) return <MarkdownText text={text} />
+
+  const tailStart = Math.max(0, chunks.length - TAIL_CHUNKS)
+  const settled = chunks.slice(0, tailStart).join('')
+  const tail = chunks.slice(tailStart)
   return (
     <>
       {settled && <MarkdownText text={settled} />}
-      <span key={text.length} className="reveal-tail">{tail}</span>
+      {tail.map((c, i) => (
+        <span key={tailStart + i} className="reveal-tail">{c}</span>
+      ))}
     </>
   )
 }
@@ -770,7 +784,17 @@ const ChatPage = () => {
   const [archiveCursor, setArchiveCursor] = useState(null)
   const [deleteModal,   setDeleteModal]   = useState({ show: false, sessionId: null, name: '' })
   const [renameModal,   setRenameModal]   = useState({ show: false, sessionId: null, value: '' })
-  const [theme,         setTheme]         = useState(() => localStorage.getItem('ks_theme') || 'noir')
+  const [theme,         setTheme]         = useState(() => {
+    // 2026-08-11：这里原来是 localStorage.getItem('ks_theme') || 'noir'，
+    // 不管存的值是否还在 THEMES 里——如果谁的浏览器里还留着更早版本
+    // 存下的主题名（比如曾经完整做过、后来确认不要了的第三套主题），
+    // 这行会原样把它设成 data-theme，而 App.css 里那套主题的变量块
+    // 已经删掉了，页面会静默退回一堆零散的默认值，Appearance 里两个
+    // 主题按钮却都不会显示"当前选中"，是个不容易发现的糊涂状态。
+    // 加一层校验：存的值不在当前 THEMES 里就直接当没存过，退回 noir。
+    const saved = localStorage.getItem('ks_theme')
+    return THEMES.includes(saved) ? saved : 'noir'
+  })
   const [fontScale,     setFontScale]     = useState(() => {
     const v = localStorage.getItem(FONT_STORAGE)
     return FONT_SCALES.includes(v) ? v : 'md'
@@ -1359,7 +1383,7 @@ const ChatPage = () => {
             setMessages(prev => {
               const msgs = [...prev]
               const last = msgs[msgs.length - 1]
-              if (last?.streaming) msgs[msgs.length - 1] = { ...last, content: last.content + ev.token }
+              if (last?.streaming) msgs[msgs.length - 1] = { ...last, content: last.content + ev.token, chunks: [...(last.chunks || []), ev.token] }
               return msgs
             })
             scrollBottom()
@@ -1385,7 +1409,9 @@ const ChatPage = () => {
   // ── 真正发起一次请求（新消息 / 合并后的多条 / 编辑重发 都走这里）──
   const performRequest = async (url, body) => {
     setLoading(true)
-    const tempAI = { role: 'assistant', content: '', created_at: new Date(), streaming: true }
+    // chunks：跟 content 平行攒着的原始分片数组，只给 StreamingText 的
+    // 逐块浮现动画用（见该组件顶部注释），content 本身的用途不变
+    const tempAI = { role: 'assistant', content: '', chunks: [], created_at: new Date(), streaming: true }
     setMessages(prev => [...prev, tempAI])
     scrollBottom()
 
@@ -1514,8 +1540,8 @@ const ChatPage = () => {
   //    这里只是把 GravityPage → EchoPage 传下来的调用接到 API_BASE
   //    上）。不在这里 catch——让错误原样抛给 EchoPage 自己的 try/catch，
   //    它要读 err.response.data.error 里后端给的具体失败原因。
-  const discoverModels = async (baseUrl, apiKey, providerId) => {
-    const res = await axios.post(`${API_BASE}/models/discover`, { baseUrl, apiKey, providerId })
+  const discoverModels = async (baseUrl, apiKey, providerId, protocol) => {
+    const res = await axios.post(`${API_BASE}/models/discover`, { baseUrl, apiKey, providerId, protocol })
     return res.data?.models || []
   }
 
@@ -1735,8 +1761,11 @@ const ChatPage = () => {
     const quoted = msg.quoted || null
     const edited = !!msg.edited
     const hasReasoning = !isUser && !!msg.reasoning
-    // 默认态取自设置(config.show_reasoning)，用户手动点开/收起后记录在 expandedReasoning 里覆盖默认态
-    const reasoningOpen = expandedReasoning.has(key) ? expandedReasoning.get(key) : !!config.show_reasoning
+    // 2026-08-11 改动：思考模式开关现在只管 AI 真的思不思考（见
+    // server.js 的 deepseekThinking 调用），不再联动这里的默认展开/
+    // 折叠——每条消息一律默认折叠，要看哪条就手动点那条上方的
+    // "思考过程"小标识，展开状态只记在 expandedReasoning 里
+    const reasoningOpen = expandedReasoning.get(key) ?? false
     const toggleReasoning = () => setExpandedReasoning(prev => {
       const next = new Map(prev)
       next.set(key, !reasoningOpen)
@@ -1805,7 +1834,7 @@ const ChatPage = () => {
                 {isWaiting
                   ? <div className="breath-dot" style={{ margin: '2px auto' }} />
                   : isStreaming
-                    ? <StreamingText text={body} />
+                    ? <StreamingText text={body} chunks={msg.chunks} />
                     : <MarkdownText text={body} />
                 }
               </div>
@@ -1982,21 +2011,20 @@ const ChatPage = () => {
             <span className="quote-preview-close" onClick={() => setQuoteTarget(null)}><Icon.Close size={11} /></span>
           </div>
         )}
-        {/* 工具行：思考模式开关。2026-08-11 前只切换"AI 回复的思考过程
-            默认展开/折叠"这个 UI 偏好，没管模型是否真的思考——后端三处
-            生成回复的调用一律写死开思考，点这颗按钮跟没点一样。现在
-            server.js 已经改成读这里存的 show_reasoning 来决定真的开/关
-            思考（deepseekThinking()），所以这颗按钮现在是"双重开关"：
-            关掉时模型不思考、也没有思考过程可展开；开着时模型思考，
-            过程默认展开显示。某条具体消息是否已经手动展开过，仍由
-            expandedReasoning 单独记录，不受这颗按钮影响。
+        {/* 工具行：思考模式开关。只管 AI 回复前真的思不思考（server.js
+            deepseekThinking() 读的就是这里存的 show_reasoning），跟
+            "思考过程"展开/折叠已经解耦——2026-08-11 这天先把两者绑一起
+            又拆开了：绑一起时开这颗按钮会让所有消息默认展开思考过程，
+            用户反馈不想要这个联动，改成每条消息一律默认折叠，只由
+            消息上方"思考过程"那个小标识手动点开/收起，跟这颗按钮
+            无关，见下方 reasoningOpen 的处理。
             仅对 DeepSeek V4 系列模型生效（其它兼容供应商未必支持思考
             模式字段，服务端会自动忽略，详见 server.js 里的说明）。*/}
         <div className="composer-toolbar">
           <button
             className={`composer-tool-btn${config.show_reasoning ? ' is-on' : ''}`}
             onClick={() => { const next = { ...config, show_reasoning: !config.show_reasoning }; setConfig(next); saveSettings(next) }}
-            title="开启后 AI 回复前会先思考（仅 DeepSeek V4 系列生效），思考过程默认展开显示"
+            title="开启后 AI 回复前会先思考（仅 DeepSeek V4 系列生效），思考过程默认折叠，点消息上方的「思考过程」手动展开"
           >
             <Icon.Brain size={12} /> 思考模式
           </button>

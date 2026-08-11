@@ -29,6 +29,13 @@ import { useState, useEffect } from 'react'
 
 const DEEPSEEK_PROVIDER_ID = 'deepseek'
 const DEEPSEEK_DEFAULT_BASEURL = 'https://api.deepseek.com/chat/completions'
+// 2026-08-11 新增：Anthropic 原生协议（Claude 官方 /v1/messages）——
+// 跟 DeepSeek/Moonshot/Qwen/GLM 那套 OpenAI 兼容协议不是一回事，
+// 请求/返回的形状完全不同，后端 server.js 的 buildChatRequest /
+// parseChatCompletion / parseStreamEvent 三个函数按 protocol 字段分流。
+// 这里只是给"新增提供商"表单一个方便的默认地址，选了 Anthropic 原生
+// 且没自己填地址时用这个兜底。
+const ANTHROPIC_DEFAULT_BASEURL = 'https://api.anthropic.com/v1/messages'
 
 const BackIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -67,7 +74,7 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
   // 存在 config.providers 里的那份会覆盖下面这份默认值
   const deepseekOverride = customProviders.find(p => p.id === DEEPSEEK_PROVIDER_ID)
   const providers = [
-    { id: DEEPSEEK_PROVIDER_ID, label: 'DeepSeek', baseUrl: DEEPSEEK_DEFAULT_BASEURL, apiKey: '', builtin: true, ...deepseekOverride },
+    { id: DEEPSEEK_PROVIDER_ID, label: 'DeepSeek', baseUrl: DEEPSEEK_DEFAULT_BASEURL, apiKey: '', protocol: 'openai', builtin: true, ...deepseekOverride },
     ...customProviders.filter(p => p.id !== DEEPSEEK_PROVIDER_ID),
   ]
 
@@ -75,16 +82,16 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
 
   // ── 手动新增模型（保留原有路径，适合不在"获取模型列表"里的情况）──
   const [showAddModel, setShowAddModel] = useState(false)
-  const [modelForm, setModelForm] = useState({ label: '', baseUrl: '', requestModel: '', apiKey: '' })
+  const [modelForm, setModelForm] = useState({ label: '', baseUrl: '', requestModel: '', apiKey: '', protocol: 'openai' })
 
   const submitAddModel = () => {
     const label = modelForm.label.trim()
     const baseUrl = modelForm.baseUrl.trim()
     if (!label || !baseUrl) { showToast?.('至少要填名称和接口地址'); return }
     const id = `custom-${Date.now()}`
-    const entry = { id, label, baseUrl, requestModel: modelForm.requestModel.trim() || id, apiKey: modelForm.apiKey.trim() }
+    const entry = { id, label, baseUrl, requestModel: modelForm.requestModel.trim() || id, apiKey: modelForm.apiKey.trim(), protocol: modelForm.protocol }
     persist({ ...config, models: [...modelList, entry], model: id })
-    setModelForm({ label: '', baseUrl: '', requestModel: '', apiKey: '' })
+    setModelForm({ label: '', baseUrl: '', requestModel: '', apiKey: '', protocol: 'openai' })
     setShowAddModel(false)
   }
   const removeModel = (id) => {
@@ -110,9 +117,15 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
   }
 
   const upsertProvider = (providerId, baseUrl, apiKey) => {
-    const label = providers.find(p => p.id === providerId)?.label || providerId
+    const existing = providers.find(p => p.id === providerId)
+    const label = existing?.label || providerId
+    // protocol 是提供商创建时定下来的（见"新增提供商"表单），这里只是
+    // 换密钥/换地址，不该跟着丢——之前这里没带这个字段，等于每次保存
+    // 密钥都把 Anthropic 提供商悄悄冲回默认的 openai 协议，下次聊天
+    // 请求就会拼错格式
+    const protocol = existing?.protocol || 'openai'
     const others = customProviders.filter(p => p.id !== providerId)
-    return [...others, { id: providerId, label, baseUrl, apiKey }]
+    return [...others, { id: providerId, label, baseUrl, apiKey, protocol }]
   }
 
   // 只保存提供商的地址/密钥，不改动已选模型——换密钥场景走这个，
@@ -142,9 +155,10 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
     const baseUrl = providerForm.baseUrl.trim()
     if (!baseUrl) { showToast?.('先填接口地址'); return }
     if (!onDiscoverModels) { showToast?.('当前环境不支持获取模型列表'); return }
+    const protocol = providers.find(p => p.id === providerId)?.protocol || 'openai'
     setDiscovering(true); setDiscoverError('')
     try {
-      const ids = (await onDiscoverModels(baseUrl, providerForm.apiKey.trim(), providerId)).map(m => m.id)
+      const ids = (await onDiscoverModels(baseUrl, providerForm.apiKey.trim(), providerId, protocol)).map(m => m.id)
       const already = new Set(modelList.filter(m => m.providerId === providerId).map(m => m.requestModel))
       setDiscoverResult({ providerId, ids, picked: new Set(ids.filter(id => already.has(id))) })
     } catch (err) {
@@ -168,12 +182,13 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
     const { providerId, picked } = discoverResult
     const baseUrl = providerForm.baseUrl.trim()
     const apiKey  = providerForm.apiKey.trim()
+    const protocol = providers.find(p => p.id === providerId)?.protocol || 'openai'
     const nextProviders = upsertProvider(providerId, baseUrl, apiKey)
 
     const keepOthers = modelList.filter(m => m.providerId !== providerId)
     const fromThisProvider = [...picked].map(mid => {
       const existing = modelList.find(m => m.providerId === providerId && m.requestModel === mid)
-      return { id: existing?.id || `${providerId}:${mid}`, label: mid, requestModel: mid, providerId, baseUrl, apiKey }
+      return { id: existing?.id || `${providerId}:${mid}`, label: mid, requestModel: mid, providerId, baseUrl, apiKey, protocol }
     })
     const nextModels = [...keepOthers, ...fromThisProvider]
     const nextActive = nextModels.find(m => m.id === activeModelId) ? activeModelId : (nextModels[0]?.id || '')
@@ -184,18 +199,19 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
     showToast?.('已保存')
   }
 
-  // ── 新增自定义提供商（DeepSeek 以外，任意 OpenAI 兼容服务）──────
+  // ── 新增自定义提供商（DeepSeek 以外，任意 OpenAI 兼容服务，或 Anthropic 原生）──
   const [showAddProvider, setShowAddProvider] = useState(false)
-  const [newProviderForm, setNewProviderForm] = useState({ label: '', baseUrl: '', apiKey: '' })
+  const [newProviderForm, setNewProviderForm] = useState({ label: '', baseUrl: '', apiKey: '', protocol: 'openai' })
 
   const submitAddProvider = () => {
     const label = newProviderForm.label.trim()
     const baseUrl = newProviderForm.baseUrl.trim()
     const apiKey = newProviderForm.apiKey.trim()
+    const protocol = newProviderForm.protocol
     if (!label || !baseUrl) { showToast?.('至少要填名称和接口地址'); return }
     const id = `custom-provider-${Date.now()}`
-    persist({ ...config, providers: [...customProviders, { id, label, baseUrl, apiKey }] })
-    setNewProviderForm({ label: '', baseUrl: '', apiKey: '' })
+    persist({ ...config, providers: [...customProviders, { id, label, baseUrl, apiKey, protocol }] })
+    setNewProviderForm({ label: '', baseUrl: '', apiKey: '', protocol: 'openai' })
     setShowAddProvider(false)
     setExpandedProviderId(id)
     setProviderForm({ baseUrl, apiKey })
@@ -263,8 +279,19 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
               <div className="model-add-form">
                 <div className="model-add-title">手动新增模型</div>
                 <input className="field-input" placeholder="名称（如 Claude）" value={modelForm.label} onChange={e => setModelForm(p => ({ ...p, label: e.target.value }))} />
-                <input className="field-input" placeholder="接口地址 baseUrl（OpenAI 兼容 /chat/completions）" value={modelForm.baseUrl} onChange={e => setModelForm(p => ({ ...p, baseUrl: e.target.value }))} />
-                <input className="field-input" placeholder="请求用的模型名（不填则用名称）" value={modelForm.requestModel} onChange={e => setModelForm(p => ({ ...p, requestModel: e.target.value }))} />
+                {/* 协议：绝大多数国内模型（DeepSeek/Moonshot/Qwen/GLM…）走 OpenAI
+                    兼容格式，选这个就对；Anthropic 官方 Claude 接口是完全不同的
+                    形状，选 Anthropic 原生，后端会走另一套请求/解析逻辑 */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                  <button type="button" onClick={() => setModelForm(p => ({ ...p, protocol: 'openai' }))}
+                    className={modelForm.protocol === 'openai' ? 'solid-btn' : 'line-btn'}
+                    style={{ flex: 1, padding: '9px 0', borderRadius: '10px', fontSize: '10.5px' }}>OpenAI 兼容</button>
+                  <button type="button" onClick={() => setModelForm(p => ({ ...p, protocol: 'anthropic', baseUrl: p.baseUrl || ANTHROPIC_DEFAULT_BASEURL }))}
+                    className={modelForm.protocol === 'anthropic' ? 'solid-btn' : 'line-btn'}
+                    style={{ flex: 1, padding: '9px 0', borderRadius: '10px', fontSize: '10.5px' }}>Anthropic 原生</button>
+                </div>
+                <input className="field-input" placeholder={modelForm.protocol === 'anthropic' ? '接口地址（Anthropic /v1/messages）' : '接口地址 baseUrl（OpenAI 兼容 /chat/completions）'} value={modelForm.baseUrl} onChange={e => setModelForm(p => ({ ...p, baseUrl: e.target.value }))} />
+                <input className="field-input" placeholder={modelForm.protocol === 'anthropic' ? '请求用的模型名（如 claude-...，不填则用名称）' : '请求用的模型名（不填则用名称）'} value={modelForm.requestModel} onChange={e => setModelForm(p => ({ ...p, requestModel: e.target.value }))} />
                 <input className="field-input" type="password" placeholder="API Key" value={modelForm.apiKey} onChange={e => setModelForm(p => ({ ...p, apiKey: e.target.value }))} />
                 <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
                   <button onClick={() => setShowAddModel(false)} className="line-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>取消</button>
@@ -289,7 +316,9 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
                       <span className="model-item-dot" />
                       <div style={{ minWidth: 0 }}>
                         <div className="model-item-label">{p.label}</div>
-                        <div className="model-item-sub">{p.apiKey ? '已设置密钥' : (p.builtin ? '未设置，使用服务器环境变量密钥' : '未设置密钥')}</div>
+                        <div className="model-item-sub">
+                          {p.protocol === 'anthropic' ? 'Anthropic 原生' : 'OpenAI 兼容'} · {p.apiKey ? '已设置密钥' : (p.builtin ? '未设置，使用服务器环境变量密钥' : '未设置密钥')}
+                        </div>
                       </div>
                     </div>
                     {!p.builtin && (
@@ -301,7 +330,11 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
 
                   {expandedProviderId === p.id && (
                     <div className="model-add-form">
-                      <input className="field-input" placeholder="接口地址 baseUrl（OpenAI 兼容 /chat/completions）" value={providerForm.baseUrl} onChange={e => setProviderForm(f => ({ ...f, baseUrl: e.target.value }))} />
+                      {/* 协议是新增这个提供商时定下来的，之后只改地址/密钥，不在这里
+                          切换——中途换协议会让已经勾选的模型全部对不上格式，
+                          真要换协议不如删掉重新建一个 */}
+                      <div className="sensitivity-hint">协议：{p.protocol === 'anthropic' ? 'Anthropic 原生' : 'OpenAI 兼容'}（新增时选定，不可修改）</div>
+                      <input className="field-input" placeholder={p.protocol === 'anthropic' ? '接口地址（Anthropic /v1/messages）' : '接口地址 baseUrl（OpenAI 兼容 /chat/completions）'} value={providerForm.baseUrl} onChange={e => setProviderForm(f => ({ ...f, baseUrl: e.target.value }))} />
                       <input
                         className="field-input" type="password"
                         placeholder={p.builtin ? 'API Key（留空则用服务器环境变量）' : 'API Key'}
@@ -343,8 +376,20 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
               {showAddProvider ? (
                 <div className="model-add-form">
                   <div className="model-add-title">新增提供商</div>
-                  <input className="field-input" placeholder="名称（如 Moonshot）" value={newProviderForm.label} onChange={e => setNewProviderForm(p => ({ ...p, label: e.target.value }))} />
-                  <input className="field-input" placeholder="接口地址 baseUrl（OpenAI 兼容 /chat/completions）" value={newProviderForm.baseUrl} onChange={e => setNewProviderForm(p => ({ ...p, baseUrl: e.target.value }))} />
+                  <input className="field-input" placeholder="名称（如 Moonshot / Claude）" value={newProviderForm.label} onChange={e => setNewProviderForm(p => ({ ...p, label: e.target.value }))} />
+                  {/* 协议：绝大多数国内模型（DeepSeek/Moonshot/Qwen/GLM…）走 OpenAI
+                      兼容格式；GPT 官方接口本身也是这一套（这套"OpenAI 兼容"就是
+                      照着它抄的），选这个就对。Anthropic 官方 Claude 接口形状完全
+                      不同，选 Anthropic 原生 */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                    <button type="button" onClick={() => setNewProviderForm(p => ({ ...p, protocol: 'openai' }))}
+                      className={newProviderForm.protocol === 'openai' ? 'solid-btn' : 'line-btn'}
+                      style={{ flex: 1, padding: '9px 0', borderRadius: '10px', fontSize: '10.5px' }}>OpenAI 兼容</button>
+                    <button type="button" onClick={() => setNewProviderForm(p => ({ ...p, protocol: 'anthropic', baseUrl: p.baseUrl || ANTHROPIC_DEFAULT_BASEURL }))}
+                      className={newProviderForm.protocol === 'anthropic' ? 'solid-btn' : 'line-btn'}
+                      style={{ flex: 1, padding: '9px 0', borderRadius: '10px', fontSize: '10.5px' }}>Anthropic 原生</button>
+                  </div>
+                  <input className="field-input" placeholder={newProviderForm.protocol === 'anthropic' ? '接口地址（Anthropic /v1/messages）' : '接口地址 baseUrl（OpenAI 兼容 /chat/completions）'} value={newProviderForm.baseUrl} onChange={e => setNewProviderForm(p => ({ ...p, baseUrl: e.target.value }))} />
                   <input className="field-input" type="password" placeholder="API Key" value={newProviderForm.apiKey} onChange={e => setNewProviderForm(p => ({ ...p, apiKey: e.target.value }))} />
                   <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
                     <button onClick={() => setShowAddProvider(false)} className="line-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>取消</button>

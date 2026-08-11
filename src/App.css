@@ -1,7 +1,11 @@
 /* ============================================================
    ke & shu — 宇宙星野版
-   Aurum 金烛 · Lumen 冰河 · Lys 夜百合
-   星空粒子 Canvas 为底，三套主题控制 UI 光色语言
+   Aurum 金烛 · Lys 夜百合
+   星空粒子 Canvas 为底，两套主题控制 UI 光色语言
+   （曾经还设计过第三套 Lumen 冰河，样式一直都在、也是完整的，
+   只是 ChatPage.jsx 的 THEMES 数组从来没把它列进可选项——2026-08-11
+   确认只要现在这两套，已经删掉了 Lumen 的变量块，以及另外两个更早、
+   从没接完整的 deep/dream 空壳别名，连带清理了引用它们的选择器）
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Italiana&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
@@ -77,65 +81,6 @@
   --c-star-bright: rgba(255, 214, 140, 0.95);
   --c-splash-scrim: rgba(6, 3, 0, 0.62);
   --c-grain: 0.06;
-}
-
-/* ============================================================
-   Lumen · 冰河 —— 深蓝宇宙，冷银星点
-   ============================================================ */
-[data-theme="mist"] {
-  --c-bg-solid: #010208;
-  --c-text:       #C8D8F0;
-  --c-text-muted: #7A9ABF;
-  --c-text-faint: #4A6888;
-  --c-accent:     #88B4E5;
-  --c-accent-2:   #6090C8;
-  --c-accent-soft:  rgba(136, 180, 229, 0.16);
-  --c-accent-2-soft: rgba(96, 144, 200, 0.20);
-  --c-accent-text:  #010d1e;
-
-  --c-line:        rgba(136, 180, 229, 0.16);
-  --c-line-strong: rgba(136, 180, 229, 0.28);
-  --c-highlight:   rgba(200, 220, 255, 0.14);
-
-  --c-glass-bg:      rgba(10, 20, 45, 0.40);
-  --c-glass-bg-user: rgba(70, 110, 170, 0.20);
-  --c-glass-border:  rgba(136, 180, 229, 0.22);
-  --c-glass-sat:     1.08;
-  --c-msg-shadow:    0 1px 3px rgba(0, 0, 0, 0.85), 0 2px 20px rgba(0, 0, 0, 0.6);
-
-  --c-bubble-ai-core:   rgba(1, 2, 8, 0.58);
-  --c-bubble-ai-mid:    rgba(1, 2, 8, 0.30);
-  --c-bubble-ai-edge:   rgba(1, 2, 8, 0.03);
-  --c-bubble-ai-glow:   rgba(182, 210, 255, 0.16);
-
-  --c-bubble-user-core: rgba(8, 18, 40, 0.54);
-  --c-bubble-user-mid:  rgba(8, 18, 40, 0.30);
-  --c-bubble-user-edge: rgba(8, 18, 40, 0.04);
-  --c-bubble-user-glow: rgba(136, 180, 229, 0.20);
-
-  --c-bubble-blur: 7px;
-
-  --c-panel:        rgba(5, 12, 28, 0.64);
-  --c-panel-blur:   32px;
-  --c-panel-bright: 0.76;
-  --c-modal:        rgba(8, 18, 40, 0.82);
-  --c-modal-solid:  #060f22;
-  --c-input-bg:     rgba(136, 180, 229, 0.07);
-  --c-overlay:      rgba(0, 2, 8, 0.72);
-  --c-shadow:       rgba(0, 0, 0, 0.60);
-  --c-scrollbar:    rgba(136, 180, 229, 0.22);
-  --c-toast-bg:     rgba(200, 216, 240, 0.96);
-  --c-toast-text:   #010d1e;
-
-  --c-vine:        rgba(136, 180, 229, 0.46);
-  --c-vine-2:      rgba(136, 180, 229, 0.20);
-  --c-petal:       rgba(200, 224, 255, 0.55);
-  --c-petal-core:  rgba(136, 180, 229, 0.80);
-
-  --c-star:        #D8ECFF;
-  --c-star-bright: rgba(182, 210, 255, 0.95);
-  --c-splash-scrim: rgba(0, 2, 8, 0.64);
-  --c-grain: 0.05;
 }
 
 /* ============================================================
@@ -1176,12 +1121,6 @@ button { font-family: inherit; }
 .markdown-body code    { background: rgba(0,0,0,.28); padding: 1px 5px; border-radius: 4px; font-family: SF Mono, Monaco, "Courier New", monospace; font-size: 12.5px; color: var(--c-accent); }
 
 /* ============================================================
-   深空 / 昼梦 —— 双主题别名（兼容旧 noir/warm）
-   ============================================================ */
-[data-theme="deep"]  { /* 映射 noir 变量，交给 JS 切换 data-theme */ }
-[data-theme="dream"] { /* 映射 warm 变量 */ }
-
-/* ============================================================
    底部导航栏
    ============================================================ */
 .bottom-nav {
@@ -1505,7 +1444,14 @@ button { font-family: inherit; }
 .constant-page {
   flex: 1;
   overflow-y: auto;
-  padding: 60px 24px calc(100px + env(safe-area-inset-bottom, 0px));
+  /* 顶部原来是 60px——这块留白是早期"没有独立顶栏、.constant-page
+     自己顶到安全区"那版布局留下的。现在 ConstantPage 已经有了单独的
+     CONSTANT 标题栏（见 ChatPage.jsx 里那个 borderBottom 的 header
+     div），这份顶部大间距就变成了标题栏和"外观"之间一段多余的空白，
+     跟其它子页（日记/回声等）紧跟自家标题栏之后只留一点呼吸间距的
+     惯例对不上，这里收窄到 18px，跟 ChroniclePage 列表的顶部间距
+     （18px 0）保持一致。 */
+  padding: 18px 24px calc(100px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   gap: 32px;
@@ -1654,8 +1600,7 @@ button { font-family: inherit; }
   filter: blur(64px);
   mix-blend-mode: screen;
 }
-[data-theme="noir"] .gravity-nebula-layer,
-[data-theme="mist"] .gravity-nebula-layer { mix-blend-mode: soft-light; }
+[data-theme="noir"] .gravity-nebula-layer { mix-blend-mode: soft-light; }
 .gravity-nebula-layer.l1 {
   background: radial-gradient(circle at 30% 35%, var(--c-accent-soft), transparent 60%);
   animation: nebulaDrift1 54s ease-in-out infinite alternate;
