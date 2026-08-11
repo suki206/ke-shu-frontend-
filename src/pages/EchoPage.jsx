@@ -65,28 +65,26 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
     return () => document.documentElement.classList.remove('echo-open')
   }, [])
 
-  // 键盘弹出时把当前聚焦的输入框滚到键盘上方——App.css 里 .echo-page
-  // 已经用 bottom: var(--kb-height) 把自己收窄了（页面本身跟得上，
-  // 见上面那条 bottom 过渡），但收窄之后具体要不要滚、滚到哪，还是
-  // 得靠"对焦即滚入视野"来触发：.echo-page-body 收窄的过程中如果
-  // scrollTop 不变，可视窗口是从底部往上收的，原本刚好露出来的输入框
-  // 反而可能被重新盖住。用 focusin（事件委托，挂在 document 上、
-  // 靠冒泡触发）而不是在每个 input/textarea 上分别绑 onFocus，是因为
-  // 这一页表单字段很多（人格、模型、提供商……新增字段也不用记得
-  // 再补一遍）。延时给 .echo-page 的 bottom 过渡和真机键盘动画留出
-  // 结束的时间，早于这个点滚的话，容器还没收窄到位，算出来的目标
+  // 键盘弹出时把当前聚焦的输入框滚到可视区域中间——人格/提供商/模型
+  // 这几个还留在页面里的内联字段用得上。2026-08-11 二次修复后
+  // .echo-page 已经改成普通 fixed 全屏、不再跟着 --kb-height 收缩
+  // （见 App.css 里 .echo-page 那条大注释），所以这里纯粹是"把聚焦的
+  // 字段滚到当前可视区域中间"，不用再考虑容器本身会不会跟着变形。
+  // 用 focusin（事件委托，挂在 document 上、靠冒泡触发）而不是在每个
+  // input/textarea 上分别绑 onFocus，是因为这一页表单字段很多（人格、
+  // 模型、提供商……新增字段也不用记得再补一遍）。延时是给真机键盘
+  // 展开动画留出结束的时间，太早滚的话，键盘还没到位，算出来的目标
   // 位置也是错的。
   useEffect(() => {
     const onFocusIn = (e) => {
       const t = e.target
       if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return
       if (!t.closest('.echo-page')) return
-      // Temperature 弹窗（.modal-veil）里的输入框不吃这段——弹窗本身
-      // 已经用 fixed + flex 居中，并且全局 .modal-veil 自带
-      // bottom: var(--kb-height,0px)，键盘一弹出就跟着收缩重新居中，
-      // 是另一套跟键盘配合的机制。这里如果照样 scrollIntoView，对一个
-      // position:fixed、已经居中的元素基本是空操作，但也可能意外滚动
-      // 到某个无关的祖先容器上，索性跳过
+      // Temperature 弹窗（.modal-veil）里的输入框不吃这段——弹窗钉死在
+      // bottom:0、始终居中铺满整屏（见 App.css 里 .echo-modal-veil 的
+      // 注释），跟键盘没有任何联动，这里如果照样 scrollIntoView，对一个
+      // 已经稳定居中的 fixed 元素基本是空操作，但也可能意外滚动到某个
+      // 无关的祖先容器上，索性跳过
       if (t.closest('.modal-veil')) return
       setTimeout(() => t.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)
     }
@@ -518,16 +516,12 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
           直接照搬同一个降级方案，不用再踩一遍。点遮罩（不是卡片本体）
           等价于取消。
 
-          2026-08-11 追加修复：下面这个 input 挂载后会自动 focus 拉起系统
-          键盘（见上面 showTempModal 的 useEffect），全局 .modal-veil 自带
-          bottom: var(--kb-height,0px) 想让弹窗跟着键盘收缩重新居中，但这条
-          规则没有 transition、每帧瞬时跳变，跟 .echo-page 自己 .18s 的
-          bottom 过渡对不上节奏——键盘展开到一半时弹窗已经按最新键盘高度
-          收成一个很矮的框、卡片被顶到屏幕顶部附近，.echo-page 还没收到位，
-          中间露出的缝隙就把引力页带出来了。已经在 App.css 里给
-          .modal-veil.echo-modal-veil 加了 bottom:0，让这个弹窗彻底不参与
-          这套键盘避让机制，永远铺满整屏、稳稳停在正中间——弹窗内容就一个
-          数字输入框，压根不需要为键盘让位 */}
+          2026-08-11：下面这个 input 挂载后会自动 focus 拉起系统键盘（见
+          上面 showTempModal 的 useEffect）。这个弹窗和 .echo-page 本身
+          现在都不跟 --kb-height 联动了，钉死在 bottom:0，永远铺满整屏、
+          稳稳停在正中间——完整原因见 App.css 里 .echo-page 和
+          .echo-modal-veil 那两条注释，弹窗内容就一个数字输入框，压根
+          不需要为键盘让位 */}
       {showTempModal && (
         <div
           className="modal-veil echo-modal-veil"

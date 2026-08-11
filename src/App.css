@@ -2397,26 +2397,30 @@ button { font-family: inherit; }
    ============================================================ */
 .echo-page {
   position: fixed;
-  top: 0; left: 0; right: 0;
-  /* 键盘避让：跟下方 .ink-page 同一处理，之前这里漏掉了。
-     inset:0 只能铺满"没有键盘时"的视口——键盘弹出时，如果所在机型
-     不会让浏览器主动收缩布局视口（ChatPage.jsx 里 --kb-height 那段
-     大注释专门补的就是这种情况），固定定位元素并不会跟着收缩，
-     .echo-page-body 的可滚范围也就不会变大，最下面的温度卡片会被
-     键盘整个盖住、怎么滚都露不出来。这里显式接管 bottom，页面才会
-     真的变矮，滚得动、也就露得出来。 */
-  bottom: var(--kb-height, 0px);
+  inset: 0;
+  /* 2026-08-11 二次修复：这里原来跟 .ink-page 一样接了一条
+     bottom: var(--kb-height,0px)，键盘弹出就收缩，本意是给最下面的
+     温度卡片让位置——但温度早就已经从内联输入框改成点击弹窗编辑了
+     （见下面 .echo-temp-display / showTempModal，弹窗自己在
+     .echo-modal-veil 里钉死 bottom:0，不需要谁让位置），这条兼容
+     旧内联输入框的逻辑就成了纯粹的隐患：--kb-height 由 ChatPage.jsx
+     节流写入、可能一帧一帧跳变，而这里原来还叠了一条 .18s 的 bottom
+     过渡，两边对不上同一个节奏——键盘展开到一半时，.echo-page 会先
+     被顶得比实际键盘还矮一截，多出来的那圈缝隙没人盖，底下的引力页
+     就露出来了。现在彻底去掉这层联动：.echo-page 就是普通的 fixed
+     全屏，不随键盘增减、没有 bottom 过渡，简单结实，不会再跟着键盘
+     动画抖。人格/提供商/模型这几个还留在页面里的内联输入框，交给
+     下面的 focusin 监听器在聚焦时把自己滚到可视区域中间——那是滚动
+     .echo-page-body 内部的内容，不是让 .echo-page 这个容器本身变形，
+     两件事互不干扰 */
   z-index: 2300;
   display: flex; flex-direction: column;
   overflow: hidden;
   background: var(--c-bg-solid);
   padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
   padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
-  transition: bottom .18s var(--ease);
   animation: echoPageIn .32s var(--ease) both;
 }
-/* 键盘顶上来时底部安全区那条留白纯属浪费，收掉能多露一行字，跟 .ink-page 一致 */
-.kb-open .echo-page { padding-bottom: 0; }
 @keyframes echoPageIn {
   from { opacity: 0; transform: translateY(14px); }
   /* 收尾故意写成 transform:none 而不是 translateY(0)——两者视觉上
@@ -2523,19 +2527,13 @@ button { font-family: inherit; }
    淡入/缩放动效（只动 background-color 和 transform，本来就不背这个
    锅）照常保留，不用再等实测闪烁了才回头修 */
 .echo-modal-veil { backdrop-filter: none; -webkit-backdrop-filter: none; }
-/* 2026-08-11 追加修复："点击修改"打开这个弹窗时会自动 focus 里面的输入框、
-   拉起系统键盘，这一路会触发 ChatPage.jsx 里节流写入 --kb-height 的那段逻辑，
-   而全局 .modal-veil 自带一条 bottom: var(--kb-height,0px)（本意是给"打字时会
-   被键盘挡住"的弹窗让位置）。问题是这条规则没有 transition，--kb-height 每次
-   变化都是当帧瞬时跳变；.echo-page 自己的 bottom 却是 .18s 的 CSS 过渡，两边
-   对不上同一个节奏——键盘展开动画跑到一半时，.modal-veil 已经按最新的
-   --kb-height 收成一个很矮的框，flex 居中的卡片被顶到框顶部（也就是屏幕顶部
-   附近），而 .echo-page 的高度还没收到位，两者之间那圈缝隙没有任何东西覆盖，
-   引力页就从缝隙里露出来了——这正是"点温度、输入框跳到顶部、引力页被带
-   出来"的根因。这个弹窗内容很短（一个数字输入框 + 两个按钮），压根不需要为
-   键盘让位，直接学下面 .ink-leave-veil 那条先例，钉死在 bottom:0：弹窗永远
-   铺满整屏，从第一帧起就稳稳停在正中间，不再跟着 --kb-height 逐帧挪动，
-   键盘弹出/收起全程页面纹丝不动，也不会再露出下面的引力页 */
+/* 2026-08-11：全局 .modal-veil 自带一条 bottom: var(--kb-height,0px)，
+   本意是给"打字时会被键盘挡住"的弹窗让位置——道理跟上面 .echo-page
+   那条大注释是同一件事（这两处以前是这个页面里仅有的两条 kb-height
+   联动）。这个弹窗内容很短（一个数字输入框 + 两个按钮），压根不需要
+   为键盘让位，直接学下面 .ink-leave-veil 那条先例，钉死在 bottom:0：
+   弹窗永远铺满整屏，从第一帧起就稳稳停在正中间，不再跟着
+   --kb-height 挪动 */
 .modal-veil.echo-modal-veil { bottom: 0; }
 .modal-card.echo-sheet {
   background: var(--c-modal-solid);
