@@ -3,6 +3,7 @@ import axios from 'axios'
 import StarCanvas from './StarCanvas'
 import StardustPage from './StardustPage'
 import GravityPage from './GravityPage'
+import BackupPage from './BackupPage'
 // 聊天页壁纸：星空摄影图，只在 CHAT（orbit）标签页生效，见下方
 // <StarCanvas wallpaper={...}> 的传参。文件放在 src/assets/ 下，
 // 与项目里其它图片资源同一套引入方式，交给打包器处理。
@@ -603,6 +604,14 @@ const ChroniclePage = () => {
               <div className="diary-item-head">
                 <span className="diary-item-dot" />
                 <span className="diary-item-date">{formatDiaryDate(d.date)}</span>
+                <button
+                  className="diary-item-dismiss"
+                  onClick={e => { e.stopPropagation(); dismissDiary(d.date) }}
+                  aria-label="删除"
+                  title="删除这篇日记"
+                >
+                  <Icon.Close size={12} />
+                </button>
               </div>
               {open
                 ? <div className="diary-item-body">{d.content}</div>
@@ -629,7 +638,7 @@ const SENSITIVITY_HINTS = {
 
 const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontScale,
   voices, selectedVoiceURI, setSelectedVoiceURI,
-  onSave, onExport, onRefreshVoices, showToast }) => {
+  onSave, onOpenBackup, onRefreshVoices, showToast }) => {
 
   return (
     <div className="tab-page">
@@ -740,8 +749,8 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
         {/* 数据 */}
         <div className="constant-section">
           <div className="constant-section-title">Data · 数据</div>
-          <button onClick={onExport} className="line-btn" style={{ width: '100%', padding: '12px 0', borderRadius: '14px', fontSize: '11.5px', letterSpacing: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Icon.Export size={13} /> 导出当前对话
+          <button onClick={onOpenBackup} className="line-btn" style={{ width: '100%', padding: '12px 0', borderRadius: '14px', fontSize: '11.5px', letterSpacing: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Icon.Export size={13} /> 数据备份与恢复
           </button>
         </div>
 
@@ -1256,29 +1265,100 @@ const ChatPage = () => {
     document.body.removeChild(ta)
   }
 
-  // ── 导出 ─────────────────────────────────────────────────
-  const exportConversation = () => {
-    if (!activeSessionId || messages.length === 0) { showToast('没有可导出的对话'); return }
-    let filename = ''
-    try {
-      const sessionTitle = sessionList.find(s => s.id === activeSessionId)?.title || '对话'
-      const dateStr = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
-      let md = `# ${sessionTitle}\n\n> 导出时间：${dateStr}\n\n---\n\n`
-      ;[...archivedList, ...messages].forEach(msg => {
-        const time = formatTime(msg.created_at)
-        md += `### ${msg.role === 'user' ? '**我**' : '**在场**'} · ${time}\n\n${msg.content}\n\n---\n\n`
-      })
-      filename = `presence_${dateStr}.md`
-      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
-      const url  = URL.createObjectURL(blob)
-      const a    = document.createElement('a'); a.href = url; a.download = filename; a.click()
-      URL.revokeObjectURL(url)
-      // 浏览器/PWA 不会把真实的绝对路径暴露给页面（安全限制），
-      // 只能确定文件去向的是"下载"目录 + 文件名，如实告知即可
-      showToast(`已导出至下载目录 · ${filename}`)
-    } catch (err) {
-      showToast('导出失败，请重试', { action: { label: '重试', onClick: exportConversation } })
+  // ── 数据备份与恢复：把原来"导出当前对话"（只认当前这一个会话）换成
+  // 一整套备份中心，见 BackupPage.jsx。这里只负责数据的取用和打包，
+  // 跟别的天体子页同一套约定：ChatPage 持有数据/接口，子页只管展示 ──
+  const downloadFile = (content, filename, mime) => {
+    const blob = new Blob([content], { type: `${mime};charset=utf-8` })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+    // 浏览器/PWA 不会把真实的绝对路径暴露给页面（安全限制），
+    // 只能确定文件去向的是"下载"目录 + 文件名，如实告知即可
+    showToast(`已导出至下载目录 · ${filename}`)
+  }
+
+  // 拉一个会话的完整消息——可见的 + 所有已归档的（分页翻到底），不像
+  // 原来的单会话导出那样只带上"恰好已经加载到本地"的那一小截归档
+  const fetchFullSessionMessages = async (sid) => {
+    const visRes = await axios.get(`${API_BASE}/messages/${sid}`)
+    let archived = []
+    let cursor = null, hasMore = true
+    while (hasMore) {
+      const params = new URLSearchParams(); if (cursor) params.append('cursor', cursor); params.append('limit', '50')
+      const ar = await axios.get(`${API_BASE}/messages/archived/${sid}?${params}`)
+      const { list, hasMore: more } = ar.data || {}
+      if (list?.length) { archived = [...list, ...archived]; cursor = list[0].id }
+      hasMore = !!more && (list?.length || 0) > 0
     }
+    return [...archived, ...visRes.data].map(normalizeMsg)
+  }
+
+  // 支持多选：把选中的几个会话合并进同一个文件，不用逐个下载
+  const exportChatSessions = async (sessionIds, format) => {
+    if (!sessionIds.length) { showToast('先选至少一个对话'); return }
+    try {
+      const dateStr = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
+      const sessions = []
+      for (const sid of sessionIds) {
+        const title = sessionList.find(s => s.id === sid)?.title || '对话'
+        const msgs = await fetchFullSessionMessages(sid)
+        sessions.push({ id: sid, title, messages: msgs })
+      }
+      if (format === 'json') {
+        const payload = { type: 'presence_chat_export', exportedAt: new Date().toISOString(), sessions }
+        downloadFile(JSON.stringify(payload, null, 2), `presence_chat_${dateStr}.json`, 'application/json')
+      } else {
+        let md = `# 聊天记录备份\n\n> 导出时间：${dateStr}\n`
+        sessions.forEach(s => {
+          md += `\n---\n\n# ${s.title}\n\n`
+          s.messages.forEach(msg => {
+            const time = formatTime(msg.created_at)
+            md += `### ${msg.role === 'user' ? '**我**' : '**在场**'} · ${time}\n\n${msg.content}\n\n`
+          })
+        })
+        downloadFile(md, `presence_chat_${dateStr}.md`, 'text/markdown')
+      }
+    } catch (err) { showToast('导出失败：' + err.message) }
+  }
+
+  const exportCocoonBackup = () => {
+    const dateStr = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
+    const payload = { type: 'presence_cocoon_export', exportedAt: new Date().toISOString(), ke: cocoonKe, shu: cocoonShu, shuLimit: cocoonShuLimit }
+    downloadFile(JSON.stringify(payload, null, 2), `presence_cocoon_${dateStr}.json`, 'application/json')
+  }
+
+  const exportDiaryBackup = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/diary/list`)
+      const dateStr = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
+      const payload = { type: 'presence_diary_export', exportedAt: new Date().toISOString(), diary: res.data || [] }
+      downloadFile(JSON.stringify(payload, null, 2), `presence_diary_${dateStr}.json`, 'application/json')
+    } catch { showToast('日记导出失败') }
+  }
+
+  // 模型/提供商配置里带着 API Key，原样导出等于把密钥明文写进一个可能
+  // 会分享/存放到别处的备份文件——这里全部替换成空字符串，密钥本身
+  // 不做备份，恢复后需要重新填一遍；这个不便换来的是备份文件可以
+  // 放心保留，不用担心密钥泄露
+  const exportEchoConfigBackup = () => {
+    const dateStr = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')
+    const redact = (list) => (list || []).map(item => ({ ...item, apiKey: '' }))
+    const payload = {
+      type: 'presence_echo_config_export', exportedAt: new Date().toISOString(),
+      system_prompt: config.system_prompt, temperature: config.temperature, model: config.model,
+      models: redact(config.models), providers: redact(config.providers),
+      note: 'API Key 出于安全考虑没有导出，恢复后需要重新填写',
+    }
+    downloadFile(JSON.stringify(payload, null, 2), `presence_echo_config_${dateStr}.json`, 'application/json')
+  }
+
+  const [showBackup, setShowBackup] = useState(false)
+  const [backupDiaryCount, setBackupDiaryCount] = useState(0)
+  const openBackupPage = () => {
+    setShowBackup(true)
+    fetchCocoon()
+    axios.get(`${API_BASE}/diary/list`).then(res => setBackupDiaryCount((res.data || []).length)).catch(() => {})
   }
 
   // ── 重新生成 ─────────────────────────────────────────────
@@ -2187,7 +2267,7 @@ const ChatPage = () => {
               theme={theme} setTheme={setTheme}
               fontScale={fontScale} setFontScale={setFontScale}
               voices={voices} selectedVoiceURI={selectedVoiceURI} setSelectedVoiceURI={setSelectedVoiceURI}
-              onSave={saveSettings} onExport={exportConversation}
+              onSave={saveSettings} onOpenBackup={openBackupPage}
               onRefreshVoices={refreshVoices} showToast={showToast}
             />
           )}
@@ -2284,6 +2364,24 @@ const ChatPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 数据备份与恢复：设置页"数据"那块点开的全屏中心，替代原来只能
+          导出当前这一个会话的按钮。ChatPage 持有数据/接口，页面本身
+          只管展示和交互，跟别的天体子页同一套约定 */}
+      {showBackup && (
+        <BackupPage
+          sessionList={sessionList}
+          cocoonKeCount={cocoonKe.length} cocoonShuCount={cocoonShu.length}
+          diaryCount={backupDiaryCount}
+          echoModelCount={(config.models || []).length}
+          onExportSessions={exportChatSessions}
+          onExportCocoon={exportCocoonBackup}
+          onExportDiary={exportDiaryBackup}
+          onExportEchoConfig={exportEchoConfigBackup}
+          showToast={showToast}
+          onClose={() => setShowBackup(false)}
+        />
       )}
     </div>
   )
