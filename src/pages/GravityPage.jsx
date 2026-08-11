@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ChronosPage from './ChronosPage'
 import TokenDashboardPage from './TokenDashboardPage'
 import BeaconPage from './BeaconPage'
@@ -51,6 +51,20 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
   onSaveInkDraft, onFinalizeInkEntry, onGenerateInkEntry, onStopInkGenerate, onDeleteLastInkEntry, onUpdateInkEntry,
   inkGenerating, inkStreamText }) => {
   const [openBody, setOpenBody] = useState(null)
+
+  // 从「回声/信标/数据罗盘」等全屏子页返回引力页时，若键盘还没收起，
+  // .app-shell 会先按矮高度渲染出这一页，随后键盘收起、高度再用 CSS
+  // 过渡撑高——五天体是按容器高度百分比定位的，会跟着这段过渡逐帧
+  // 抖动。这里在引力页刚挂载的一小段时间内给 .app-shell 打上
+  // no-shell-transition，让那次"矮→高"的变化直接跳变、不做过渡；
+  // 短暂延时后移除，不影响聊天页等场景正常的键盘避让动画。
+  useEffect(() => {
+    const shell = document.querySelector('.app-shell')
+    if (!shell) return
+    shell.classList.add('no-shell-transition')
+    const t = setTimeout(() => shell.classList.remove('no-shell-transition'), 220)
+    return () => { clearTimeout(t); shell.classList.remove('no-shell-transition') }
+  }, [])
 
   const anchorDate = config?.anchor_date || ''
   const anchorDays = anchorDate ? daysBetween(new Date(anchorDate), new Date()) + 1 : null

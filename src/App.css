@@ -3171,6 +3171,19 @@ button { font-family: inherit; }
   padding: 26px 22px 22px;
   animation: gravityZoomIn .34s var(--ease) both;
 }
+/* 覆盖全局 .modal-veil 的 `bottom: var(--kb-height,0px)`：那条规则是给
+   聊天页"贴底输入条"式弹窗准备的，键盘收窄可视区、弹窗跟着往上提，
+   贴底的观感不受影响。但这张"放入轨道"卡片是居中表单，可视区一收窄，
+   flex 居中会让卡片跟着键盘高度实时爬升，手感就是"卡片追着键盘跑"。
+   这里让它不再吃 --kb-height，改成键盘弹出时贴顶对齐 + 顶部让出一段
+   安全间距，位置在键盘弹出的瞬间就定死，不再逐帧跟随。 */
+.chronos-sheet-veil {
+  bottom: 0;
+  align-items: flex-start;
+}
+.kb-open .chronos-sheet-veil {
+  padding-top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 64px);
+}
 
 
 
@@ -3651,6 +3664,25 @@ body   { height: 100%; }
   height:     calc(var(--app-height, 100dvh) - var(--kb-height, 0px));
   max-height: calc(var(--app-height, 100dvh) - var(--kb-height, 0px));
   transition: height .18s var(--ease), max-height .18s var(--ease);
+}
+/* 引力页的五天体是按 .gravity-constellation（.app-shell 的孙级）的
+   高度百分比定位的。从「回声/信标」等全屏子页（fixed，不受 .app-shell
+   影响）点返回时，如果键盘还没收起，.app-shell 会先按"键盘还在"的矮
+   高度渲染出引力页，随后键盘收起、--kb-height 归零，.app-shell 再用
+   上面这条 .18s 的 height 过渡把自己撑高——这段过渡是逐帧变化的,
+   天体的 top 百分比跟着重新计算，肉眼就是"整层天体跟着容器从键盘
+   上方一路掉下来"。
+   引力页整页是固定位置的天体布局，不需要跟聊天页一样柔和过渡高度，
+   干脆让它在返回引力页的这一刻跳过 height 过渡，键盘一收起就直接
+   是最终布局，不再有中间抖动的过程。 */
+.gravity-page {
+  transition: none;
+}
+/* :has() 在部分安卓 WebView 内核上不可用，同时用一个显式 class 兜底
+   （由 GravityPage 挂载时通过 JS 打在 .app-shell 上，见下方 jsx 修改） */
+.app-shell:has(.gravity-page),
+.app-shell.no-shell-transition {
+  transition: none;
 }
 
 /* 弹窗跟着可视区居中：键盘顶上来时不至于把输入卡片压在键盘底下 */
