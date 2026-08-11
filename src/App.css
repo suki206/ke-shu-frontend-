@@ -2346,17 +2346,23 @@ button { font-family: inherit; }
   background: var(--c-bg-solid);
   padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
   padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
-  /* 这个过渡只有写作视图真正需要——打字时键盘弹出，这一页跟着平滑
-     变矮，光标才不会被生硬地遮住。列表视图不需要它：点"返回"离开
-     写作视图的同一瞬间，键盘正好在收起、--kb-height 正在变化，
-     而列表那几十张便签也在同一瞬间被重新挂载——页面高度还在过渡
-     叠上便签在被重新绘制，两件事抢同一段时间，就是"回到合墨界面
-     闪一下"的来源。切回列表那一刻让 bottom 直接跳到位，不再跟便签
-     的重新挂载抢时间。 */
-  transition: bottom .18s var(--ease);
+  /* 这里本来给 bottom 挂了一条 .18s 过渡，想法是"键盘弹出时这一页
+     自己跟着平滑变矮，光标不会被生硬遮住"——实测下来这恰恰是
+     "编辑内容时底部字体升上来会一卡一卡"的来源：--kb-height 是
+     ChatPage.jsx 里 visualViewport 的 resize/scroll（外加 window
+     resize/orientationchange、VirtualKeyboard 的 geometrychange）
+     驱动写进 <html> 的，键盘弹起/收起的一次原生动画里这些事件往往
+     连续触发好几次，每次都是新的目标值。CSS 过渡只要还没跑完就被
+     喂进一个新目标，就会从"当前插值到的位置"重新起步、重新走一遍
+     .18s 的缓动曲线——这条曲线还没来得及跑到尾声就被打断重启，
+     叠好几层一直在追一个不断在挪的目标，看起来就是"一卡一卡"。
+     去掉这条过渡，bottom 直接等于 JS 写进来的实时值：--kb-height
+     本身跟着键盘的原生滑动动画连续更新，.ink-page 老老实实同步
+     跟随，不再自己另起一条缓动跟原生动画对着抢，反而更顺。光标
+     停留在可视区的平滑感由 keepCaretInView 自己那段 scrollTo
+     smooth 负责，不靠这里的过渡兜底，两件事不用叠在一起做 */
   animation: inkPageIn .32s var(--ease) both;
 }
-.ink-page.is-list { transition: none; }
 /* 键盘顶上来时底部安全区那条留白纯属浪费，收掉能多露一行字 */
 .kb-open .ink-page { padding-bottom: 0; }
 
@@ -2855,19 +2861,31 @@ button { font-family: inherit; }
    之后一直空着——现在接上了长按笔记卡片弹出的菜单，以及"移动到"
    的板块选择器 ─────────────────────────────────────────────── */
 
-/* 本轮撤销"合墨专用降级"：早年这里去毛玻璃、去动画，是因为星尘墙
-   一屏铺开几十张便签、每张自带一层 backdrop-filter 叠 filter:blur，
-   弹层再现场采样一遍这么重的画面会卡——但当时测过就算把弹层的
-   backdrop-filter 也去掉，回到列表页依旧卡，说明真正的重量级开销
-   根本不在弹层身上，卡的是"星尘墙那几十张便签整段重新挂载"这件事
-   本身。星尘墙现已换成不透明实色卡面、零 filter 的时间线列表
-   （.ink-tl-*），当年要省的那份性能余量已经不需要省了，弹层不再
-   单独降级，直接吃全局 .modal-veil / .modal-card 的标准款：背景色
-   从透明淡入到 --c-overlay（不动 opacity，backdrop-filter 全程是
-   常量，不会跟淡入互相打架反复重新合成），卡片只用 transform 缩放
-   弹出、同样不碰 opacity。这套本来就是全站每一个别的弹窗在用、
-   已经跑得稳的方案，合墨这几个长按菜单/移动到/返回确认体量跟别处
-   的弹层没有本质差别，不会因为搬到这儿就更卡。 */
+/* 上一轮把 .ink-page 进场动画收尾从 translateY(0) 改成 none，想解决
+   的是"合墨弹窗一出来就一闪一闪、别的页面同款弹窗却不会"——这一步
+   本身没错（消灭了一个多余的包含块/合成层关系，属于该修的问题），
+   但实测下来闪烁没有消失，说明真正的诱因就是 backdrop-filter 本身：
+   合墨这几个弹层是挂在 Portal 到 document.body、自己也是
+   position:fixed 的 .ink-page 下面，这层嵌套（fixed 套 fixed、
+   还叠着 .ink-page 的 overflow:hidden 和 z-index 层叠上下文）让
+   backdrop-filter 现场采样背后内容这件事本身在这个结构里就不稳
+   ——跟别处平铺直叙挂在 body 下的弹窗不是同一种情况，不是靠调
+   transform/动画时机能绕开的。这里退一步：淡入动画（背景色到
+   --c-overlay、卡片 transform 缩放）留着，这两个只动
+   background-color/transform，不背这个锅，且已经确认不是闪烁来源；
+   单独把 backdrop-filter 去掉，卡面背景换回不透明的
+   --c-modal-solid（没有毛玻璃时半透明背景会直接露出后面没被虚化
+   的内容，不能再用 --c-modal）。这样"透明加淡入"的动效保住了，
+   闪烁的源头挪走了 ─────────────────────────────────────────── */
+.ink-modal-veil {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.modal-card.ink-sheet {
+  background: var(--c-modal-solid);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 /* 返回确认弹窗专用：全局 .modal-veil 有条 bottom: var(--kb-height,0px)
    的规则，是为"打字时键盘弹出，弹窗别被压在键盘底下"设计的——但这个
    弹窗恰恰是在点"返回"离开写作视图、键盘正在往下收的那一刻才出现，
@@ -2875,7 +2893,7 @@ button { font-family: inherit; }
    数值走，视觉上就成了"从上面一点一点挪到正中间"，跟键盘收起的节奏
    绑在一起，才会显得一卡一卡。这个弹窗不是在打字时弹出来的，压根不
    需要给键盘让位，直接钉死在 bottom:0，从第一帧就在正中间。这一条
-   跟毛玻璃/动画降级无关，单独保留。 */
+   跟毛玻璃降级无关，单独保留。 */
 .modal-veil.ink-leave-veil { bottom: 0; }
 
 .ink-sheet { padding: 26px 24px 20px; width: 296px; max-width: 86vw; text-align: center; }
