@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 // ============================================================
 // 回声 · ECHO —— 引力页气态巨行星子页面，全屏跃迁（与数据罗盘/
@@ -81,6 +81,13 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
       const t = e.target
       if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return
       if (!t.closest('.echo-page')) return
+      // Temperature 弹窗（.modal-veil）里的输入框不吃这段——弹窗本身
+      // 已经用 fixed + flex 居中，并且全局 .modal-veil 自带
+      // bottom: var(--kb-height,0px)，键盘一弹出就跟着收缩重新居中，
+      // 是另一套跟键盘配合的机制。这里如果照样 scrollIntoView，对一个
+      // position:fixed、已经居中的元素基本是空操作，但也可能意外滚动
+      // 到某个无关的祖先容器上，索性跳过
+      if (t.closest('.modal-veil')) return
       setTimeout(() => t.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)
     }
     document.addEventListener('focusin', onFocusIn)
@@ -123,6 +130,38 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
   // 解析成合法数字时才顺手同步一份到 config.temperature（供其它地方
   // 读取最新值），失焦时再兜底纠正成合法范围内的数字。
   const [tempDraft, setTempDraft] = useState(() => String(config?.temperature ?? 0.7))
+
+  // ── Temperature 弹窗：点下面显示当前值的那一行才打开，编辑态放在
+  //    这个独立的模态草稿 tempModalDraft 里，跟 tempDraft/config.temperature
+  //    完全隔离——只有点"确定"才把草稿钳制到 [0, 1.5] 后写回两边，点
+  //    "取消"或点遮罩直接关掉、什么都不碰。这样"取消"才是真的取消：
+  //    不会把编辑到一半、还没提交的中间值漏进 config 里（原来的内联输入框
+  //    没有取消这个动作，所以没这个问题；换成弹窗之后如果照抄原来"每次
+  //    合法按键都同步一份到 config"的写法，点取消就会变成"名义上取消，
+  //    实际上没退"）。中间态放行（空字符串/单独一个"."）和收尾钳制的
+  //    写法原样照搬上面 tempDraft 那段注释里诊断出的道理，只是把"失焦时
+  //    兜底"换成了"点确定时兜底"。
+  const [showTempModal, setShowTempModal] = useState(false)
+  const [tempModalDraft, setTempModalDraft] = useState('')
+  const tempModalInputRef = useRef(null)
+
+  useEffect(() => {
+    if (!showTempModal) return
+    tempModalInputRef.current?.focus()
+    tempModalInputRef.current?.select()
+  }, [showTempModal])
+
+  const openTempModal = () => { setTempModalDraft(tempDraft); setShowTempModal(true) }
+  const closeTempModal = () => setShowTempModal(false)
+  const confirmTempModal = () => {
+    const n = Number(tempModalDraft)
+    const safe = (tempModalDraft === '' || tempModalDraft === '.' || Number.isNaN(n))
+      ? (config?.temperature ?? 0.7)
+      : Math.min(1.5, Math.max(0, n))
+    setTempDraft(String(safe))
+    setConfig(p => ({ ...p, temperature: safe }))
+    setShowTempModal(false)
+  }
 
   // ── 手动新增模型（保留原有路径，适合不在"获取模型列表"里的情况）──
   const [showAddModel, setShowAddModel] = useState(false)
@@ -448,34 +487,15 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
             </div>
           </div>
 
-          {/* Temperature */}
+          {/* Temperature —— 原来是内联输入框，现在改成点这一行、弹窗
+              居中编辑；校验/钳制逻辑原样保留，只是从"失焦时兜底"搬到了
+              "点确定时兜底"（见上面 tempModalDraft 附近的注释） */}
           <div className="echo-page-card">
             <div className="echo-page-card-label">TEMPERATURE · 温度</div>
-            <input
-              className="field-input" type="text" inputMode="decimal"
-              value={tempDraft}
-              onChange={e => {
-                const raw = e.target.value
-                // 只放行"数字 + 最多一个小数点"的中间态，其它字符直接
-                // 吞掉；空字符串和单独一个"."也放行（用户正在打字，
-                // 不该被打断），但都不回写 config，等失焦时再兜底
-                if (raw !== '' && !/^\d*\.?\d*$/.test(raw)) return
-                setTempDraft(raw)
-                const n = Number(raw)
-                if (raw !== '' && raw !== '.' && !Number.isNaN(n)) {
-                  setConfig(p => ({ ...p, temperature: n }))
-                }
-              }}
-              onBlur={() => {
-                const n = Number(tempDraft)
-                const safe = (tempDraft === '' || tempDraft === '.' || Number.isNaN(n))
-                  ? (config?.temperature ?? 0.7)
-                  : Math.min(1.5, Math.max(0, n))
-                setTempDraft(String(safe))
-                setConfig(p => ({ ...p, temperature: safe }))
-              }}
-              style={{ marginTop: 12 }}
-            />
+            <div className="echo-temp-display" onClick={openTempModal}>
+              <span className="echo-temp-value">{tempDraft}</span>
+              <span className="echo-temp-edit-hint">点击修改</span>
+            </div>
             <div className="sensitivity-hint" style={{ marginTop: 8 }}>越高越有创造性和随机性，越低越稳定保守</div>
             {/^deepseek-v4/i.test(activeModelObj?.requestModel || 'deepseek-v4-flash') && (
               <div className="sensitivity-hint" style={{ marginTop: 4 }}>该模型默认开启思考模式，开启时这个参数不生效（DeepSeek 官方说明）</div>
@@ -487,6 +507,50 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
           </button>
         </div>
       </div>
+
+      {/* Temperature 编辑弹窗——特意放在 .echo-page-body 外面、跟它平级，
+          不受 .echo-page-body 的 overflow-y:auto 影响；复用全局
+          .modal-veil/.modal-card（不单独发明一套弹层样式），但降级掉了
+          毛玻璃——原因见 App.css 里 .echo-modal-veil 那条注释：.echo-page
+          跟合墨的 .ink-page 一样是 fixed 全屏 + overflow:hidden + 自己的
+          z-index 层叠上下文，backdrop-filter 嵌在这种结构里现场采样背后
+          内容会不稳定而一闪一闪，这是合墨那边已经诊断并修过的坑，这里
+          直接照搬同一个降级方案，不用再踩一遍。点遮罩（不是卡片本体）
+          等价于取消 */}
+      {showTempModal && (
+        <div
+          className="modal-veil echo-modal-veil"
+          onClick={e => { if (e.target === e.currentTarget) closeTempModal() }}
+        >
+          <div className="modal-card echo-sheet">
+            <div className="modal-title">TEMPERATURE · 温度</div>
+            <input
+              ref={tempModalInputRef}
+              className="field-input echo-temp-modal-input"
+              type="text" inputMode="decimal"
+              value={tempModalDraft}
+              onChange={e => {
+                const raw = e.target.value
+                // 跟上面 tempDraft 的 onChange 同一个道理：只放行"数字 +
+                // 最多一个小数点"的中间态，空字符串/单独一个"."也放行，
+                // 都不急着转数字，等点确定时才由 confirmTempModal 兜底
+                if (raw !== '' && !/^\d*\.?\d*$/.test(raw)) return
+                setTempModalDraft(raw)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmTempModal() }
+                else if (e.key === 'Escape') { e.preventDefault(); closeTempModal() }
+              }}
+              style={{ marginTop: 16 }}
+            />
+            <div className="sensitivity-hint" style={{ marginTop: 10 }}>范围 0–1.5 · 越高越有创造性和随机性，越低越稳定保守</div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+              <button onClick={closeTempModal} className="line-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>取消</button>
+              <button onClick={confirmTempModal} className="solid-btn" style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '11px' }}>确定</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

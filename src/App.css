@@ -2490,6 +2490,48 @@ button { font-family: inherit; }
   color: var(--c-text-faint);
 }
 
+/* Temperature 从内联输入框改成"点击弹窗修改"——这一行沿用 .model-item
+   同款的可点击行手感（描边、hover/active 换成强调色底），但内容换成
+   大号数值：这里只有一个值，不需要 model-item 的 dot+label+sub 结构 */
+.echo-temp-display {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: var(--hair) solid var(--c-line);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  transition: background .25s var(--ease), border-color .25s var(--ease);
+}
+.echo-temp-display:hover  { background: var(--c-accent-soft); }
+.echo-temp-display:active { background: var(--c-accent-soft); border-color: var(--c-accent); transform: scale(0.99); }
+.echo-temp-value {
+  font-family: var(--font-display); font-size: 21px; letter-spacing: .5px; color: var(--c-text);
+}
+.echo-temp-edit-hint {
+  font-size: 10px; letter-spacing: 1px; color: var(--c-text-faint); flex-shrink: 0;
+}
+
+/* Temperature 编辑弹窗：复用全局 .modal-veil/.modal-card，不单独发明
+   一套弹层样式（跟本文件其它地方的既定做法一致）。但主动降级掉了
+   毛玻璃——.echo-page 跟 .ink-page 同款，是 fixed 全屏 + overflow:hidden
+   + 自己的 z-index 层叠上下文（见上面 .echo-page 定义），弹窗嵌在这种
+   结构下面时 backdrop-filter 现场采样背后内容会不稳定而一闪一闪，这
+   正是下面「弹层：复用全局 .modal-veil / .modal-card」那节给合墨
+   .ink-modal-veil/.modal-card.ink-sheet 已经诊断并修过的坑（fixed 套
+   fixed + overflow:hidden + 层叠上下文，跟这里条件完全一样）。这里
+   提前照搬同一个降级方案：去掉毛玻璃，卡面换成不透明的 --c-modal-solid，
+   淡入/缩放动效（只动 background-color 和 transform，本来就不背这个
+   锅）照常保留，不用再等实测闪烁了才回头修 */
+.echo-modal-veil { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.modal-card.echo-sheet {
+  background: var(--c-modal-solid);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  width: 300px; max-width: 86vw;
+  padding: 26px 24px 22px;
+  text-align: center;
+}
+.echo-temp-modal-input { text-align: center; font-family: var(--font-display); font-size: 19px; letter-spacing: .5px; }
+
 /* ============================================================
    茧星 · COCOON —— 引力页全屏子页面，枢的自我记忆。骨架跟 .echo-page
    同款（fixed 全屏 + 头部返回键 + 可滚动 body + 卡片式分区），外层丝
