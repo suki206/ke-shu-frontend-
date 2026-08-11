@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // ============================================================
 // 回声 · ECHO —— 引力页气态巨行星子页面，全屏跃迁（与数据罗盘/
@@ -43,6 +43,21 @@ const TrashIcon = () => (
 )
 
 const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDiscoverModels }) => {
+  // 回声打开期间收起底部导航——根因和合墨一样：.echo-page 嵌在
+  // .gravity-page（也是一个 .tab-page）里，而 .tab-page 的入场动画
+  // 以 transform:scale(1) 收尾，animation:...both 让这个非 none 的
+  // transform 一直挂着，使 .tab-page 变成自己所有 position:fixed
+  // 后代的包含块——.echo-page 内部再高的 z-index 也只在 .tab-page
+  // 自己（z-index:1）这个局部层叠上下文里生效，跳不出去盖过真正
+  // 在外层、z-index:200 的 .bottom-nav，所以底部导航会一直悬在
+  // SAVE 按钮上面。这里给 <html> 打上 .echo-open，配合 App.css 里
+  // `.echo-open .bottom-nav` 直接把导航条移出屏幕，跟 `.ink-open`
+  // 同一个做法。
+  useEffect(() => {
+    document.documentElement.classList.add('echo-open')
+    return () => document.documentElement.classList.remove('echo-open')
+  }, [])
+
   const modelList     = config?.models || []
   const activeModelId = config?.model || ''
   const activeModelObj = modelList.find(m => m.id === activeModelId) || null

@@ -1106,6 +1106,25 @@ body {
   animation: riseIn .38s var(--ease);
 }
 
+/* 枢选择不写的那天——占位条目，弱化视觉 + 可手动删除 */
+.diary-item.is-skipped { cursor: default; }
+.diary-item-dot.is-skipped { background: var(--c-text-faint); opacity: .5; box-shadow: none; }
+.diary-item-skip-text {
+  font-size: 12px; color: var(--c-text-faint);
+  font-family: var(--font-accent); font-style: italic; letter-spacing: .3px;
+}
+.diary-item-dismiss {
+  margin-left: auto;
+  width: 24px; height: 24px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  color: var(--c-text-faint);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: color .2s ease, transform .15s ease;
+}
+.diary-item-dismiss:hover  { color: var(--c-text); }
+.diary-item-dismiss:active { transform: scale(0.88); }
+
 /* ── 记忆命中脉冲光环 ── */
 @keyframes memPulse {
   0%   { transform: scale(1);   opacity: .85; }
@@ -2355,6 +2374,14 @@ button { font-family: inherit; }
    （JSX 里给 <html> 加 .ink-open；InkPage 本身还 Portal 到 body，
    跳出 .tab-page 的层叠上下文，两道保险） */
 .ink-open .bottom-nav {
+  transform: translateY(120%);
+  pointer-events: none;
+}
+
+/* 回声（EchoPage）打开期间同样收起底部导航——SAVE 按钮贴底，
+   常驻的 .bottom-nav 本来会悬在它上面挡住点按/视觉。跟 .ink-open
+   同一个做法，JSX 里在 EchoPage 挂载期间给 <html> 加 .echo-open。 */
+.echo-open .bottom-nav {
   transform: translateY(120%);
   pointer-events: none;
 }
@@ -3643,6 +3670,16 @@ body   { height: 100%; }
   max-height: calc(var(--app-height, 100dvh) - var(--kb-height, 0px));
   transition: height .18s var(--ease), max-height .18s var(--ease);
 }
+
+/* 短暂抑制 .app-shell 的高度过渡——"从子页返回、键盘还没收/刚要弹"
+   这类场景里，.app-shell 的高度变化如果走上面这条 .18s 过渡，会跟
+   页面自己的入场动画或首次对焦的滚动撞在同一小段时间里，表现成一次
+   看得见的画面闪烁/抖动（引力页返回时五天体按容器高度百分比定位，
+   过渡进行中的每一帧都会跟着抖；聊天页则是入场动画和键盘弹出的滚动
+   撞在一起）。GravityPage.jsx / ChatPage.jsx 会在这类时机短暂给
+   .app-shell 打上这个类，让高度变化直接跳变、不经过渡；随后几百毫秒
+   内自动摘掉，不影响平时键盘弹出/收起该有的平滑过渡。 */
+.no-shell-transition { transition: none !important; }
 
 /* 弹窗跟着可视区居中：键盘顶上来时不至于把输入卡片压在键盘底下 */
 .modal-veil { bottom: var(--kb-height, 0px); }

@@ -514,12 +514,22 @@ const ChroniclePage = () => {
     if (generating) return
     setGenerating(true); setGenError('')
     try {
-      await axios.post(`${API_BASE}/diary/generate`, {})
+      const res = await axios.post(`${API_BASE}/diary/generate`, {})
       await fetchDiaries()
+      // 现在写不写由枢自己判断，点了按钮不代表这次一定会有正文——
+      // 这不算失败，只是给个提示，不走 catch 那条报错分支
+      if (res.data?.skipped) setGenError('枢今天选择不写')
     } catch (err) {
       setGenError(err.response?.data?.error || '今天还没有足够的对话，写不出日记')
     }
     setGenerating(false)
+  }
+
+  // 删掉一条"枢选择不写"的占位——先从本地列表摘掉给个即时反馈，
+  // 请求失败也不回滚，下次刷新列表时会自然纠正
+  const dismissDiary = async (dateStr) => {
+    setDiaries(prev => prev.filter(d => d.date !== dateStr))
+    try { await axios.delete(`${API_BASE}/diary/${dateStr}`) } catch {}
   }
 
   return (
@@ -554,6 +564,25 @@ const ChroniclePage = () => {
           </div>
         )}
         {!loading && diaries.map(d => {
+          if (d.skipped) {
+            return (
+              <div key={d.date} className="diary-item is-skipped">
+                <div className="diary-item-head">
+                  <span className="diary-item-dot is-skipped" />
+                  <span className="diary-item-date">{formatDiaryDate(d.date)}</span>
+                  <button
+                    className="diary-item-dismiss"
+                    onClick={e => { e.stopPropagation(); dismissDiary(d.date) }}
+                    aria-label="删除"
+                    title="删除"
+                  >
+                    <Icon.Close size={12} />
+                  </button>
+                </div>
+                <div className="diary-item-skip-text">这天他选择不写</div>
+              </div>
+            )
+          }
           const open = openDate === d.date
           return (
             <div key={d.date} className="diary-item" onClick={() => setOpenDate(open ? null : d.date)}>
@@ -919,6 +948,10 @@ const ChatPage = () => {
   const pressTimerRef     = useRef(null)
   const pressMovedRef     = useRef(false)
   const pressStartPosRef  = useRef({ x: 0, y: 0 }) // 长按起点坐标，用于移动容差判定（见下方 onPressMove）
+  // 重新切回聊天页后，第一次点输入框弹键盘时用一次，见下方 kb-open 相关
+  // useEffect 与 composer-input 的 onFocus——避免与 .no-shell-transition
+  // 重名的解释重复写两遍
+  const chatKbFixDoneRef = useRef(false)
 
   // message: 文案；opts.action: { label, onClick } 在 Toast 里附一个可点的按钮（如"重试"）
   // opts.duration: 自定义存活时长（默认无按钮 2500ms，带按钮 5000ms，给用户留出点击时间）
@@ -1632,6 +1665,15 @@ const ChatPage = () => {
     if (activeTab === 'stardust' && memories.length === 0) fetchMemories()
   }, [activeTab])
 
+  // 每次切回聊天页（'orbit'）都重新武装一次"首次对焦抑制"——见下方
+  // composer-input 的 onFocus 与 App.css 的 .no-shell-transition 注释：
+  // 从别的 tab 切回来后，第一次点输入框弹键盘，.app-shell 的高度过渡
+  // 容易跟这一页刚挂载的入场动画/首次滚动撞在一起，闪一下；同一次
+  // 停留里后续再点输入框不会重复出现，所以只在"刚切回来"这次重置。
+  useEffect(() => {
+    if (activeTab === 'orbit') chatKbFixDoneRef.current = false
+  }, [activeTab])
+
   // ── 工具函数 ─────────────────────────────────────────────
   const formatTime = (ts) => {
     if (!ts) return ''
@@ -1940,14 +1982,21 @@ const ChatPage = () => {
             <span className="quote-preview-close" onClick={() => setQuoteTarget(null)}><Icon.Close size={11} /></span>
           </div>
         )}
-        {/* 工具行：思考模式开关，从设置页迁移至此。这里只切换"默认展开/
-            折叠"的偏好，不影响某条具体消息是否已经手动展开过（那部分
-            仍由 expandedReasoning 单独记录，逻辑没变，只是入口挪了地方）*/}
+        {/* 工具行：思考模式开关。2026-08-11 前只切换"AI 回复的思考过程
+            默认展开/折叠"这个 UI 偏好，没管模型是否真的思考——后端三处
+            生成回复的调用一律写死开思考，点这颗按钮跟没点一样。现在
+            server.js 已经改成读这里存的 show_reasoning 来决定真的开/关
+            思考（deepseekThinking()），所以这颗按钮现在是"双重开关"：
+            关掉时模型不思考、也没有思考过程可展开；开着时模型思考，
+            过程默认展开显示。某条具体消息是否已经手动展开过，仍由
+            expandedReasoning 单独记录，不受这颗按钮影响。
+            仅对 DeepSeek V4 系列模型生效（其它兼容供应商未必支持思考
+            模式字段，服务端会自动忽略，详见 server.js 里的说明）。*/}
         <div className="composer-toolbar">
           <button
             className={`composer-tool-btn${config.show_reasoning ? ' is-on' : ''}`}
             onClick={() => { const next = { ...config, show_reasoning: !config.show_reasoning }; setConfig(next); saveSettings(next) }}
-            title="AI 回复的思考过程默认展开还是折叠"
+            title="开启后 AI 回复前会先思考（仅 DeepSeek V4 系列生效），思考过程默认展开显示"
           >
             <Icon.Brain size={12} /> 思考模式
           </button>
@@ -1958,7 +2007,23 @@ const ChatPage = () => {
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             onKeyDown={e => e.ctrlKey && e.key === 'Enter' && sendMessage()}
-            onFocus={() => { setInputFocused(true); setTimeout(() => { if (messageBoxRef.current) messageBoxRef.current.scrollTop = messageBoxRef.current.scrollHeight }, 300) }}
+            onFocus={() => {
+              setInputFocused(true)
+              // 只在这次停留于聊天页的第一次对焦时处理——见上面
+              // chatKbFixDoneRef 声明处与 App.css 的 .no-shell-transition
+              // 注释。让 .app-shell 的高度变化直接跳变，避开这次键盘
+              // 弹出的过渡窗口跟页面入场动画叠在一起造成的那次画面闪烁；
+              // 260ms 后照常摘掉，不影响之后正常的键盘收起/弹出过渡。
+              if (!chatKbFixDoneRef.current) {
+                chatKbFixDoneRef.current = true
+                const shell = document.querySelector('.app-shell')
+                if (shell) {
+                  shell.classList.add('no-shell-transition')
+                  setTimeout(() => shell.classList.remove('no-shell-transition'), 260)
+                }
+              }
+              setTimeout(() => { if (messageBoxRef.current) messageBoxRef.current.scrollTop = messageBoxRef.current.scrollHeight }, 300)
+            }}
             onBlur={() => setInputFocused(false)}
             placeholder={editingMsg ? '编辑消息…' : '在这里说...'}
             rows={1}
