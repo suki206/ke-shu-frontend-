@@ -2396,15 +2396,27 @@ button { font-family: inherit; }
    模型列表相关样式沿用既有的全局定义，未改动。
    ============================================================ */
 .echo-page {
-  position: fixed; inset: 0;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  /* 键盘避让：跟下方 .ink-page 同一处理，之前这里漏掉了。
+     inset:0 只能铺满"没有键盘时"的视口——键盘弹出时，如果所在机型
+     不会让浏览器主动收缩布局视口（ChatPage.jsx 里 --kb-height 那段
+     大注释专门补的就是这种情况），固定定位元素并不会跟着收缩，
+     .echo-page-body 的可滚范围也就不会变大，最下面的温度卡片会被
+     键盘整个盖住、怎么滚都露不出来。这里显式接管 bottom，页面才会
+     真的变矮，滚得动、也就露得出来。 */
+  bottom: var(--kb-height, 0px);
   z-index: 2300;
   display: flex; flex-direction: column;
   overflow: hidden;
   background: var(--c-bg-solid);
   padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
   padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+  transition: bottom .18s var(--ease);
   animation: echoPageIn .32s var(--ease) both;
 }
+/* 键盘顶上来时底部安全区那条留白纯属浪费，收掉能多露一行字，跟 .ink-page 一致 */
+.kb-open .echo-page { padding-bottom: 0; }
 @keyframes echoPageIn {
   from { opacity: 0; transform: translateY(14px); }
   /* 收尾故意写成 transform:none 而不是 translateY(0)——两者视觉上

@@ -968,6 +968,13 @@ const ChatPage = () => {
   const [expandedReasoning, setExpandedReasoning] = useState(() => new Map())
 
   const messageBoxRef  = useRef(null)
+  // 消息区是否"贴底"：键盘弹出/收起（或编辑提示条、引用条这类挤占
+  // composer-dock 高度的东西出现/消失）会让消息区变矮变高，这时只有
+  // 本来就停留在最新消息那一条的人才需要跟着自动贴底，正在往上翻旧
+  // 消息的人不该被强行拽回来。由下面 messageBoxRef 的 scroll 监听维护，
+  // 交给 ResizeObserver 那个 effect 消费，两者配合实现下方"消息区跟随
+  // 键盘平滑贴底"的效果
+  const stickToBottomRef = useRef(true)
   const renameInputRef = useRef(null)
   const starCanvasRef  = useRef(null)
   const voidTimerRef   = useRef(null)
@@ -1774,7 +1781,7 @@ const ChatPage = () => {
     const vk = (typeof navigator !== 'undefined' && navigator.virtualKeyboard) || null
     if (vk) { try { vk.overlaysContent = true } catch {} }
 
-    const apply = () => {
+    const measure = () => {
       const vv = window.visualViewport
       const visual = vv ? vv.height : window.innerHeight
       const shrunk = Math.max(0, window.innerHeight - visual)   // 已经被谁扣掉的高度
@@ -1789,6 +1796,20 @@ const ChatPage = () => {
       // 页面比可视区高时浏览器会自己滚一下来露出输入框，结果是顶栏被推出屏幕
       if (window.scrollY !== 0) window.scrollTo(0, 0)
     }
+
+    // rAF 节流：键盘展开/收起动画期间，visualViewport 的 resize/scroll
+    // （尤其 iOS）经常在几十毫秒内连续触发十几次。不节流的话，每次触发
+    // 都立刻写一次 --app-height/--kb-height，而 .app-shell 的 height 是
+    // 带 .18s 过渡的——相当于过渡跑到一半就被下一次写入重新指向一个新
+    // 目标，一直在追一个不停在动的靶子，永远追不上，肉眼看就是持续的
+    // 卡顿/发抖，而不是一次性的平滑收缩。节流成"每帧最多量一次、写一次"
+    // 后，写入节奏对齐浏览器自己的渲染帧，过渡才能连贯地跑完整段，
+    // 跟真实的键盘动画贴合，观感上才是"流畅升起来"而不是卡顿。
+    let rafId = null
+    const apply = () => {
+      if (rafId != null) return
+      rafId = requestAnimationFrame(() => { rafId = null; measure() })
+    }
     apply()
 
     // resize 覆盖大多数场景；scroll 是安卓上部分机型键盘弹出时唯一会触发的事件，两个都要接
@@ -1798,6 +1819,7 @@ const ChatPage = () => {
     window.addEventListener('orientationchange', apply)
     vk?.addEventListener?.('geometrychange', apply)
     return () => {
+      if (rafId != null) cancelAnimationFrame(rafId)
       window.visualViewport?.removeEventListener('resize', apply)
       window.visualViewport?.removeEventListener('scroll', apply)
       window.removeEventListener('resize', apply)
@@ -1806,6 +1828,51 @@ const ChatPage = () => {
       if (vk) { try { vk.overlaysContent = false } catch {} }
     }
   }, [])
+
+  // ── 消息区跟随键盘平滑贴底 ───────────────────────────────
+  // 上面那段负责量出键盘占了多高、让 .app-shell 的高度跟着收缩；
+  // messageBoxRef 作为 .app-shell 内 flex:1 的子项，高度会被动跟着
+  // 收缩，但 scrollTop 不会自动跟着变——原来的做法是在 composer-input
+  // 的 onFocus 里等一个猜测出来的 300ms 延时，到点后把 scrollTop 一次性
+  // 瞬间跳到底。这跟 .app-shell 那条 .18s 的 height 过渡是两套完全不
+  // 同步的动画：容器在平滑收缩，滚动却是等过渡跑完（甚至跑到一半）
+  // 才猛地跳一下，看起来就是先卡一下、再跳一下，不是一次连贯的"升起来"；
+  // 真机键盘动画一旦比猜测的延时更长，跳的时机还会早于收缩完成，最后
+  // 一条消息其实没有真正露到输入框上方，就是用户看到的"没升上去"。
+  // 换成 ResizeObserver 后：消息区自己的高度只要发生变化（键盘弹出/
+  // 收起、或者编辑提示条/引用条这类挤占 composer-dock 高度的东西
+  // 出现消失），每一帧收缩都会触发一次回调，在回调里把 scrollTop 重新
+  // 钉到当时的 scrollHeight（直接赋值，不需要再叠一层 smooth scroll）。
+  // 因为容器本身就是被 CSS 过渡逐帧平滑收缩的，每帧都跟着钉一次底，
+  // 观感上正好是消息内容跟容器一起平滑升上去，不依赖任何猜测的时长，
+  // 天然跟收缩动画同步，不会卡顿也不会错过时机。
+  // 是否要贴底，由 stickToBottomRef 决定：只在本来就停留在最新消息时
+  // 才跟着贴底，正在往上翻旧消息的人不会被强行拽回来（下面 onScroll
+  // 负责维护这个标记；必须在 scroll 事件里维护，不能放进 ResizeObserver
+  // 回调里现算——回调触发时 clientHeight 已经是收缩后的新值，这时候
+  // 再算"离底部多远"，键盘刚弹出的那一帧会被误判成离底部很远，明明
+  // 贴底的人也会被判定成没贴底）。
+  useEffect(() => {
+    const el = messageBoxRef.current
+    if (!el) return
+
+    const onScroll = () => {
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+      stickToBottomRef.current = distance < 80
+    }
+    onScroll()
+    el.addEventListener('scroll', onScroll, { passive: true })
+
+    const ro = new ResizeObserver(() => {
+      if (stickToBottomRef.current) el.scrollTop = el.scrollHeight
+    })
+    ro.observe(el)
+
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      ro.disconnect()
+    }
+  }, [activeTab])
 
   // 切到星尘时自动拉取记忆
   useEffect(() => {
@@ -2171,7 +2238,14 @@ const ChatPage = () => {
                   setTimeout(() => shell.classList.remove('no-shell-transition'), 260)
                 }
               }
-              setTimeout(() => { if (messageBoxRef.current) messageBoxRef.current.scrollTop = messageBoxRef.current.scrollHeight }, 300)
+              // 对焦即视为"回到对话最新位置"：不管之前有没有往上翻看旧
+              // 消息，点输入框都该贴回底部。这里只负责点下去当帧立刻贴一次
+              // （这时候键盘也可能早就开着，不会再有 resize 触发下面的
+              // ResizeObserver 了）；键盘展开动画期间每一帧的贴底交给
+              // 上面"消息区跟随键盘平滑贴底"那个 ResizeObserver，不用
+              // 猜时长再瞬间跳一下，两者配合才是连贯的一次"升起来"。
+              stickToBottomRef.current = true
+              if (messageBoxRef.current) messageBoxRef.current.scrollTop = messageBoxRef.current.scrollHeight
             }}
             onBlur={() => setInputFocused(false)}
             placeholder={editingMsg ? '编辑消息…' : '在这里说...'}

@@ -65,6 +65,28 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
     return () => document.documentElement.classList.remove('echo-open')
   }, [])
 
+  // 键盘弹出时把当前聚焦的输入框滚到键盘上方——App.css 里 .echo-page
+  // 已经用 bottom: var(--kb-height) 把自己收窄了（页面本身跟得上，
+  // 见上面那条 bottom 过渡），但收窄之后具体要不要滚、滚到哪，还是
+  // 得靠"对焦即滚入视野"来触发：.echo-page-body 收窄的过程中如果
+  // scrollTop 不变，可视窗口是从底部往上收的，原本刚好露出来的输入框
+  // 反而可能被重新盖住。用 focusin（事件委托，挂在 document 上、
+  // 靠冒泡触发）而不是在每个 input/textarea 上分别绑 onFocus，是因为
+  // 这一页表单字段很多（人格、模型、提供商……新增字段也不用记得
+  // 再补一遍）。延时给 .echo-page 的 bottom 过渡和真机键盘动画留出
+  // 结束的时间，早于这个点滚的话，容器还没收窄到位，算出来的目标
+  // 位置也是错的。
+  useEffect(() => {
+    const onFocusIn = (e) => {
+      const t = e.target
+      if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return
+      if (!t.closest('.echo-page')) return
+      setTimeout(() => t.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)
+    }
+    document.addEventListener('focusin', onFocusIn)
+    return () => document.removeEventListener('focusin', onFocusIn)
+  }, [])
+
   const modelList     = config?.models || []
   const activeModelId = config?.model || ''
   const activeModelObj = modelList.find(m => m.id === activeModelId) || null
