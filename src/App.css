@@ -1830,6 +1830,34 @@ button { font-family: inherit; }
 }
 @keyframes inkDripFall { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: .8; transform: translateY(2px); } }
 
+/* 时轨正下方居中 · 茧星（自我记忆）—— 暗星核心，比其它天体都暗，
+   呼应"被封存"的意象；外面裹着几缕半透明丝状星云，缓慢不同速地
+   旋转，像层层缠绕。柯写的和枢写的两部分在这颗星本身不做区分
+   （视觉上只是一颗被丝裹住的暗星），点开之后页面内部再用文字分层。 */
+.gravity-body-cocoon .gravity-body-orb { display: none; }
+.gravity-cocoon-core {
+  position: absolute; inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 38%, rgba(130,112,150,.5), rgba(32,22,42,.92) 58%, rgba(8,5,12,.98) 100%);
+  box-shadow: 0 0 16px rgba(130,112,160,.22), inset 0 0 12px rgba(0,0,0,.6);
+  animation: cocoonBreath 6s ease-in-out infinite;
+}
+@keyframes cocoonBreath {
+  0%, 100% { transform: scale(.95); filter: brightness(.85); }
+  50%      { transform: scale(1.03); filter: brightness(1.08); }
+}
+.gravity-cocoon-wisp {
+  position: absolute; left: 50%; top: 50%;
+  border-radius: 50%;
+  border: 1px solid rgba(200,180,220,.22);
+  pointer-events: none;
+}
+.gravity-cocoon-wisp-1 { width: 152%; height: 62%; transform: translate(-50%, -50%) rotate(24deg); animation: cocoonWisp1 26s linear infinite; }
+.gravity-cocoon-wisp-2 { width: 130%; height: 80%; border-color: rgba(180,160,210,.16); transform: translate(-50%, -50%) rotate(-38deg); animation: cocoonWisp2 34s linear infinite reverse; }
+.gravity-cocoon-wisp-3 { width: 168%; height: 46%; border-style: dashed; border-color: rgba(210,190,230,.14); transform: translate(-50%, -50%) rotate(70deg); animation: cocoonWisp1 42s linear infinite; }
+@keyframes cocoonWisp1 { from { transform: translate(-50%, -50%) rotate(24deg); } to { transform: translate(-50%, -50%) rotate(384deg); } }
+@keyframes cocoonWisp2 { from { transform: translate(-50%, -50%) rotate(-38deg); } to { transform: translate(-50%, -50%) rotate(322deg); } }
+
 /* 顶部居中 · 时轨 —— 巨型环形日晷，本组唯一的"大件"，撑起整个
    引力场的视觉重心：外圈刻度环缓慢自转，中央暖核常明，
    一枚月相盘绕核心慢慢公转 */
@@ -2272,6 +2300,146 @@ button { font-family: inherit; }
 }
 
 /* ============================================================
+   茧星 · COCOON —— 引力页全屏子页面，枢的自我记忆。骨架跟 .echo-page
+   同款（fixed 全屏 + 头部返回键 + 可滚动 body + 卡片式分区），外层丝
+   （柯写）和内芯（枢写）两个 .cocoon-section 各自成一张卡，内部是
+   .cocoon-item 列表——不用聊天气泡也不用合墨那种时间线，就是朴素的
+   一条一条，跟"柯写的部分也做成列表，跟枢写的对称"这个要求对应。
+   ============================================================ */
+.cocoon-page {
+  position: fixed; inset: 0;
+  z-index: 2300;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--c-bg-solid);
+  padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
+  padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+  animation: echoPageIn .32s var(--ease) both;
+}
+.cocoon-page-header {
+  position: relative;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px 10px;
+}
+.cocoon-page-iconbtn {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  color: var(--c-text-muted);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: color .25s var(--ease), transform .2s ease;
+}
+.cocoon-page-iconbtn:hover  { color: var(--c-text); }
+.cocoon-page-iconbtn:active { transform: scale(0.88); }
+.cocoon-page-title {
+  font-family: var(--font-display);
+  font-size: 13px; letter-spacing: 3px;
+  color: var(--c-text);
+}
+.cocoon-page-header-spacer { width: 32px; flex-shrink: 0; }
+
+.cocoon-page-body {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+}
+.cocoon-page-content {
+  display: flex; flex-direction: column; gap: 20px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.cocoon-page-eyebrow {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10px; letter-spacing: 2.5px; color: var(--c-text-faint);
+  text-align: center;
+}
+.cocoon-section {
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: var(--c-panel);
+  backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
+  -webkit-backdrop-filter: blur(22px) saturate(1.1) brightness(var(--c-panel-bright));
+  border: var(--hair) solid var(--c-line);
+  animation: echoCardIn .5s var(--ease) both;
+}
+.cocoon-section:nth-child(2) { animation-delay: .05s; }
+.cocoon-section:nth-child(3) { animation-delay: .1s; }
+.cocoon-section-label {
+  font-family: var(--font-accent);
+  font-size: 9.5px; letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+.cocoon-section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.cocoon-count {
+  font-family: var(--font-accent); font-size: 11px; letter-spacing: .5px;
+  color: var(--c-text-faint);
+}
+.cocoon-count.is-full { color: var(--c-accent-2); }
+
+.cocoon-add-row {
+  display: flex; gap: 8px;
+  margin-top: 12px;
+}
+.cocoon-add-row .field-input { flex: 1; }
+.cocoon-add-btn {
+  width: 40px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: var(--c-accent-soft);
+  border: var(--hair) solid var(--c-line);
+  color: var(--c-accent);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform .15s ease, background .2s ease;
+}
+.cocoon-add-btn:hover  { background: var(--c-accent-2-soft); }
+.cocoon-add-btn:active { transform: scale(0.9); }
+
+.cocoon-limit-row {
+  display: flex; align-items: center; gap: 8px;
+  margin: 10px 0 4px;
+}
+.cocoon-limit-label {
+  font-family: var(--font-accent); font-size: 10.5px; letter-spacing: 1px;
+  color: var(--c-text-faint);
+}
+
+.cocoon-list {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 12px;
+}
+.cocoon-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--c-glass-bg);
+  border: var(--hair) solid var(--c-line);
+  animation: riseIn .3s var(--ease);
+}
+.cocoon-item.is-shu { background: var(--c-accent-soft); }
+.cocoon-item-content {
+  flex: 1; min-width: 0;
+  font-size: 12.5px; line-height: 1.7; color: var(--c-text);
+  white-space: pre-wrap; word-break: break-word;
+}
+.cocoon-item-delete {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  color: var(--c-text-faint);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: color .2s ease, transform .15s ease;
+}
+.cocoon-item-delete:hover  { color: var(--c-text); }
+.cocoon-item-delete:active { transform: scale(0.88); }
+
+/* ============================================================
    合墨 · INK —— 引力页全屏子页面，接力写作。沿用 .beacon-page /
    .token-dash-page 同一套骨架（fixed 全屏 + 头部返回键 + 可滚动
    body），内部自己切两级视图：笔记列表 .ink-note-list ↔ 单篇正文
@@ -2327,6 +2495,12 @@ button { font-family: inherit; }
    常驻的 .bottom-nav 本来会悬在它上面挡住点按/视觉。跟 .ink-open
    同一个做法，JSX 里在 EchoPage 挂载期间给 <html> 加 .echo-open。 */
 .echo-open .bottom-nav {
+  transform: translateY(120%);
+  pointer-events: none;
+}
+
+/* 茧星（CocoonPage）同理，跟回声/合墨一样打上 .cocoon-open */
+.cocoon-open .bottom-nav {
   transform: translateY(120%);
   pointer-events: none;
 }

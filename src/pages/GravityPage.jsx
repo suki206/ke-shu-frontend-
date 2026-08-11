@@ -4,9 +4,10 @@ import TokenDashboardPage from './TokenDashboardPage'
 import BeaconPage from './BeaconPage'
 import EchoPage from './EchoPage'
 import InkPage from './InkPage'
+import CocoonPage from './CocoonPage'
 
 // ============================================================
-// 引力 · 五天体固定布局 —— 功能星系
+// 引力 · 六天体固定布局 —— 功能星系
 // 时轨（日晷）：锚点"在一起天数"作为常驻读数悬在日晷上方，构成
 // 整页唯一的视觉重心。
 // 回声（气态巨行星）：点开是全屏「调频面板」（EchoPage）——人格
@@ -21,8 +22,12 @@ import InkPage from './InkPage'
 // 合墨（原彗星 · 星历速览占位）：本批升级为功能天体，点开是全屏
 // 共笔空间（InkPage）——柯与枢在同一条时间流里轮流落笔，不分左右。
 // 视觉也从彗星换成墨滴+光丝，呼应笔记里"新"模式段落之间的分隔线。
-// 目前时轨 / 信标 / 回声 / 数据罗盘 / 合墨五个功能天体点开均为全屏
-// 子页，视觉与交互统一，五天体全部点亮。
+// 茧星（暗星核心+丝状星云）：枢的自我记忆，跟星尘（柯与发生过的事情）
+// 是两套独立的东西，茧星记的是"枢自己是谁"。放在时轨正下方居中。
+// 外层丝（柯写的）和内芯（枢自己写的）都是列表：柯这边随便写、没有
+// 条数上限；枢这边只能通过聊天里主动带的标记写入，条数由柯设上限，
+// 满了拒绝新写入并提示，不自动顶掉旧的。两边内容都只能删、不能改。
+// 目前六个功能天体点开均为全屏子页，视觉与交互统一，六天体全部点亮。
 // ============================================================
 
 const FIXED_POSITIONS = {
@@ -31,6 +36,7 @@ const FIXED_POSITIONS = {
   giant:   { x: 78, y: 30 },
   binary:  { x: 19, y: 75 },
   ink:     { x: 81, y: 77 },
+  cocoon:  { x: 50, y: 52 },
 }
 
 const BODIES = [
@@ -39,6 +45,7 @@ const BODIES = [
   { id: 'giant',   label: '回声',     kind: 'giant',   size: 74,  functional: true  },
   { id: 'binary',  label: '数据罗盘', kind: 'binary',  size: 54,  functional: true  },
   { id: 'ink',     label: '合墨',     kind: 'ink',     size: 44,  functional: true  },
+  { id: 'cocoon',  label: '茧星',     kind: 'cocoon',  size: 50,  functional: true  },
 ]
 
 const daysBetween = (a, b) => Math.round((b.getTime() - a.getTime()) / 86400000)
@@ -49,7 +56,8 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
   inkNotes, inkNotesLoading, onFetchInkNotes, onCreateInkNote, onUpdateInkNote, onDeleteInkNote,
   activeInkNote, activeInkNoteLoading, onOpenInkNote,
   onSaveInkDraft, onFinalizeInkEntry, onGenerateInkEntry, onStopInkGenerate, onDeleteLastInkEntry, onUpdateInkEntry,
-  inkGenerating, inkStreamText }) => {
+  inkGenerating, inkStreamText,
+  cocoonKe, cocoonShu, cocoonShuLimit, cocoonLoading, onFetchCocoon, onAddCocoonKe, onDeleteCocoon, onSaveCocoonLimit }) => {
   const [openBody, setOpenBody] = useState(null)
 
   // 从「回声/信标/数据罗盘」等全屏子页返回引力页时，若键盘还没收起，
@@ -76,6 +84,8 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
     if (body.id === 'binary') onFetchTokenStats?.()
     // 合墨：每次打开都刷一遍笔记列表，拿到最新的"待续"标记和预览
     if (body.id === 'ink') onFetchInkNotes?.()
+    // 茧星：每次打开都刷一遍，拿到聊天里刚触发写入的最新条目
+    if (body.id === 'cocoon') onFetchCocoon?.()
   }
 
   const onAnchorChange = (d) => {
@@ -168,7 +178,15 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
                   <span className="gravity-ink-drip" />
                 </>
               )}
-              {body.kind !== 'binary' && body.kind !== 'sundial' && <span className="gravity-body-orb" />}
+              {body.kind === 'cocoon' && (
+                <>
+                  <span className="gravity-cocoon-core" />
+                  <span className="gravity-cocoon-wisp gravity-cocoon-wisp-1" />
+                  <span className="gravity-cocoon-wisp gravity-cocoon-wisp-2" />
+                  <span className="gravity-cocoon-wisp gravity-cocoon-wisp-3" />
+                </>
+              )}
+              {body.kind !== 'binary' && body.kind !== 'sundial' && body.kind !== 'cocoon' && <span className="gravity-body-orb" />}
               {body.label && body.kind !== 'sundial' && <span className="gravity-body-label">{body.label}</span>}
             </div>
           )
@@ -233,6 +251,18 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
           onGenerateEntry={onGenerateInkEntry} onStopGenerate={onStopInkGenerate}
           onDeleteLastEntry={onDeleteLastInkEntry} onUpdateEntry={onUpdateInkEntry}
           generating={inkGenerating} streamText={inkStreamText}
+          showToast={showToast}
+          onClose={() => setOpenBody(null)}
+        />
+      )}
+      {/* 茧星子页面：全屏，枢的自我记忆——外层丝（柯写）+ 内芯（枢写），
+          两边都是列表，只能删不能改；枢那边有条数上限，满了后端会拒绝
+          写入并通过 SSE 的 cocoonFull 事件提示（在 ChatPage 里接住转成 toast） */}
+      {openBody === 'cocoon' && (
+        <CocoonPage
+          keEntries={cocoonKe} shuEntries={cocoonShu} shuLimit={cocoonShuLimit}
+          loading={cocoonLoading}
+          onAddKe={onAddCocoonKe} onDelete={onDeleteCocoon} onSaveLimit={onSaveCocoonLimit}
           showToast={showToast}
           onClose={() => setOpenBody(null)}
         />

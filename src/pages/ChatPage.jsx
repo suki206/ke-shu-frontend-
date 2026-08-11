@@ -1013,6 +1013,48 @@ const ChatPage = () => {
     setActiveInkNoteLoading(false)
   }
 
+  // ── 茧星（枢的自我记忆）：引力·时轨正下方天体。柯写的（ke）+
+  //    枢自己写的（shu）两份列表，都由 ChatPage 统一持有，跟信标/
+  //    数据罗盘/合墨是同一套"数据在 ChatPage、展示在子页"的约定。
+  //    枢那边只能删不能改，也没有手动新增接口——只能通过聊天里
+  //    COCOON_MARK 自动写入（见 server.js），写满之后后端会通过
+  //    SSE 的 cocoonFull 事件通知，接在 readSSEStream 里转成 toast ──
+  const [cocoonKe,       setCocoonKe]       = useState([])
+  const [cocoonShu,      setCocoonShu]      = useState([])
+  const [cocoonShuLimit, setCocoonShuLimit] = useState(20)
+  const [cocoonLoading,  setCocoonLoading]  = useState(false)
+
+  const fetchCocoon = async () => {
+    setCocoonLoading(true)
+    try {
+      const res = await axios.get(`${API_BASE}/cocoon/list`)
+      setCocoonKe(res.data?.ke || [])
+      setCocoonShu(res.data?.shu || [])
+      setCocoonShuLimit(res.data?.shuLimit ?? 20)
+    } catch { showToast('茧星：加载记忆失败') }
+    setCocoonLoading(false)
+  }
+
+  const addCocoonKe = async (content) => {
+    try {
+      const res = await axios.post(`${API_BASE}/cocoon/add`, { content })
+      setCocoonKe(prev => [...prev, res.data])
+    } catch (err) { showToast(err.response?.data?.error || '添加失败') }
+  }
+
+  // 不分 ke/shu，两边共用一个删除入口——柯可以删自己写的，也可以删
+  // 枢写的，先从本地摘掉给个即时反馈，失败也不回滚，下次刷新会自然纠正
+  const deleteCocoon = async (id) => {
+    setCocoonKe(prev => prev.filter(item => item.id !== id))
+    setCocoonShu(prev => prev.filter(item => item.id !== id))
+    try { await axios.delete(`${API_BASE}/cocoon/${id}`) } catch {}
+  }
+
+  const saveCocoonLimit = async (n) => {
+    setCocoonShuLimit(n)
+    try { await axios.post(`${API_BASE}/settings`, { cocoon_shu_limit: n }) } catch { showToast('保存上限失败') }
+  }
+
   const createInkNote = async () => {
     try {
       const res = await axios.post(`${API_BASE}/notes/new`, {})
@@ -1391,6 +1433,9 @@ const ChatPage = () => {
           if (ev.memoryHit) {
             setMemoryPulse(true)
             setTimeout(() => setMemoryPulse(false), 4000)
+          }
+          if (ev.cocoonFull) {
+            showToast('茧星内芯已满，枢这次想记的事没有存下来——去茧星删几条旧的')
           }
           if (ev.done) {
             setMessages(prev => {
@@ -2121,6 +2166,8 @@ const ChatPage = () => {
               onGenerateInkEntry={generateInkEntry} onStopInkGenerate={stopInkGenerate} inkGenerating={inkGenerating}
               onDeleteLastInkEntry={deleteLastInkEntry} onUpdateInkEntry={updateInkEntry}
               inkStreamText={inkStreamText}
+              cocoonKe={cocoonKe} cocoonShu={cocoonShu} cocoonShuLimit={cocoonShuLimit} cocoonLoading={cocoonLoading}
+              onFetchCocoon={fetchCocoon} onAddCocoonKe={addCocoonKe} onDeleteCocoon={deleteCocoon} onSaveCocoonLimit={saveCocoonLimit}
             />
           )}
           {activeTab === 'stardust' && (
