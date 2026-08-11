@@ -40,18 +40,21 @@
 
   /* 气泡径向暗遮罩：中心够暗撑住文字对比度，边缘几乎全透，
      让 StarCanvas 的星点/连线能从气泡边缘和圆角漏进来。
-     ai 锚点偏左（头像那侧），user 锚点偏右，见 .bubble-glass 里的位置 */
-  --c-bubble-ai-core:   rgba(6, 3, 0, 0.56);
-  --c-bubble-ai-mid:    rgba(6, 3, 0, 0.28);
-  --c-bubble-ai-edge:   rgba(6, 3, 0, 0.03);
+     ai 锚点偏左（头像那侧），user 锚点偏右，见 .bubble-glass 里的位置。
+     本轮把 core/mid 的不透明度和 blur 都调低了一档，气泡更透、
+     背后的星空/壁纸能透过来更多；--c-bubble-*-glow 不再被
+     任何规则引用（原来的呼吸光晕/中心光晕已去掉），留着无害。 */
+  --c-bubble-ai-core:   rgba(6, 3, 0, 0.38);
+  --c-bubble-ai-mid:    rgba(6, 3, 0, 0.18);
+  --c-bubble-ai-edge:   rgba(6, 3, 0, 0.02);
   --c-bubble-ai-glow:   rgba(255, 214, 140, 0.16);
 
-  --c-bubble-user-core: rgba(40, 22, 4, 0.52);
-  --c-bubble-user-mid:  rgba(40, 22, 4, 0.30);
-  --c-bubble-user-edge: rgba(40, 22, 4, 0.04);
+  --c-bubble-user-core: rgba(40, 22, 4, 0.36);
+  --c-bubble-user-mid:  rgba(40, 22, 4, 0.20);
+  --c-bubble-user-edge: rgba(40, 22, 4, 0.03);
   --c-bubble-user-glow: rgba(229, 194, 136, 0.20);
 
-  --c-bubble-blur: 7px;
+  --c-bubble-blur: 4px;
 
   --c-panel:        rgba(20, 12, 4, 0.62);
   --c-panel-blur:   32px;
@@ -298,11 +301,14 @@ body {
 
 .bubble-glass {
   position: relative;
-  isolation: isolate; /* 给下面的呼吸光晕 ::before 建立独立层叠上下文，z-index:-1 才不会漏到别的气泡下面 */
+  isolation: isolate;
   /* 径向暗遮罩取代原来的整块实色毛玻璃：中心留够暗度撑住文字对比度，
      往边缘迅速褪成近乎全透——星点、连线、流星能从气泡边缘和圆角里
      透出来。锚点偏向头像那一侧（ai 靠左 24%，user 靠右 76%），
-     视觉上像信号是从头像那端"亮"出来的，往外扩散。 */
+     视觉上像信号是从头像那端"亮"出来的，往外扩散。
+     本轮把核心不透明度和模糊都调低了一档（配合下面 :root 里
+     --c-bubble-*-core/mid 的数值调整），气泡更透、能看见更多背后的
+     星空，文字可读性靠 --c-msg-shadow 的投影兜底，不靠堆高背景不透明度。 */
   background: radial-gradient(ellipse at 42% 36%,
     var(--c-bubble-ai-core) 0%,
     var(--c-bubble-ai-mid)  50%,
@@ -310,12 +316,9 @@ body {
   backdrop-filter: blur(var(--c-bubble-blur)) saturate(var(--c-glass-sat));
   -webkit-backdrop-filter: blur(var(--c-bubble-blur)) saturate(var(--c-glass-sat));
   border: var(--hair) solid var(--c-glass-border);
-  box-shadow: 0 8px 28px var(--c-shadow), inset 0 1px 0 var(--c-highlight);
+  box-shadow: 0 8px 28px var(--c-shadow);
   border-radius: 22px;
-  padding: 14px 19px 11px;
-  /* Android 上长按文字会触发系统原生"选择文本"呼出菜单（放大镜+复制/分享），
-     和自定义的长按菜单抢手势，往往表现为自定义菜单不出现。这里禁用原生长按
-     呼出和文本选择——应用本身已有专门的"复制"菜单项，不影响可用性。 */
+  padding: 11px 15px 9px;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
@@ -327,37 +330,6 @@ body {
     var(--c-bubble-user-edge) 100%);
 }
 
-/* 呼吸光晕层：只有 ai 气泡呼吸，像"信号仍在虚空里亮着，等你回应"；
-   user 气泡是稳定的静态光（下面 .is-user::before 关掉动画）——
-   你说出口的话不需要证明自己还在。z-index:-1 把它压在正文文字之下，
-   只在气泡自己的暗遮罩背景之上，不会盖住可读性。
-   只切 opacity，走合成层，成本很低；配合下面 .msg-row 的
-   content-visibility，离屏气泡连这点开销都省掉。 */
-.bubble-glass::before {
-  content: '';
-  position: absolute; inset: -1px;
-  z-index: -1;
-  border-radius: inherit;
-  background: radial-gradient(circle at 42% 32%, var(--c-bubble-ai-glow), transparent 60%);
-  opacity: .7;
-  animation: bubbleBreathe 5.4s ease-in-out infinite;
-  pointer-events: none;
-}
-.bubble-glass.is-user::before {
-  background: radial-gradient(circle at 58% 32%, var(--c-bubble-user-glow), transparent 60%);
-  opacity: .85;
-  animation: none;
-}
-@keyframes bubbleBreathe { 0%, 100% { opacity: .45; } 50% { opacity: .85; } }
-
-.bubble-glass::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 18%; right: 18%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--c-highlight), transparent);
-  pointer-events: none;
-}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   /* 不支持 backdrop-filter 的兜底：径向渐变退化成一块偏暗的纯色，
      依然比原来的 60% 更透一些，但不再依赖毛玻璃模糊 */
@@ -368,9 +340,9 @@ body {
 .msg-text {
   color: var(--c-text);
   text-shadow: var(--c-msg-shadow);
-  line-height: 1.82;
+  line-height: 1.58;
   font-size: 14.5px;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -653,7 +625,8 @@ body {
 .vine-petal { fill: var(--c-petal); }
 .vine-core  { fill: var(--c-petal-core); }
 
-/* 会话条目 */
+/* 会话条目——原是下拉内嵌列表里的行样式，现在同时也是侧边栏抽屉
+   里的行样式，直接复用，只在抽屉容器里补一点圆角和左右内边距对齐 */
 .session-item {
   position: relative;
   padding: 13px 12px 13px 16px;
@@ -674,6 +647,13 @@ body {
 .session-item .session-actions { opacity: 0; transition: opacity .25s ease; }
 .session-item:hover .session-actions,
 .session-item.is-active .session-actions { opacity: .7; }
+.chat-sidebar-list .session-item {
+  border-radius: 12px;
+  padding-left: 12px;
+  margin-bottom: 2px;
+  border-bottom: none;
+}
+.chat-sidebar-list .session-item::before { display: none; }
 
 /* ============================================================
    按钮 / 输入
@@ -981,7 +961,6 @@ body {
     animation: none !important; opacity: 1 !important; transform: none !important; filter: none !important;
   }
   .splash-glow, .splash-shimmer { animation: none !important; opacity: 0 !important; }
-  .bubble-glass::before { animation: none !important; opacity: .6 !important; }
 }
 
 /* ============================================================
@@ -3816,90 +3795,106 @@ body   { height: 100%; }
 }
 
 /* ============================================================
-   新增倒计时 · 全屏子页（原「新增倒计时」是居中弹窗，键盘弹出时
-   反复出现位置跳变/爬升的问题——弹窗式表单在小尺寸浮层里躲键盘，
-   天然别扭。改成全屏页后输入框固定在页面自己的文档流里，键盘弹出
-   只是把可视区往上挤，不再有任何跳变，体验也更接近参考图里那种
-   原生"添加新日子"页面。
-   骨架完全复用 .chronos-page/.chronos-header/.chronos-back/
-   .chronos-title/.chronos-body 这套已有的全屏子页样式（与
-   .beacon-page/.echo-page 是同一路数），只新增内容区专属的
-   .chronos-add-* 类名，不重新发明一套骨架。 */
-.chronos-add-page {
+   聊天页 · 思考模式开关（从设置页 Orbit·星轨对话 迁移到这里）
+   原来是设置页深处一个"显示思考过程"的滑块，本质是"AI 回复里的
+   思考过程默认展开还是折叠"。挪到输入框正上方一条工具行里，
+   跟"要不要看到 AI 怎么想的"这件事发生的地方（聊天本身）放在一起，
+   不用再跳去设置页找。
+   ============================================================ */
+.composer-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 4px 8px;
+}
+.composer-tool-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: transparent;
+  border: var(--hair) solid var(--c-line);
+  color: var(--c-text-faint);
+  font-family: var(--font-accent);
+  font-size: 10.5px; letter-spacing: 1.2px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: color .25s var(--ease), border-color .25s var(--ease), background .25s var(--ease);
+}
+.composer-tool-btn:hover { color: var(--c-text-muted); border-color: var(--c-line-strong); }
+.composer-tool-btn.is-on {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+.composer-tool-btn:active { transform: scale(0.96); }
+
+/* ============================================================
+   聊天页 · 会话侧边栏（原来是顶部下拉内嵌列表，改成侧滑抽屉）
+   下拉版本的问题：列表嵌在文档流里，跟内容区共用一个层叠上下文，
+   会话一多、列表变长时容易被下面 z-index:200 的 .bottom-nav 盖住
+   最后几项，即使列表自己能滚动，视觉上和点击判定都会卡在导航栏
+   后面够不着。
+   改成 fixed 全屏浮层的侧滑抽屉后，这类问题从架构上就不存在：
+   .chat-sidebar-veil/.chat-sidebar 是独立于文档流的浮层，z-index
+   （2300，与其它全屏子页同级）本来就高过 .bottom-nav 的 200，
+   抽屉内部 .chat-sidebar-list 自己有 flex:1 + overflow-y:auto，
+   底部再留出与安全区对齐的内边距，最后一条会话上方不会有任何
+   遮挡物。
+   ============================================================ */
+.chat-sidebar-veil {
   position: fixed; inset: 0;
-  z-index: 2500;   /* 高于 .chronos-page 自身的 2300，盖在星轨场景之上 */
+  z-index: 2300;
+  background: var(--c-overlay);
+  animation: fadeIn .22s ease;
+}
+.chat-sidebar {
+  position: fixed; top: 0; bottom: 0; left: 0;
+  width: min(78vw, 300px);
+  z-index: 2301;
   display: flex; flex-direction: column;
-  overflow: hidden;
-  background: var(--c-bg-solid);
+  background: var(--c-modal);
+  backdrop-filter: blur(30px) saturate(1.1) brightness(var(--c-panel-bright));
+  -webkit-backdrop-filter: blur(30px) saturate(1.1) brightness(var(--c-panel-bright));
+  border-right: var(--hair) solid var(--c-line-strong);
+  box-shadow: 30px 0 80px var(--c-shadow);
   padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
   padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
-  animation: chronosAddPageIn .3s var(--ease) both;
+  animation: chatSidebarIn .28s var(--ease) both;
 }
-@keyframes chronosAddPageIn {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes chatSidebarIn {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
-.chronos-add-header {
+.chat-sidebar-head {
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px 10px;
+  padding: 16px 16px 12px;
+  border-bottom: var(--hair) solid var(--c-line);
 }
-.chronos-add-iconbtn {
-  width: 32px; height: 32px; flex-shrink: 0;
+.chat-sidebar-title {
+  font-family: var(--font-accent);
+  font-size: 10px; letter-spacing: 2px;
+  color: var(--c-text-faint);
+}
+.chat-sidebar-close {
+  width: 30px; height: 30px;
   display: flex; align-items: center; justify-content: center;
   background: transparent; border: none;
   color: var(--c-text-muted);
   cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: color .25s var(--ease), transform .2s ease;
+  transition: color .2s ease, transform .2s ease;
 }
-.chronos-add-iconbtn:hover  { color: var(--c-text); }
-.chronos-add-iconbtn:active { transform: scale(0.88); }
-.chronos-add-title {
-  font-family: var(--font-display);
-  font-size: 13px; letter-spacing: 3px;
-  color: var(--c-text);
+.chat-sidebar-close:hover  { color: var(--c-text); }
+.chat-sidebar-close:active { transform: scale(0.88); }
+.chat-sidebar-new {
+  flex-shrink: 0;
+  margin: 12px 16px;
+  padding: 10px 0;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 11.5px; letter-spacing: 1.5px;
 }
-/* 右上角「保存」：与参考图一致，键盘弹起时不必滚到底部也能提交 */
-.chronos-add-save {
-  background: transparent; border: none;
-  font-family: var(--font-accent);
-  font-size: 12px; letter-spacing: 2px;
-  color: var(--c-accent);
-  padding: 6px 4px;
-  cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: opacity .2s ease;
-}
-.chronos-add-save:disabled { opacity: .35; cursor: default; }
-.chronos-add-save:active:not(:disabled) { transform: scale(0.95); }
-
-.chronos-add-body {
+.chat-sidebar-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 10px 20px calc(28px + env(safe-area-inset-bottom, 0px));
-}
-.chronos-add-content {
-  display: flex; flex-direction: column; gap: 14px;
-  max-width: 480px;
-  margin: 0 auto;
-}
-.chronos-add-eyebrow {
-  font-family: var(--font-accent); font-style: italic;
-  font-size: 10px; letter-spacing: 2.5px; color: var(--c-text-faint);
-  text-align: center;
-  margin-bottom: 2px;
-}
-.chronos-add-field-label {
-  font-family: var(--font-accent);
-  font-size: 9.5px; letter-spacing: 2.5px;
-  text-transform: uppercase;
-  color: var(--c-text-faint);
-  margin-bottom: 8px;
-}
-/* 底部固定的大按钮，键盘收起时贴底，键盘弹起时跟着 .composer-dock
-   同款逻辑走文档流，不需要额外处理——它本来就在 .chronos-add-body
-   的普通滚动流里，不是 fixed 贴底，键盘怎么弹都不会被压住或跳动 */
-.chronos-add-submit {
-  width: 100%; margin-top: 6px;
-  padding: 14px 0; border-radius: 16px;
-  font-size: 12.5px; letter-spacing: 3px;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 8px calc(20px + env(safe-area-inset-bottom, 0px));
 }

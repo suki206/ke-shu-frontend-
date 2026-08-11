@@ -3,6 +3,10 @@ import axios from 'axios'
 import StarCanvas from './StarCanvas'
 import StardustPage from './StardustPage'
 import GravityPage from './GravityPage'
+// 聊天页壁纸：星空摄影图，只在 CHAT（orbit）标签页生效，见下方
+// <StarCanvas wallpaper={...}> 的传参。文件放在 src/assets/ 下，
+// 与项目里其它图片资源同一套引入方式，交给打包器处理。
+import chatWallpaper from './assets/chat-wallpaper.jpg'
 
 // ============================================================
 // Markdown 轻量渲染器（0依赖，保留原有实现）
@@ -617,23 +621,6 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
               ))}
             </div>
             <div className="font-scale-preview">这行字就是当前的正文大小。</div>
-          </div>
-        </div>
-
-        {/* 对话 */}
-        <div className="constant-section">
-          <div className="constant-section-title">Orbit · 星轨对话</div>
-          <div className="const-switch-row">
-            <div>
-              <div className="const-switch-label">显示思考过程</div>
-              <div className="const-switch-sub">默认展开 DeepSeek 的 reasoning_content（关闭则始终折叠）</div>
-            </div>
-            <button
-              className={`const-switch${config.show_reasoning ? ' is-on' : ''}`}
-              onClick={() => { const next = { ...config, show_reasoning: !config.show_reasoning }; setConfig(next); onSave(next) }}
-            >
-              <span className="const-switch-knob" />
-            </button>
           </div>
         </div>
 
@@ -1823,10 +1810,11 @@ const ChatPage = () => {
     <div className="tab-page">
       {/* 顶栏 */}
       <div className="hairline-bottom" style={{ padding: '16px 18px 13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        {/* 左：会话列表开关 */}
+        {/* 左：会话侧边栏开关 */}
         <button
-          onClick={() => setShowSessionList(p => !p)}
+          onClick={() => setShowSessionList(true)}
           style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-text-muted)', display: 'flex', padding: '4px' }}
+          aria-label="打开会话列表"
         >
           <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
             <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/>
@@ -1847,24 +1835,36 @@ const ChatPage = () => {
         </button>
       </div>
 
-      {/* 会话列表下拉（内嵌） */}
+      {/* 会话侧边栏：原来是顶栏下方的内嵌下拉列表，改成侧滑抽屉——
+          fixed 全屏浮层，z-index 高于 .bottom-nav，会话再多也不会有
+          任何一条被底部导航栏挡住或够不着 */}
       {showSessionList && (
-        <div style={{ flexShrink: 0, borderBottom: '1px solid var(--c-line)', background: 'var(--c-panel)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', maxHeight: 240, overflowY: 'auto', animation: 'riseIn 0.22s var(--ease)' }}>
-          <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '10px', letterSpacing: '2px', color: 'var(--c-text-faint)', fontFamily: 'var(--font-accent)' }}>SESSIONS</span>
-            <button onClick={createSession} className="line-btn" style={{ padding: '6px 14px', borderRadius: '999px', fontSize: '10.5px', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Icon.Plus size={10} /> NEW
-            </button>
-          </div>
-          {sessionList.map(item => (
-            <div key={item.id} className={`session-item${activeSessionId===item.id?' is-active':''}`} onClick={() => switchSession(item.id)}>
-              <span style={{ fontSize: '13px', color: activeSessionId===item.id ? 'var(--c-text)' : 'var(--c-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '.3px' }}>{item.title}</span>
-              <div className="session-actions" style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
-                <button className="icon-btn" onClick={e => { e.stopPropagation(); handleRenameClick(item.id, item.title) }} style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}><Icon.Edit /></button>
-                <button className="icon-btn" onClick={e => { e.stopPropagation(); handleDeleteClick(item.id, item.title) }} style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}><Icon.Trash /></button>
-              </div>
+        <div className="chat-sidebar-veil" onClick={() => setShowSessionList(false)}>
+          <div className="chat-sidebar" onClick={e => e.stopPropagation()}>
+            <div className="chat-sidebar-head">
+              <span className="chat-sidebar-title">SESSIONS</span>
+              <button className="chat-sidebar-close" onClick={() => setShowSessionList(false)} aria-label="关闭">
+                <Icon.Close size={15} />
+              </button>
             </div>
-          ))}
+            <button onClick={createSession} className="line-btn chat-sidebar-new">
+              <Icon.Plus size={11} /> NEW
+            </button>
+            <div className="chat-sidebar-list">
+              {sessionList.map(item => (
+                <div key={item.id} className={`session-item${activeSessionId===item.id?' is-active':''}`} onClick={() => { switchSession(item.id); setShowSessionList(false) }}>
+                  <span style={{ fontSize: '13px', color: activeSessionId===item.id ? 'var(--c-text)' : 'var(--c-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '.3px' }}>{item.title}</span>
+                  <div className="session-actions" style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                    <button className="icon-btn" onClick={e => { e.stopPropagation(); handleRenameClick(item.id, item.title) }} style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}><Icon.Edit /></button>
+                    <button className="icon-btn" onClick={e => { e.stopPropagation(); handleDeleteClick(item.id, item.title) }} style={{ background: 'transparent', border: 'none', color: 'var(--c-text-muted)', cursor: 'pointer', padding: '4px' }}><Icon.Trash /></button>
+                  </div>
+                </div>
+              ))}
+              {sessionList.length === 0 && (
+                <div style={{ padding: '20px 12px', fontSize: '12px', color: 'var(--c-text-faint)', textAlign: 'center' }}>暂无会话</div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -1920,6 +1920,18 @@ const ChatPage = () => {
             <span className="quote-preview-close" onClick={() => setQuoteTarget(null)}><Icon.Close size={11} /></span>
           </div>
         )}
+        {/* 工具行：思考模式开关，从设置页迁移至此。这里只切换"默认展开/
+            折叠"的偏好，不影响某条具体消息是否已经手动展开过（那部分
+            仍由 expandedReasoning 单独记录，逻辑没变，只是入口挪了地方）*/}
+        <div className="composer-toolbar">
+          <button
+            className={`composer-tool-btn${config.show_reasoning ? ' is-on' : ''}`}
+            onClick={() => { const next = { ...config, show_reasoning: !config.show_reasoning }; setConfig(next); saveSettings(next) }}
+            title="AI 回复的思考过程默认展开还是折叠"
+          >
+            <Icon.Brain size={12} /> 思考模式
+          </button>
+        </div>
         <div className={`composer-shell${inputFocused ? ' is-focused' : ''}`}>
           <textarea
             className="composer-input"
@@ -1953,7 +1965,7 @@ const ChatPage = () => {
       style={{ color: 'var(--c-text)', fontFamily: 'var(--font-body)' }}
     >
       {/* 星空 Canvas */}
-      <StarCanvas ref={starCanvasRef} theme={theme} interactive={false} />
+      <StarCanvas ref={starCanvasRef} theme={theme} interactive={false} wallpaper={activeTab === 'orbit' ? chatWallpaper : null} />
 
       {/* 颗粒 */}
       <div className="grain-overlay" />

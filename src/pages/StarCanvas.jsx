@@ -2,6 +2,13 @@
  * StarCanvas — 全屏宇宙粒子背景
  * 神经网络节点连线 · 流星 · 星云渐变 · 可交互漫游
  * 通过 forwardRef + imperative handle 暴露 resetCamera()
+ *
+ * wallpaper（可选）：传入图片 URL 时，在纯色背景之上先铺一张
+ * cover 方式填满画布的静态图（比如聊天页想用的星空摄影图），
+ * 星云渐变、连线、粒子、流星这些原有效果全部照常叠在它上面绘制——
+ * "漂浮的星星"不会因为换了背景图就消失，壁纸只是替换了最底层
+ * 那块纯色 fillRect，其余图层次序完全不变。
+ * 不传 wallpaper 时行为和原来完全一样（回退到纯色 + CSS 星云）。
  */
 import { useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 
@@ -16,7 +23,7 @@ const N     = 290     // 粒子数量
 const SPACE = 5200    // 虚拟宇宙尺寸（正方形）
 const HALF  = SPACE / 2
 
-const StarCanvas = forwardRef(({ theme = 'noir', interactive = false }, ref) => {
+const StarCanvas = forwardRef(({ theme = 'noir', interactive = false, wallpaper = null }, ref) => {
   const cvs   = useRef(null)
   const cam   = useRef({ x: 0, y: 0, z: 0.88 })   // z = zoom
   const pts   = useRef([])
@@ -26,6 +33,18 @@ const StarCanvas = forwardRef(({ theme = 'noir', interactive = false }, ref) => 
   const raf   = useRef(null)
   const inter = useRef(false)
   const frame = useRef(0)
+  // 壁纸图片对象 + 加载状态：图片是异步加载的，绘制循环每帧都会跑，
+  // 用 ref（不是 state）记录，避免图片加载完触发一次不必要的 React
+  // 重渲染——绘制循环本来就是 rAF 自己在跑，下一帧自然就能读到新值。
+  // wallpaperOn 单独存一份"当前是否要用壁纸"，是因为下面主绘制循环
+  // 那个 useEffect 依赖数组只有 [theme]——直接读 wallpaper 这个 prop
+  // 会捕进闭包，wallpaper 单独变化（theme 没变）时绘制循环读到的还是
+  // 旧值；改成读这个 ref 就没有闭包过期的问题，每帧都是当前最新值。
+  const wallpaperImg    = useRef(null)
+  const wallpaperReady  = useRef(false)
+  const wallpaperSrc    = useRef(null)
+  const wallpaperOn     = useRef(!!wallpaper)
+  useEffect(() => { wallpaperOn.current = !!wallpaper }, [wallpaper])
 
   // 供父组件调用：重置视角
   useImperativeHandle(ref, () => ({
@@ -34,6 +53,32 @@ const StarCanvas = forwardRef(({ theme = 'noir', interactive = false }, ref) => 
 
   // 同步 interactive prop → ref（在 draw loop 里使用 ref 避免闭包旧值）
   useEffect(() => { inter.current = interactive }, [interactive])
+
+  // 加载壁纸图片：wallpaper prop 变化（比如切换页面/主题带来不同的图）
+  // 时重新加载；传 null/undefined 时清空，绘制循环会自动回退到纯色背景
+  useEffect(() => {
+    if (!wallpaper) {
+      wallpaperImg.current = null
+      wallpaperReady.current = false
+      wallpaperSrc.current = null
+      return
+    }
+    if (wallpaperSrc.current === wallpaper && wallpaperImg.current) return // 同一张图不重复加载
+    wallpaperReady.current = false
+    wallpaperSrc.current = wallpaper
+    const img = new Image()
+    img.onload = () => {
+      // 图片加载完成时 wallpaper 可能已经又变了（比如快速切换），
+      // 只有仍然是当前这张图才生效，避免"旧图迟加载完覆盖新图"
+      if (wallpaperSrc.current !== wallpaper) return
+      wallpaperImg.current = img
+      wallpaperReady.current = true
+    }
+    img.onerror = () => {
+      wallpaperReady.current = false
+    }
+    img.src = wallpaper
+  }, [wallpaper])
 
   // 更新 canvas pointer-events / z-index / cursor
   useEffect(() => {
@@ -74,6 +119,17 @@ const StarCanvas = forwardRef(({ theme = 'noir', interactive = false }, ref) => 
 
     const p = PAL[theme] ?? PAL.noir
 
+    // 壁纸按 cover 方式绘制：等比缩放铺满整个画布并居中裁剪，
+    // 跟 CSS background-size:cover 是同一套算法
+    const drawWallpaperCover = (img, W, H) => {
+      const ir = img.width / img.height
+      const cr = W / H
+      let dw, dh, dx, dy
+      if (ir > cr) { dh = H; dw = H * ir; dx = (W - dw) / 2; dy = 0 }
+      else         { dw = W; dh = W / ir; dx = 0; dy = (H - dh) / 2 }
+      ctx.drawImage(img, dx, dy, dw, dh)
+    }
+
     const draw = () => {
       frame.current++
       const { width: W, height: H } = c
@@ -81,9 +137,17 @@ const StarCanvas = forwardRef(({ theme = 'noir', interactive = false }, ref) => 
       const { x: mx, y: my } = mouse.current
       const zoom = Math.max(.2, Math.min(3, z))
 
-      // —— 背景 ——
-      ctx.fillStyle = p.bg
-      ctx.fillRect(0, 0, W, H)
+      // —— 背景：有壁纸且已加载完成就画壁纸，否则回退纯色 ——
+      if (wallpaperOn.current && wallpaperReady.current && wallpaperImg.current) {
+        drawWallpaperCover(wallpaperImg.current, W, H)
+        // 壁纸上叠一层极淡的主题色暗遮罩，让气泡/文字的对比度
+        // 不会因为换了实景图而失衡，同时保留图片本身的可辨识度
+        ctx.fillStyle = `rgba(${p.na},${p.nb},${p.nc},0.10)`
+        ctx.fillRect(0, 0, W, H)
+      } else {
+        ctx.fillStyle = p.bg
+        ctx.fillRect(0, 0, W, H)
+      }
 
       // —— 星云渐变 ——
       const neb = ctx.createRadialGradient(W*.5, H*.42, 0, W*.5, H*.42, W*.72)
