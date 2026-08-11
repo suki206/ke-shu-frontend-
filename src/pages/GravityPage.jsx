@@ -83,17 +83,55 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
         <div style={{ fontSize: '11px', letterSpacing: '1.5px', color: 'var(--c-text-faint)', marginTop: 6, fontFamily: 'var(--font-accent)', fontStyle: 'italic' }}>彼此牵引的引力场</div>
       </div>
 
+      {/* 引力潮汐用的 SVG 滤镜定义——只声明一次，静态、不参与动画本身，
+          .gravity-binary-goo 通过 filter: url(#binary-goo) 引用它，让
+          两颗小星在靠近时融成一体、远离时自然分开（metaball/goo 效果）。
+          width/height 为 0、绝对定位在角落，不占布局也不可见 */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+        <defs>
+          <filter id="binary-goo">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="blur" />
+            <feColorMatrix in="blur" mode="matrix"
+              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8" result="goo" />
+            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+          </filter>
+        </defs>
+      </svg>
+
       <div className="gravity-constellation">
         <svg className="gravity-threads" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           {BODIES.filter(b => b.id !== 'sundial').map((b, i) => {
             const p = FIXED_POSITIONS[b.id]
             const c = FIXED_POSITIONS.sundial
             return (
-              <line key={b.id} x1={p.x} y1={p.y} x2={c.x} y2={c.y}
-                className="gravity-thread" style={{ animationDelay: `${i * 0.7}s` }} vectorEffect="non-scaling-stroke" />
+              <g key={b.id}>
+                {/* 底层极细常驻丝线，只负责给出路径的"存在感" */}
+                <line x1={p.x} y1={p.y} x2={c.x} y2={c.y}
+                  className="gravity-thread" vectorEffect="non-scaling-stroke" />
+                {/* 叠加的流动虚线：短划线沿路径缓慢离散位移，制造"光在丝上走"
+                    的感觉，跟上面那条是同一条路径，只是视觉职责分开 */}
+                <line x1={p.x} y1={p.y} x2={c.x} y2={c.y}
+                  className="gravity-thread-flow" style={{ animationDelay: `${i * 1.1}s` }} vectorEffect="non-scaling-stroke" />
+              </g>
             )
           })}
         </svg>
+
+        {/* 丝线插入星体那一端的一缕淡光，标记落点。这里特意不放进上面
+            那个 preserveAspectRatio="none" 的 svg——非等比拉伸的坐标系
+            里画 <circle> 会被压扁成椭圆，改用普通定位的 span + 百分比
+            left/top，跟天体本身的定位方式保持一致，永远是正圆 */}
+        {BODIES.filter(b => b.id !== 'sundial').map((b, i) => {
+          const p = FIXED_POSITIONS[b.id]
+          return (
+            <span
+              key={b.id}
+              className="gravity-thread-glow"
+              style={{ left: `${p.x}%`, top: `${p.y}%`, animationDelay: `${i * 0.8}s` }}
+              aria-hidden="true"
+            />
+          )
+        })}
 
         {BODIES.map(body => {
           const pos = FIXED_POSITIONS[body.id]
@@ -145,7 +183,7 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
               {body.kind === 'binary' && (
                 <>
                   <span className="gravity-binary-lens" />
-                  <span className="gravity-binary-orbit" />
+                  <span className="gravity-binary-goo" />
                 </>
               )}
               {body.kind === 'ink' && (
@@ -155,6 +193,10 @@ const GravityPage = ({ beacons, beaconText, setBeaconText, onAddBeacon, onToggle
                 </>
               )}
               {body.kind !== 'binary' && body.kind !== 'sundial' && <span className="gravity-body-orb" />}
+              {/* 星辉——弥散的十字光丝，取代原来单一 box-shadow 撑出的圆形光圈，
+                  五个天体统一用这一层，颜色由各自 .gravity-body-<kind> 里的
+                  --ray / --ray-soft 决定 */}
+              <span className="gravity-flare" />
               {body.label && body.kind !== 'sundial' && <span className="gravity-body-label">{body.label}</span>}
             </div>
           )
