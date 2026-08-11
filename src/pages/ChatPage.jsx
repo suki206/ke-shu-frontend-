@@ -6,7 +6,7 @@ import GravityPage from './GravityPage'
 // 聊天页壁纸：星空摄影图，只在 CHAT（orbit）标签页生效，见下方
 // <StarCanvas wallpaper={...}> 的传参。文件放在 src/assets/ 下，
 // 与项目里其它图片资源同一套引入方式，交给打包器处理。
-import chatWallpaper from './assets/chat-wallpaper.jpg'
+import chatWallpaper from "../assets/chat-wallpaper.jpg";
 
 // ============================================================
 // Markdown 轻量渲染器（0依赖，保留原有实现）
