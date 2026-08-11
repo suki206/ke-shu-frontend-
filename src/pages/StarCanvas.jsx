@@ -19,22 +19,15 @@ const PAL = {
   noir: { r: 238, g: 232, b: 255, bg: '#000002', na: 24, nb: 12, nc: 48 },
 }
 
-const N     = 290     // 粒子数量（神经网络节点，参与连线，连线开销已用 vis.slice(0,115) 卡死上限）
+const N     = 150     // 粒子数量（神经网络节点，参与连线，连线开销已用 vis.slice(0,115) 卡死上限）
+                       // 原为 290，同屏可见+连线偏密偏乱，调低到 150 让画面更清爽干净
 const SPACE = 5200    // 虚拟宇宙尺寸（正方形）
 const HALF  = SPACE / 2
-
-// 背景漂浮星：独立于上面的"神经网络"粒子系统，不参与连线、不用
-// 摄像机坐标、不算径向渐变光晕——每颗每帧只有一次 fillStyle+arc+fill，
-// 是这个文件里最便宜的一档开销，纯线性 O(n)，加多少颗都不会牵连
-// 上面那段真正烧机的 O(n²) 连线计算。用画布宽高的百分比坐标存位置，
-// resize 时不用重新算，直接乘当前 W/H 就行。
-const BG_STAR_N = 90
 
 const StarCanvas = forwardRef(({ theme = 'noir', interactive = false, wallpaper = null }, ref) => {
   const cvs   = useRef(null)
   const cam   = useRef({ x: 0, y: 0, z: 0.88 })   // z = zoom
   const pts   = useRef([])
-  const bgStars = useRef([])
   const mouse = useRef({ x: -1e6, y: -1e6 })
   const drag  = useRef({ on: false, px: 0, py: 0, vx: 0, vy: 0 })
   const t2d   = useRef(0)   // pinch 上一帧距离
@@ -110,19 +103,6 @@ const StarCanvas = forwardRef(({ theme = 'noir', interactive = false, wallpaper 
       ps: .0038 + Math.random() * .0085,
       glow: Math.random() < .07,
     }))
-    // 背景漂浮星：位置用 0~1 的画布百分比（不是虚拟宇宙坐标），
-    // 漂移速度也按百分比/帧给，很慢，配合呼吸的透明度做"漂浮"感，
-    // 不追求物理真实，只求便宜好看
-    bgStars.current = Array.from({ length: BG_STAR_N }, () => ({
-      x:  Math.random(),
-      y:  Math.random(),
-      dx: (Math.random() - .5) * .00006,
-      dy: (Math.random() - .5) * .00005,
-      r:  .5 + Math.random() * 1.35,
-      a:  .18 + Math.random() * .5,
-      ph: Math.random() * Math.PI * 2,
-      ps: .0016 + Math.random() * .003,
-    }))
   }, [])
 
   // ── 主绘制循环 ────────────────────────────────────────────
@@ -177,21 +157,6 @@ const StarCanvas = forwardRef(({ theme = 'noir', interactive = false, wallpaper 
       neb.addColorStop(1,   `rgba(${p.na},${p.nb},${p.nc},0)`)
       ctx.fillStyle = neb
       ctx.fillRect(0, 0, W, H)
-
-      // —— 背景漂浮星：独立图层，O(n)，不摄像机变换、不连线、不建
-      // 渐变对象，逐帧只是"挪一点位置 + 呼吸透明度"，加多少颗都
-      // 不会影响下面那段真正吃性能的连线计算 ——
-      for (const s of bgStars.current) {
-        s.x += s.dx;  s.y += s.dy
-        if (s.x < 0) s.x += 1; else if (s.x > 1) s.x -= 1
-        if (s.y < 0) s.y += 1; else if (s.y > 1) s.y -= 1
-        s.ph += s.ps
-        const tw = Math.sin(s.ph) * .5 + .5
-        ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${(s.a * tw).toFixed(3)})`
-        ctx.beginPath()
-        ctx.arc(s.x * W, s.y * H, s.r, 0, 6.2832)
-        ctx.fill()
-      }
 
       // —— 相机惯性 ——
       if (!drag.current.on) {
