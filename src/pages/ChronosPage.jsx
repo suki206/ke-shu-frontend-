@@ -42,6 +42,58 @@ function moonPhaseD(frac, r) {
 const daysBetween = (a, b) => Math.round((b.getTime() - a.getTime()) / 86400000)
 const dstr = (d) => d.toISOString().slice(0, 10)
 
+const BackIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 18l-6-6 6-6" />
+  </svg>
+)
+
+// 新增倒计时：原来是居中弹窗（.chronos-sheet-veil），键盘弹出时
+// 弹窗要么被顶着爬升、要么在小尺寸浮层里躲键盘，体验别扭。改成
+// 独立的全屏页面——输入框固定在页面自己的文档流里，键盘弹出只是
+// 把可视区往上挤，不再有任何位置跳变，也更接近原生"添加新日子"
+// 页面的操作习惯（返回 / 标题 / 保存 一行，下面是表单，底部再放
+// 一个大按钮方便单手操作）。
+const ChronosAddOrbitPage = ({ label, setLabel, date, setDate, onSubmit, onClose }) => {
+  const canSubmit = label.trim() && date
+  return (
+    <div className="chronos-add-page">
+      <div className="chronos-add-header">
+        <button className="chronos-add-iconbtn" onClick={onClose} aria-label="返回">
+          <BackIcon />
+        </button>
+        <div className="chronos-add-title">NEW ORBIT · 新的守候</div>
+        <button className="chronos-add-save" onClick={onSubmit} disabled={!canSubmit}>保存</button>
+      </div>
+      <div className="chronos-add-body">
+        <div className="chronos-add-content">
+          <div className="chronos-add-eyebrow">为这一天，留一条专属的轨道</div>
+          <div>
+            <div className="chronos-add-field-label">标题</div>
+            <input
+              className="field-input"
+              placeholder="标题，比如「生日」"
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div>
+            <div className="chronos-add-field-label">目标时间</div>
+            <input
+              type="datetime-local"
+              className="field-input"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+            />
+          </div>
+          <button className="solid-btn chronos-add-submit" onClick={onSubmit} disabled={!canSubmit}>放入轨道</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
   const [loading, setLoading] = useState(true)
   const [periodLogs, setPeriodLogs] = useState([])
@@ -274,19 +326,14 @@ const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
         </div>
       )}
 
-      {/* ── 新增倒计时面板 ── */}
+      {/* ── 新增倒计时：全屏页面 ── */}
       {sheet === 'add-countdown' && (
-        <div className="modal-veil chronos-sheet-veil" onClick={closeSheet}>
-          <div className="modal-card chronos-sheet-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-title" style={{ marginBottom: 14 }}>NEW ORBIT · 新的守候</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input className="field-input" placeholder="标题，比如「生日」" value={cdLabel} onChange={e => setCdLabel(e.target.value)} />
-              <input type="datetime-local" className="field-input" value={cdDate} onChange={e => setCdDate(e.target.value)} />
-            </div>
-            <button className="solid-btn" style={{ width: '100%', marginTop: 14, padding: '13px 0', borderRadius: '14px', fontSize: '12px', letterSpacing: '3px' }} onClick={submitCountdown}>放入轨道</button>
-            <button className="line-btn" style={{ width: '100%', marginTop: 10, padding: '11px 0', borderRadius: '999px', fontSize: '11.5px', letterSpacing: '2px', color: 'var(--c-text-muted)' }} onClick={closeSheet}>关闭</button>
-          </div>
-        </div>
+        <ChronosAddOrbitPage
+          label={cdLabel} setLabel={setCdLabel}
+          date={cdDate} setDate={setCdDate}
+          onSubmit={submitCountdown}
+          onClose={closeSheet}
+        />
       )}
 
       {/* ── 倒计时详情 / 删除 ── */}

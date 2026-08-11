@@ -3171,19 +3171,6 @@ button { font-family: inherit; }
   padding: 26px 22px 22px;
   animation: gravityZoomIn .34s var(--ease) both;
 }
-/* 覆盖全局 .modal-veil 的 `bottom: var(--kb-height,0px)`：那条规则是给
-   聊天页"贴底输入条"式弹窗准备的，键盘收窄可视区、弹窗跟着往上提，
-   贴底的观感不受影响。但这张"放入轨道"卡片是居中表单，可视区一收窄，
-   flex 居中会让卡片跟着键盘高度实时爬升，手感就是"卡片追着键盘跑"。
-   这里让它不再吃 --kb-height，改成键盘弹出时贴顶对齐 + 顶部让出一段
-   安全间距，位置在键盘弹出的瞬间就定死，不再逐帧跟随。 */
-.chronos-sheet-veil {
-  bottom: 0;
-  align-items: flex-start;
-}
-.kb-open .chronos-sheet-veil {
-  padding-top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 64px);
-}
 
 
 
@@ -3665,25 +3652,6 @@ body   { height: 100%; }
   max-height: calc(var(--app-height, 100dvh) - var(--kb-height, 0px));
   transition: height .18s var(--ease), max-height .18s var(--ease);
 }
-/* 引力页的五天体是按 .gravity-constellation（.app-shell 的孙级）的
-   高度百分比定位的。从「回声/信标」等全屏子页（fixed，不受 .app-shell
-   影响）点返回时，如果键盘还没收起，.app-shell 会先按"键盘还在"的矮
-   高度渲染出引力页，随后键盘收起、--kb-height 归零，.app-shell 再用
-   上面这条 .18s 的 height 过渡把自己撑高——这段过渡是逐帧变化的,
-   天体的 top 百分比跟着重新计算，肉眼就是"整层天体跟着容器从键盘
-   上方一路掉下来"。
-   引力页整页是固定位置的天体布局，不需要跟聊天页一样柔和过渡高度，
-   干脆让它在返回引力页的这一刻跳过 height 过渡，键盘一收起就直接
-   是最终布局，不再有中间抖动的过程。 */
-.gravity-page {
-  transition: none;
-}
-/* :has() 在部分安卓 WebView 内核上不可用，同时用一个显式 class 兜底
-   （由 GravityPage 挂载时通过 JS 打在 .app-shell 上，见下方 jsx 修改） */
-.app-shell:has(.gravity-page),
-.app-shell.no-shell-transition {
-  transition: none;
-}
 
 /* 弹窗跟着可视区居中：键盘顶上来时不至于把输入卡片压在键盘底下 */
 .modal-veil { bottom: var(--kb-height, 0px); }
@@ -3845,4 +3813,93 @@ body   { height: 100%; }
 }
 .gravity-body:focus-visible .gravity-body-orb {
   box-shadow: 0 0 0 2px var(--c-accent-soft), 0 0 18px var(--c-accent);
+}
+
+/* ============================================================
+   新增倒计时 · 全屏子页（原「新增倒计时」是居中弹窗，键盘弹出时
+   反复出现位置跳变/爬升的问题——弹窗式表单在小尺寸浮层里躲键盘，
+   天然别扭。改成全屏页后输入框固定在页面自己的文档流里，键盘弹出
+   只是把可视区往上挤，不再有任何跳变，体验也更接近参考图里那种
+   原生"添加新日子"页面。
+   骨架完全复用 .chronos-page/.chronos-header/.chronos-back/
+   .chronos-title/.chronos-body 这套已有的全屏子页样式（与
+   .beacon-page/.echo-page 是同一路数），只新增内容区专属的
+   .chronos-add-* 类名，不重新发明一套骨架。 */
+.chronos-add-page {
+  position: fixed; inset: 0;
+  z-index: 2500;   /* 高于 .chronos-page 自身的 2300，盖在星轨场景之上 */
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--c-bg-solid);
+  padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
+  padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+  animation: chronosAddPageIn .3s var(--ease) both;
+}
+@keyframes chronosAddPageIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.chronos-add-header {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px 10px;
+}
+.chronos-add-iconbtn {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  color: var(--c-text-muted);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: color .25s var(--ease), transform .2s ease;
+}
+.chronos-add-iconbtn:hover  { color: var(--c-text); }
+.chronos-add-iconbtn:active { transform: scale(0.88); }
+.chronos-add-title {
+  font-family: var(--font-display);
+  font-size: 13px; letter-spacing: 3px;
+  color: var(--c-text);
+}
+/* 右上角「保存」：与参考图一致，键盘弹起时不必滚到底部也能提交 */
+.chronos-add-save {
+  background: transparent; border: none;
+  font-family: var(--font-accent);
+  font-size: 12px; letter-spacing: 2px;
+  color: var(--c-accent);
+  padding: 6px 4px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: opacity .2s ease;
+}
+.chronos-add-save:disabled { opacity: .35; cursor: default; }
+.chronos-add-save:active:not(:disabled) { transform: scale(0.95); }
+
+.chronos-add-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+}
+.chronos-add-content {
+  display: flex; flex-direction: column; gap: 14px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.chronos-add-eyebrow {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10px; letter-spacing: 2.5px; color: var(--c-text-faint);
+  text-align: center;
+  margin-bottom: 2px;
+}
+.chronos-add-field-label {
+  font-family: var(--font-accent);
+  font-size: 9.5px; letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+  margin-bottom: 8px;
+}
+/* 底部固定的大按钮，键盘收起时贴底，键盘弹起时跟着 .composer-dock
+   同款逻辑走文档流，不需要额外处理——它本来就在 .chronos-add-body
+   的普通滚动流里，不是 fixed 贴底，键盘怎么弹都不会被压住或跳动 */
+.chronos-add-submit {
+  width: 100%; margin-top: 6px;
+  padding: 14px 0; border-radius: 16px;
+  font-size: 12.5px; letter-spacing: 3px;
 }
