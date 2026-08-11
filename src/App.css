@@ -2298,13 +2298,12 @@ button { font-family: inherit; }
    .token-dash-page 同一套骨架（fixed 全屏 + 头部返回键 + 可滚动
    body），内部自己切两级视图：笔记列表 .ink-note-list ↔ 单篇正文
    .ink-doc-body。
-   列表是一整面悬浮在深空里的调查墙——星尘墙（.ink-stardust-wall，
-   详见下方"星尘墙"一节）：笔记不再按行排列，而是像一张张被图钉
-   钉在虚空里的撕边便签，错落分布在整块墙面上，便签之间用光丝相连
-   像星座之间的星轨；便签本身用负 filter/scale 做出远近进深，靠
-   前后遮挡和悬浮投影撑出伪3D空间感。全部是静态 CSS + 一次性算好
-   坐标的布局函数，没有 animation，滚动不会有持续重绘；空板块、
-   空列表不放提示文字，就让页面本身的深色背景空着。
+   列表是一条纵向时间线（.ink-tl-wrap，详见下方"时间线列表"一节）：
+   笔记按顺序从上到下排列，固定"一排左、一排右"交错，中间一条竖线
+   贯穿全程，每张卡片用一小段短线接到竖线上——纯 CSS flex/伪元素
+   定位，没有任何要现场测量的像素宽度，也没有 animation，滚动不会
+   有持续重绘；空板块、空列表不放提示文字，就让页面本身的深色背景
+   空着。
    正文是一整段连续文本，不分段落卡片、不做聊天气泡、不做时间流——
    柯的字迹是白色，不打任何标记（本来就是"我"在写）；枢的字迹是
    --c-accent-2（各主题下都偏柔和，不刺眼），每一段落笔上方带一枚
@@ -2428,10 +2427,9 @@ button { font-family: inherit; }
   margin: 0 auto;
 }
 .ink-page-content.is-note { max-width: 580px; gap: 0; }
-/* 星尘墙常驻挂载后用来"隐身"的状态——不用 display:none（那样宽度
-   会归零，ResizeObserver 一测到 0 就会把 wallW 也带歪），改用
-   visibility:hidden 挪出正常文档流：不占 .ink-page-body 的滚动
-   高度、不响应点击，但盒子本身的宽度还在，量出来的 wallW 还是准的。 */
+/* 列表常驻挂载后用来"隐身"的状态——用 visibility:hidden 挪出正常
+   文档流：不占 .ink-page-body 的滚动高度、不响应点击。时间线布局
+   不依赖任何测量出来的宽度，隐藏/显示之间没有状态要重新算。 */
 .ink-page-content.is-hidden {
   position: absolute;
   inset: 0;
@@ -2507,290 +2505,145 @@ button { font-family: inherit; }
 .ink-pin-icon { margin-right: 1px; vertical-align: -1px; flex-shrink: 0; opacity: .8; }
 
 /* ============================================================
-   星尘墙（第十三批·从"塔罗星牌"重制）：列表不再是一条纵向的牌链，
-   改成一整面悬浮在深空里的调查墙——笔记不分行排列，而是像一张张
-   被图钉钉在虚空里的星尘便签，错落分布在整块墙面上，便签与便签
-   之间用光丝相连，像星座之间的星轨。布局算法见 InkPage.jsx 里的
-   layoutStardust/buildThreads：水平位置带"跟上一张离得够远"的软
-   约束，纵向落点也有抖动，不是一排一个的列表，也不是规整的网格。
+   时间线列表（第十四批·替换"星尘墙"）：笔记不再随机散落在墙面上，
+   而是按列表顺序固定"从上到下、一排左一排右"交错排列，中间一条
+   竖线贯穿全程，每张卡片用一小段短线接到竖线上对应的位置——视觉
+   上仍然是"用线连着的手记"，但左右位置、间距全部由 CSS flex 决定，
+   不再依赖任何 JS 现场量出来的像素宽度。布局函数见 InkPage.jsx
+   里的 buildTimeline：一张笔记该在左边还是右边只看它排第几（奇偶），
+   同一批输入永远算出同一个结果，不会因为容器宽度还没测到而空一帧、
+   也不会在测到宽度后跳一下位置。
 
-   每张便签四层结构（从后到前）：
-   · .ink-stardust-shadow  便签下方一小片模糊投影，让它看起来悬在
-     虚空上方，不是贴死在背景上。
-   · .ink-stardust-ply-2/1 侧面——两层更暗的撕边纸片，紧贴主纸面
-     错开几像素叠在后面，模拟"纸页叠起来的厚度"。三层共用同一份
-     --clip（撕纸轮廓，JS 算出来通过 CSS 变量传下来），错位量不同，
-     厚度感就从边缘的参差里透出来，不需要真的做 3D 变换。
-   · .ink-stardust-face    正面——半透光磨砂纸面，光晕焦点落在图钉
-     位置（便签是被这一点"照亮"的），左上角一道极细高光模拟纸面
-     反光。
-   · .ink-stardust-pin     图钉本体，钉在 transform-origin 所在的
-     那一点——便签整体的旋转是绕图钉转的，不是绕自己几何中心转，
-     视觉上更像"从钉子上垂下来歪了个角度"，图钉本身不随之明显位移。
-     三种款式对应"谁起笔/是否置顶"：极小的发光星核（置顶）、水晶
-     菱形钉（枢起笔）、微缩黑洞（柯起笔，默认）。
+   卡片本身是不透明的实色卡面（.ink-tl-card），不再用半透光的
+   --c-glass-bg，也没有撕边轮廓、多层叠影、"远近"模糊这些效果——
+   一整条时间线绘制成本低很多，返回列表不会再闪。
 
-   撕纸边缘（tornClipPath，JS 里生成、通过 --clip 变量传下来）取代
-   了原来菱形切角的规整轮廓——矩形四边各自切成几段，每段端点朝内
-   随机凹陷，拼出不规则毛边，拒绝完美的圆角矩形。
-
-   整套效果是静态的——没有 animation，没有持续重绘。便签的错落
-   角度、前后遮挡（z-index 按渲染顺序叠放）、--depth 控制的缩放
-   / 亮度 / 模糊（更"远"的便签更小更暗更虚，更"近"的更大更亮更实）、
-   悬浮投影和光丝网络，几层叠加起来就是伪3D空间感的全部来源。
+   · .ink-tl-section::before  贯穿整节的竖线，section 高度由里面
+     正常文档流的行自动撑开，::before 用 top:0/bottom:0 铺满这段
+     自动算出来的高度，不需要 JS 告诉它多高。
+   · .ink-tl-stub   每一行卡片到竖线之间的一小段短线。
+   · .ink-tl-node   竖线上的落点，柯/枢起笔各是一个颜色，置顶再叠
+     一圈光晕，起点固定在每行卡片标题所在的高度。
    ============================================================ */
 
-/* 测宽容器：本身不参与视觉，纯粹是 ResizeObserver 量宽度的挂载点，
-   两面墙（置顶区/常规区）共用同一个测出来的 wallW，坐标系统一 */
-.ink-stardust-outer {
+.ink-tl-wrap {
   position: relative;
   width: 100%;
 }
-
-.ink-stardust-wall {
+.ink-tl-section {
   position: relative;
   width: 100%;
-  /* height 由 JS 按这一批便签实际布局算出来，内联 style 设置 */
 }
-
-/* 光丝网络：铺满整面墙的 SVG 图层，压在便签下方（z-index 低于
-   便签），线从图钉引出，像星座连线；每条线画两遍叠加出光晕 */
-.ink-stardust-threads {
-  position: absolute; top: 0; left: 0;
-  z-index: 0;
+.ink-tl-section::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 4px; bottom: 4px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--c-line-strong) 8%, var(--c-line-strong) 92%, transparent);
   pointer-events: none;
-  overflow: visible;
 }
-.ink-thread-line {
-  stroke: var(--c-line-strong);
-  stroke-width: 1;
-  opacity: .55;
+.ink-tl-row {
+  position: relative;
+  display: flex;
+  width: 100%;
+  margin-bottom: 18px;
 }
-.ink-thread-line-glow {
-  stroke: var(--c-accent);
-  stroke-width: 3;
-  opacity: .10;
-}
-.ink-thread-dot {
-  fill: var(--c-star-bright);
-  opacity: .6;
-}
+.ink-tl-row:last-child { margin-bottom: 4px; }
+.ink-tl-row.is-left  { justify-content: flex-start; }
+.ink-tl-row.is-right { justify-content: flex-end; }
 
-.ink-stardust-note {
+/* 短连接线：从卡片靠中线的那条边接到竖线上，两侧数值对称
+   （42%→50%、50%→58%），跟卡片固定 42% 的宽度严格对齐 */
+.ink-tl-stub {
   position: absolute;
-  z-index: var(--i, 0);
-  cursor: pointer; -webkit-tap-highlight-color: transparent;
-  /* 关键：绕图钉转，不是绕几何中心转——transform-origin 落在
-     图钉的横坐标上，纵坐标钉在纸面最顶端附近 */
-  transform-origin: var(--tox, 50%) 6px;
-  transform:
-    rotate(var(--rot, 0deg))
-    scale(calc(0.9 + var(--depth, .5) * .18));
-  /* --depth 是"远近"刻度：越靠后的便签越暗、越虚，营造进深 */
-  filter:
-    brightness(calc(.82 + var(--depth, .5) * .24))
-    blur(calc((1 - var(--depth, .5)) * .35px));
-  transition: transform .32s var(--ease), filter .32s var(--ease), z-index 0s;
+  top: 20px;
+  height: 1px;
+  width: 8%;
+  background: var(--c-line-strong);
+  pointer-events: none;
 }
+.ink-tl-row.is-left  .ink-tl-stub { left: 42%; }
+.ink-tl-row.is-right .ink-tl-stub { left: 50%; }
 
-/* 选中态（先选中、再确认）：整枚便签脱离远近关系，回正大半个
-   角度、放大、亮度拉满，顶到墙面最前——不管它原本叠在哪一层下面 */
-.ink-stardust-note.is-selected {
-  z-index: 999;
-  filter: brightness(1.06) blur(0);
-  transform:
-    rotate(calc(var(--rot, 0deg) * .16))
-    translateY(-4px)
-    scale(calc(0.9 + var(--depth, .5) * .18 + .12));
-}
-
-/* 撕纸边缘的三层结构共用 --clip（JS 算出来的 polygon()），侧面两层
-   跟主纸面同一个轮廓、只是错位几像素叠在后面，露出的那圈毛边参差
-   就是"纸页叠起来的厚度"——不用真的做 3D 变换 */
-.ink-stardust-shadow {
+.ink-tl-node {
   position: absolute;
-  left: 14%; right: 14%; bottom: -8px;
-  height: 15px;
+  top: 20px; left: 50%;
+  width: 6px; height: 6px;
   border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.85) 0%, transparent 75%);
-  filter: blur(8px);
-  opacity: .68;
+  transform: translate(-50%, -50%);
+  background: var(--c-accent);
+  box-shadow: 0 0 0 3px var(--c-bg-solid);
+  z-index: 2;
   pointer-events: none;
 }
-.ink-stardust-note.is-selected .ink-stardust-shadow {
-  opacity: .88; height: 20px; bottom: -14px; filter: blur(10px);
-}
+.ink-tl-node.is-shu { background: var(--c-accent-2); }
+.ink-tl-node.is-pinned { box-shadow: 0 0 0 3px var(--c-bg-solid), 0 0 6px 1px var(--c-accent-soft); }
 
-.ink-stardust-ply {
-  position: absolute; inset: 0;
-  clip-path: var(--clip);
-  background: linear-gradient(160deg, rgba(0,0,0,.30), rgba(0,0,0,.55));
-  box-shadow: 0 0 0 var(--hair) var(--c-line) inset;
-}
-.ink-stardust-ply-2 { transform: translate(3.5px, 4.5px); opacity: .55; }
-.ink-stardust-ply-1 { transform: translate(1.5px, 2px);   opacity: .75; }
-
-.ink-stardust-face {
+.ink-tl-card {
   position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  width: 100%; height: 100%;
-  clip-path: var(--clip);
-  padding: 20px 15px 12px;
-  display: flex; flex-direction: column; justify-content: flex-start;
-  gap: 5px;
-  background:
-    linear-gradient(155deg, var(--c-highlight), transparent 55%),
-    var(--c-glass-bg);
-  /* 原来这里带 backdrop-filter: blur(2.5px) saturate(...)，一张便签
-     还好，一整面墙铺开几十张、每张都要现场采样背后画面再模糊一遍，
-     "返回列表"时这些便签全部重新挂载，几十份 backdrop-filter 一起
-     绘制就是卡顿的真正源头——跟任何弹窗、任何进场动画都没关系。
-     这里的磨砂质感本来就是靠 --c-glass-bg 这层半透明色 + 上面那条
-     斜向高光撑出来的，去掉"实时模糊背后内容"这一步，肉眼观感差别
-     很小，但省掉的是全墙最贵的那部分开销。 */
-  box-shadow:
-    0 0 0 var(--hair) var(--c-line) inset,
-    0 14px 24px -16px rgba(0,0,0,0.72);
+  width: 42%;
+  max-width: 168px;
+  min-width: 124px;
+  box-sizing: border-box;
+  padding: 12px 12px 10px;
+  border-radius: 4px;
+  /* 实色卡面——用 color-mix 从背景色里提一点线条色出来，不带任何
+     透明度，看不到卡片"后面"的东西，也省掉透明混合的绘制开销 */
+  background: color-mix(in srgb, var(--c-bg-solid) 82%, var(--c-line-strong) 18%);
+  box-shadow: 0 0 0 var(--hair) var(--c-line) inset;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: box-shadow .2s var(--ease), background .2s var(--ease);
 }
-.ink-stardust-note.is-selected .ink-stardust-face {
-  box-shadow:
-    0 0 0 var(--hair) var(--c-line-strong) inset,
-    0 22px 38px -16px rgba(0,0,0,0.78);
+/* 选中态（先选中、再确认，交互沿用自星尘墙年代）：卡面稍微提亮，
+   标题不再截断 */
+.ink-tl-row.is-selected .ink-tl-card {
+  box-shadow: 0 0 0 var(--hair) var(--c-line-strong) inset, 0 8px 18px -10px rgba(0,0,0,.6);
+  background: color-mix(in srgb, var(--c-bg-solid) 74%, var(--c-line-strong) 26%);
 }
+.ink-tl-row.is-selected .ink-tl-title { -webkit-line-clamp: 4; }
 
-/* 光晕焦点落在图钉位置——便签是被"钉住的那一点"照亮的 */
-.ink-stardust-glow {
-  position: absolute; inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    circle at var(--glow-x, 50%) 6%,
-    var(--c-accent-soft) 0%, transparent 60%
-  );
-  opacity: .55;
-}
-.ink-stardust-note.is-shu-lit .ink-stardust-glow {
-  background: radial-gradient(
-    circle at var(--glow-x, 50%) 6%,
-    var(--c-accent-2-soft) 0%, transparent 60%
-  );
-}
-.ink-stardust-note.is-pinned-lit .ink-stardust-glow { opacity: .85; }
-.ink-stardust-note.is-draft-lit  .ink-stardust-glow { opacity: .3; filter: saturate(.7); }
-
-/* 左上角一道极细高光斜线，模拟磨砂纸面的反光，静态不闪烁 */
-.ink-stardust-sheen {
-  position: absolute;
-  top: -35%; left: -25%;
-  width: 55%; height: 85%;
-  background: linear-gradient(115deg, rgba(255,255,255,0.14) 0%, transparent 45%);
-  pointer-events: none;
-  transform: rotate(-8deg);
-}
-
-.ink-stardust-pinned-badge {
-  position: absolute; top: 8px; right: 10px;
+.ink-tl-pinned-badge {
+  position: absolute; top: 8px; right: 9px;
   color: var(--c-accent); opacity: .85;
-  display: flex; z-index: 2;
+  display: flex;
 }
 /* 草稿：一枚很小的静态圆点，颜色是强调色——不写"尚未完成"四个字，
-   便签空间寸土寸金，一个点足够眼熟之后一眼认出 */
-.ink-stardust-draft-dot {
-  position: absolute; top: 10px; left: 12px;
+   卡片空间寸土寸金，一个点足够眼熟之后一眼认出 */
+.ink-tl-draft-dot {
+  position: absolute; top: 10px; left: 10px;
   width: 5px; height: 5px; border-radius: 50%;
   background: var(--c-accent);
-  z-index: 2;
 }
 
-.ink-stardust-title {
-  position: relative;
-  font-family: var(--font-display); font-size: 13.5px; letter-spacing: .3px;
+.ink-tl-title {
+  font-family: var(--font-display); font-size: 13px; letter-spacing: .3px;
   color: var(--c-text);
   display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.ink-stardust-note.is-selected .ink-stardust-title {
-  -webkit-line-clamp: 4;
-}
-.ink-stardust-preview {
-  position: relative;
-  font-family: var(--font-body); font-size: 10.5px; line-height: 1.55;
+.ink-tl-preview {
+  margin-top: 5px;
+  font-family: var(--font-body); font-size: 10.5px; line-height: 1.5;
   color: var(--c-text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
-.ink-stardust-meta {
-  position: relative;
-  margin-top: auto;
+.ink-tl-meta {
+  margin-top: 8px;
   display: flex; align-items: center; gap: 6px;
   font-family: var(--font-accent); font-size: 9px; letter-spacing: .6px;
   color: var(--c-text-faint);
 }
-.ink-stardust-author {
+.ink-tl-author {
   font-style: italic; font-size: 11px; letter-spacing: 1px;
   opacity: .85;
 }
-.ink-stardust-author.is-shu { color: var(--c-accent-2); }
-.ink-stardust-author.is-ke  { color: var(--c-text); }
-.ink-stardust-meta-dot::before { content: '·'; margin-right: 6px; opacity: .6; }
-.ink-stardust-author + .ink-stardust-meta-dot::before { content: '·'; margin-right: 6px; }
-
-/* ── 图钉：微型天体，钉在虚空里的固定点 ─────────────────────────
-   立体感靠三样东西堆出来：径向渐变本体（有明暗两端，不是平色块）+
-   顶部一枚极细高光点（::after）+ 底下贴一圈很暗的小投影，像是从
-   画面里往前凸出来一点点、真的插进了纸面 */
-.ink-stardust-pin {
-  position: absolute; top: -1px;
-  width: 11px; height: 11px;
-  margin-left: -5.5px;
-  z-index: 3;
-  pointer-events: none;
-}
-.ink-stardust-pin::before {
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: 50%;
-}
-.ink-stardust-pin::after {
-  content: '';
-  position: absolute;
-  width: 2px; height: 2px;
-  border-radius: 50%;
-  background: rgba(255,255,255,.9);
-  top: 2px; left: 2.5px;
-  opacity: .85;
-}
-/* 星核：置顶——最亮的一枚，暖芯 + 扩散光晕 */
-.ink-stardust-pin.is-star::before {
-  background: radial-gradient(circle at 35% 30%, #fff 0%, var(--c-accent) 45%, var(--c-accent-2) 100%);
-  box-shadow:
-    0 0 0 1px rgba(0,0,0,.35),
-    0 0 7px 1px var(--c-accent-soft),
-    0 2px 3px rgba(0,0,0,.5);
-}
-/* 水晶菱形钉：枢起笔——转45度的小方块，斜切面明暗对半 */
-.ink-stardust-pin.is-crystal {
-  width: 9px; height: 9px; margin-left: -4.5px;
-}
-.ink-stardust-pin.is-crystal::before {
-  border-radius: 2px;
-  transform: rotate(45deg);
-  background: linear-gradient(135deg, var(--c-accent-2) 0%, rgba(0,0,0,.4) 100%);
-  box-shadow: 0 0 0 1px rgba(0,0,0,.3), 0 2px 3px rgba(0,0,0,.5);
-}
-.ink-stardust-pin.is-crystal::after { top: 1.5px; left: 2px; }
-/* 微缩黑洞：柯起笔（默认）——深色核心 + 一圈极细的亮环 */
-.ink-stardust-pin.is-void::before {
-  background: radial-gradient(circle at 40% 35%, #3a3a3a 0%, #050505 60%, #000 100%);
-  box-shadow:
-    0 0 0 1px var(--c-line-strong),
-    0 0 5px 0 rgba(0,0,0,.6),
-    0 2px 3px rgba(0,0,0,.55);
-}
-.ink-stardust-pin.is-void::after { opacity: .55; }
+.ink-tl-author.is-shu { color: var(--c-accent-2); }
+.ink-tl-author.is-ke  { color: var(--c-text); }
+.ink-tl-meta-dot::before { content: '·'; margin-right: 6px; opacity: .6; }
+.ink-tl-author + .ink-tl-meta-dot::before { content: '·'; margin-right: 6px; }
 
 .ink-note-empty {
   text-align: center; padding: 40px 12px;
@@ -2941,17 +2794,14 @@ button { font-family: inherit; }
    之后一直空着——现在接上了长按笔记卡片弹出的菜单，以及"移动到"
    的板块选择器 ─────────────────────────────────────────────── */
 
-/* 合墨专用降级：星尘墙一屏铺开几十张便签，每张自己就带一层
-   backdrop-filter（.ink-stardust-face 的磨砂纸面，见下方该规则的
-   同款说明）叠上 filter:blur（--depth 算出来的远近虚化）。这批弹窗
-   原本还想现场再采样一层这已经很重的画面，去掉 backdrop-filter 后
-   仍然卡——说明真正的重量级开销根本不在弹窗身上：点"返回"回到列表
-   页、压根没弹窗出来时也卡，卡的是"列表页整段重新挂载"这件事本身
-   （list 视图是条件渲染，从写作页切回来等于把几十张便签的 DOM 全部
-   重新创建一遍，每张都要重新走一次 clip-path / box-shadow / 渐变 /
-   之前的 backdrop-filter 这一整套布局与绘制）。弹窗这头，干脆连
-   进场动画也不要了——腾出来的每一帧都给这个更重的挂载让路，不用再
-   兼顾"淡入的同时还要保证流畅"这两件事。 */
+/* 合墨专用降级：早年星尘墙一屏铺开几十张便签，每张自带一层
+   backdrop-filter 叠 filter:blur，这批弹窗原本还想现场再采样一层
+   这已经很重的画面，去掉 backdrop-filter 后仍然卡——说明真正的
+   重量级开销根本不在弹窗身上：点"返回"回到列表页、压根没弹窗出来
+   时也卡，卡的是"列表页整段重新挂载"这件事本身。星尘墙现已换成
+   更轻的时间线列表（.ink-tl-*，不透明实色卡面、没有 clip-path/
+   多层阴影/backdrop-filter），这里的降级留着无妨，弹窗依旧不需要
+   进场动画和背景模糊来抢这份性能余量。 */
 .ink-modal-veil {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
