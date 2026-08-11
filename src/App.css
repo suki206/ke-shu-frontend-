@@ -258,7 +258,13 @@ body {
    两处用到它们的地方的注释） */
 @keyframes veilDimIn { from { background-color: transparent; }          to { background-color: var(--c-overlay); } }
 @keyframes popIn     { from { transform: scale(0.96); }                 to { transform: scale(1); } }
-@keyframes riseIn    { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+/* 收尾特意落在 transform:none 而不是 translateY(0)——视觉上零差别，
+   区别只在动画结束后元素还带不带一个"非 none 的 transform"：带着的
+   话，用了 animation:...both 的元素会一直是自己所有 position:fixed
+   后代的包含块，容易在别处（比如合墨列表卡片、弹层）牵出多余的
+   合成层关系。riseIn 现在除了聊天气泡 .msg-row，也给合墨列表卡片
+   浮现（.ink-tl-row）在用，这里统一收干净 */
+@keyframes riseIn    { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes dotPulse  { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }
 @keyframes toastIn   { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toastOut  { to { opacity: 0; transform: translateY(-6px); } }
@@ -1569,6 +1575,23 @@ button { font-family: inherit; }
    ============================================================ */
 .beacon-add-row { display: flex; gap: 8px; }
 .beacon-add-row .field-input { flex: 1; }
+/* 下面两条只认 .beacon-todo-add（便签「加一件小事」这一行专用的
+   第二个类名），不会波及合墨 InkPage 里"移动到→新建板块"复用的
+   同一个 .beacon-add-row——那颗"新建"按钮是文字，要保留原来撑满
+   整行高度的样子 */
+.beacon-todo-add { align-items: center; }
+.beacon-todo-add .field-input { min-height: 44px; }
+/* "+"从纯文本字符换成描边图标，配一个跟输入框等高的方形按钮——
+   之前只给了左右内边距、字号 13px 的一个"+"字符，个头跟旁边的
+   输入框完全不成比例，显得又小又单薄。现在跟 .send-btn（聊天页
+   发送按钮）用同一套 44px 图标按钮的手感语言，图标居中，边框/
+   底色/悬停沿用 .line-btn */
+.beacon-add-btn {
+  width: 44px; height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px;
+}
+.beacon-add-btn:active { transform: scale(0.9); }
 .beacon-list { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
 .beacon-item {
   display: flex; align-items: center; gap: 10px;
@@ -2344,9 +2367,20 @@ button { font-family: inherit; }
   transform: translateY(120%);
   pointer-events: none;
 }
+/* 结束帧特意写成 transform:none 而不是 translateY(0)——两者视觉上
+   完全一样，但 translateY(0) 仍然是"一个非 none 的 transform 值"，
+   animation:...both 会让它在动画结束后一直挂在 .ink-page 身上不
+   撤下来。只要元素带着任何非 none 的 transform，它就会变成自己所有
+   position:fixed 后代的"包含块"——.ink-page 内部长按菜单/移动到/
+   返回确认这几个 .modal-veil 本来该相对全屏定位，结果错误地相对
+   .ink-page 自己的盒子定位，还额外被结进了它的合成层。这层多余的
+   包含块/合成层关系，跟弹层自己的 backdrop-filter 撞在一起就是
+   "合墨的弹窗一出来就一闪一闪、别的页面同款弹窗却不会"的根源——
+   收尾直接落在 none，动画结束后 .ink-page 就是个普通元素，弹层
+   老老实实相对真正的视口定位，不再牵连任何合成层。 */
 @keyframes inkPageIn {
   from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 .ink-page-header {
   position: relative;
@@ -2426,11 +2460,13 @@ button { font-family: inherit; }
   max-width: 480px;
   margin: 0 auto;
 }
-/* 笔记详情跟列表不一样，是按 view==='note' 真实挂载/卸载的（见
-   InkPage.jsx），每次点进一篇笔记都是全新的 DOM 插入，riseIn 不需要
-   借助上面那条"值变化触发重放"的技巧就会自然播放一遍——点进去的
-   瞬间轻轻浮上来，不是硬切 */
-.ink-page-content.is-note { max-width: 580px; gap: 0; animation: riseIn .4s var(--ease) both; }
+/* 笔记详情这里试过给 .is-note 加一个 riseIn 进场（点进去轻轻浮
+   一下），撤回了：点进一篇笔记之后尾巴输入框几乎立刻自动聚焦、
+   键盘随之弹起，这个 .4s 动画跟打字时 keepCaretInView 那段
+   smooth 滚动几乎必然撞在同一时间、抢同一块屏幕——两个动作一起
+   动，就是"编辑内容时底部字体升上来会一卡一卡"的来源。这里的
+   entrance 效果不值得用一次输入体验上的卡顿去换，先留空 */
+.ink-page-content.is-note { max-width: 580px; gap: 0; }
 /* 列表常驻挂载后用来"隐身"的状态——用 visibility:hidden 挪出正常
    文档流：不占 .ink-page-body 的滚动高度、不响应点击。时间线布局
    不依赖任何测量出来的宽度，隐藏/显示之间没有状态要重新算。 */
@@ -2904,7 +2940,7 @@ button { font-family: inherit; }
 }
 @keyframes chronosSlideIn {
   from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 .chronos-header {
   flex-shrink: 0;

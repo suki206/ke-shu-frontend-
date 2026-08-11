@@ -12,6 +12,16 @@ const BackIcon = () => (
   </svg>
 )
 
+// 加一件小事：原来是个字号13px、只给了左右内边距的纯文本"+"字符，
+// 跟旁边整条输入框比例失调，显得又小又单薄。换成描边图标，配一个
+// 跟输入框同高的方形按钮（.beacon-add-btn），跟发送按钮（.send-btn）
+// 是同一套图标语言
+const PlusIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+)
+
 const TrashIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>
@@ -41,7 +51,7 @@ const BeaconPage = ({
           {/* 便签清单 —— 原信标功能 */}
           <div className="beacon-page-card">
             <div className="beacon-page-card-label">TODAY · 便签</div>
-            <div className="beacon-add-row" style={{ marginTop: 12 }}>
+            <div className="beacon-add-row beacon-todo-add" style={{ marginTop: 12 }}>
               <input
                 className="field-input"
                 placeholder="记一件小事…"
@@ -49,7 +59,9 @@ const BeaconPage = ({
                 onChange={e => setBeaconText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && onAddBeacon()}
               />
-              <button onClick={onAddBeacon} className="line-btn" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '13px' }}>+</button>
+              <button onClick={onAddBeacon} className="line-btn beacon-add-btn" aria-label="添加">
+                <PlusIcon />
+              </button>
             </div>
             <div className="beacon-list" style={{ marginTop: 6 }}>
               {(!beacons || beacons.length === 0) && <div className="beacon-empty">暂无信标</div>}
