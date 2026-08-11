@@ -2426,7 +2426,11 @@ button { font-family: inherit; }
   max-width: 480px;
   margin: 0 auto;
 }
-.ink-page-content.is-note { max-width: 580px; gap: 0; }
+/* 笔记详情跟列表不一样，是按 view==='note' 真实挂载/卸载的（见
+   InkPage.jsx），每次点进一篇笔记都是全新的 DOM 插入，riseIn 不需要
+   借助上面那条"值变化触发重放"的技巧就会自然播放一遍——点进去的
+   瞬间轻轻浮上来，不是硬切 */
+.ink-page-content.is-note { max-width: 580px; gap: 0; animation: riseIn .4s var(--ease) both; }
 /* 列表常驻挂载后用来"隐身"的状态——用 visibility:hidden 挪出正常
    文档流：不占 .ink-page-body 的滚动高度、不响应点击。时间线布局
    不依赖任何测量出来的宽度，隐藏/显示之间没有状态要重新算。 */
@@ -2547,10 +2551,30 @@ button { font-family: inherit; }
   display: flex;
   width: 100%;
   margin-bottom: 18px;
+  animation: none;
+  opacity: 1;
 }
 .ink-tl-row:last-child { margin-bottom: 4px; }
 .ink-tl-row.is-left  { justify-content: flex-start; }
 .ink-tl-row.is-right { justify-content: flex-end; }
+
+/* 卡片浮现，不是齐刷刷"卡"一下出现：列表是常驻挂载的（见上方大
+   注释），单纯切 visibility 不会让 CSS 动画重放——这里靠
+   animation-name 本身的值变化来触发：隐藏态（正在写作）显式清空成
+   none，一旦 .is-hidden 摘掉、这一条重新匹配 :not(.is-hidden)，
+   animation-name 从 none 变成 riseIn 就是一次真正的值变化，浏览器
+   会当作一次新动画从头播放——不需要额外状态、不需要卸载重新挂载、
+   也不用测量任何像素。首次进入合墨、编辑完笔记返回列表，两种情况
+   都会触发这同一条规则。板块切换筛出的"新出现"卡片同理：它们是
+   第一次真正插入 DOM，本来就会播一遍；已经在场的卡片位置不变，
+   不受影响，不会跟着抖一下。只动 opacity/transform，卡片本身没有
+   backdrop-filter，多张同时播不会有合成开销叠加的问题 */
+.ink-page-content:not(.is-hidden) .ink-tl-row {
+  animation: riseIn .44s var(--ease) both;
+  /* 依次错开，不是整屏一起弹出来；超过约九张之后延迟封顶，笔记多
+     也不会排成一条要等好几秒才浮完的队 */
+  animation-delay: min(calc(var(--i, 0) * 40ms), 360ms);
+}
 
 /* 短连接线：从卡片靠中线的那条边接到竖线上，两侧数值对称
    （42%→50%、50%→58%），跟卡片固定 42% 的宽度严格对齐 */
@@ -2592,15 +2616,16 @@ button { font-family: inherit; }
   background: color-mix(in srgb, var(--c-bg-solid) 82%, var(--c-line-strong) 18%);
   box-shadow: 0 0 0 var(--hair) var(--c-line) inset;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: box-shadow .2s var(--ease), background .2s var(--ease);
+  transition: box-shadow .2s var(--ease), background .2s var(--ease), transform .12s var(--ease);
 }
-/* 选中态（先选中、再确认，交互沿用自星尘墙年代）：卡面稍微提亮，
-   标题不再截断 */
-.ink-tl-row.is-selected .ink-tl-card {
-  box-shadow: 0 0 0 var(--hair) var(--c-line-strong) inset, 0 8px 18px -10px rgba(0,0,0,.6);
-  background: color-mix(in srgb, var(--c-bg-solid) 74%, var(--c-line-strong) 26%);
+/* 单击直接进入笔记（不再需要先选中再确认那一步）：按压反馈换成
+   一个干脆的回弹——按下轻轻一沉、抬手弹回，跟"新建一篇"按钮
+   （.ink-note-new-btn:active）是同一套手感语言，只动 transform，
+   合成层内解决，不引发重排 */
+.ink-tl-card:active {
+  transform: scale(0.97);
+  background: color-mix(in srgb, var(--c-bg-solid) 76%, var(--c-line-strong) 24%);
 }
-.ink-tl-row.is-selected .ink-tl-title { -webkit-line-clamp: 4; }
 
 .ink-tl-pinned-badge {
   position: absolute; top: 8px; right: 9px;
@@ -2619,7 +2644,7 @@ button { font-family: inherit; }
   font-family: var(--font-display); font-size: 13px; letter-spacing: .3px;
   color: var(--c-text);
   display: -webkit-box;
-  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   overflow: hidden;
 }
 .ink-tl-preview {
@@ -2794,33 +2819,28 @@ button { font-family: inherit; }
    之后一直空着——现在接上了长按笔记卡片弹出的菜单，以及"移动到"
    的板块选择器 ─────────────────────────────────────────────── */
 
-/* 合墨专用降级：早年星尘墙一屏铺开几十张便签，每张自带一层
-   backdrop-filter 叠 filter:blur，这批弹窗原本还想现场再采样一层
-   这已经很重的画面，去掉 backdrop-filter 后仍然卡——说明真正的
-   重量级开销根本不在弹窗身上：点"返回"回到列表页、压根没弹窗出来
-   时也卡，卡的是"列表页整段重新挂载"这件事本身。星尘墙现已换成
-   更轻的时间线列表（.ink-tl-*，不透明实色卡面、没有 clip-path/
-   多层阴影/backdrop-filter），这里的降级留着无妨，弹窗依旧不需要
-   进场动画和背景模糊来抢这份性能余量。 */
-.ink-modal-veil {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  animation: none;
-}
+/* 本轮撤销"合墨专用降级"：早年这里去毛玻璃、去动画，是因为星尘墙
+   一屏铺开几十张便签、每张自带一层 backdrop-filter 叠 filter:blur，
+   弹层再现场采样一遍这么重的画面会卡——但当时测过就算把弹层的
+   backdrop-filter 也去掉，回到列表页依旧卡，说明真正的重量级开销
+   根本不在弹层身上，卡的是"星尘墙那几十张便签整段重新挂载"这件事
+   本身。星尘墙现已换成不透明实色卡面、零 filter 的时间线列表
+   （.ink-tl-*），当年要省的那份性能余量已经不需要省了，弹层不再
+   单独降级，直接吃全局 .modal-veil / .modal-card 的标准款：背景色
+   从透明淡入到 --c-overlay（不动 opacity，backdrop-filter 全程是
+   常量，不会跟淡入互相打架反复重新合成），卡片只用 transform 缩放
+   弹出、同样不碰 opacity。这套本来就是全站每一个别的弹窗在用、
+   已经跑得稳的方案，合墨这几个长按菜单/移动到/返回确认体量跟别处
+   的弹层没有本质差别，不会因为搬到这儿就更卡。 */
 /* 返回确认弹窗专用：全局 .modal-veil 有条 bottom: var(--kb-height,0px)
    的规则，是为"打字时键盘弹出，弹窗别被压在键盘底下"设计的——但这个
    弹窗恰恰是在点"返回"离开写作视图、键盘正在往下收的那一刻才出现，
    此时 --kb-height 还没归零、且正在变化中，弹窗跟着这个还没走完的
    数值走，视觉上就成了"从上面一点一点挪到正中间"，跟键盘收起的节奏
    绑在一起，才会显得一卡一卡。这个弹窗不是在打字时弹出来的，压根不
-   需要给键盘让位，直接钉死在 bottom:0，从第一帧就在正中间。 */
+   需要给键盘让位，直接钉死在 bottom:0，从第一帧就在正中间。这一条
+   跟毛玻璃/动画降级无关，单独保留。 */
 .modal-veil.ink-leave-veil { bottom: 0; }
-.modal-card.ink-sheet {
-  background: var(--c-modal-solid);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  animation: none;
-}
 
 .ink-sheet { padding: 26px 24px 20px; width: 296px; max-width: 86vw; text-align: center; }
 .ink-sheet-sub {

@@ -59,6 +59,27 @@ import { daysLabel } from './dustCommon'
 //    成草稿——这一步顺带把 tailTextRef 和 tailText 状态没有严格同步
 //    的一个小豁口也补上了（落笔/交给枢/另起一篇清空尾巴时，ref 现在
 //    跟 state 同一时刻清零，不用等下一帧的 effect 才追上）。
+// 14) 本轮·合墨美化三件事：① 返回列表 / 首次进入时，笔记卡片不再
+//    "咔"一下齐刷刷出现——常驻挂载的时间线复用 riseIn 淡入上浮，靠
+//    "隐藏态清空 animation → 显示态才有 animation"这条 CSS 选择器
+//    切换本身触发重放，不需要额外状态也不需要测量任何像素；板块
+//    筛选时新出现的卡片同理会自然带上同一次淡入，已经在场的不会
+//    跟着抖一下。笔记详情页（.ink-page-content.is-note）本来就是
+//    每次进入真实挂载/卸载，同一套动效直接套上去，点进一篇笔记也
+//    有一次轻柔的浮现，不是硬切。② 去掉"先点一下选中展开标题、
+//    再点一次才真正进入"这层——星尘墙年代为了在乱序散落的卡片间
+//    先"确认"点的是哪一张才留下的手感阻力，时间线卡片顺序固定、
+//    标题常驻可读，这层选中态已经没有存在的理由；单击直接进入，
+//    长按弹菜单仍是完全独立的另一条通路，不受影响，选中态原本承担
+//    的"点一下有反馈"改成一个干脆的按压回弹。③ 长按菜单／移动到／
+//    返回确认这几个弹层，撤销"合墨专用降级"（去毛玻璃+去动画）——
+//    当年降级是因为星尘墙一屏几十张卡片各自带 backdrop-filter，
+//    弹层再叠一层毛玻璃就卡，根源在星尘墙本身；现在时间线已经是
+//    不透明实色卡面、零 filter，这层"省下来的性能余量"没有必要
+//    继续省，恢复成跟全局 .modal-veil/.modal-card 一样的标准款
+//    （背景色淡入、卡片只动 transform 不动 opacity，本来就是设计
+//    成不跟 backdrop-filter 打架的那一套），不会比别处已经在用的
+//    同一套东西更卡。
 // 13) 第七批：① 枢写笔记不再是跟对话完全脱钩的另一个模型——生成
 //    请求现在也会拿题目/正文去 Ombre Brain 检索一遍「你记得的事」，
 //    跟 /api/chat/stream 用的是同一套记忆，系统提示词里也把"你还是
@@ -221,14 +242,12 @@ const InkPage = ({
   const [confirmCardDelete, setConfirmCardDelete] = useState(false)
   const [moveSheet, setMoveSheet] = useState(null) // { note, newBoard } | null
 
-  // ── 塔罗星牌：选中态（第十一批）──────────────────────────────
-  // "先选中、再确认"，不用双击判定：单击一张未选中的牌 → 抬起/展开
-  // 完整标题；再单击同一张已选中的牌 → 才真正进入笔记；单击别处的
-  // 牌或空白区域 → 收起选中态。跟长按走的是完全独立的两条通路
-  // （长按绑在 onMouseDown/onTouchStart 的计时器上，这里只挂在
-  // onClick 上），互不打架，也不依赖任何时间窗口去猜"这是单击还是
-  // 双击的第一下"
-  const [selectedCardId, setSelectedCardId] = useState(null)
+  // ── 卡片点击（本轮起单击直接进入）────────────────────────────
+  // 原来是"先选中抬起标题、再点一次才真正进入"的塔罗牌式两段点击，
+  // 星尘墙年代卡片散落无序，先"确认"点的是哪一张有意义；时间线
+  // 卡片顺序固定、标题常驻可读，这层选中态已经没有存在的理由，见
+  // 下方 handleCardClick——单击就直接开。长按走的是完全独立的另一
+  // 条通路（绑在 onMouseDown/onTouchStart 的计时器上），互不打架。
 
   const bodyRef   = useRef(null)   // 滚动容器
   const tailRef   = useRef(null)   // 尾巴输入框
@@ -780,9 +799,6 @@ const InkPage = ({
     if (activeBoard && !boards.includes(activeBoard)) setActiveBoard(null)
   }, [boards, activeBoard])
 
-  // 切板块时收起当前抬起的牌——换了一批牌在眼前，旧的选中态不该带过去
-  useEffect(() => { setSelectedCardId(null) }, [activeBoard])
-
   // 置顶摘到最前面、按置顶时间新的在前；板块筛选只决定"现在看哪些"，
   // 跟置顶互不冲突，一篇笔记可以又置顶又挂在某个板块下
   const { pinnedNotes, restNotes } = useMemo(() => {
@@ -798,22 +814,17 @@ const InkPage = ({
     clearTimeout(longPressTimer.current)
     longPressTimer.current = setTimeout(() => {
       longPressFired.current = true
-      setSelectedCardId(null)
       setCardMenu({ note: n }); setConfirmCardDelete(false)
       if (navigator.vibrate) { try { navigator.vibrate(12) } catch {} }
     }, LONG_PRESS_MS)
   }
   const cancelLongPress = () => clearTimeout(longPressTimer.current)
-  // 单击一张牌：还没选中 → 选中它（牌面抬起、标签展开）；
-  // 已经选中 → 这一下才算"确认"，真正进入笔记
+  // 单击一张卡片直接进入笔记
   const handleCardClick = (n) => {
-    // 长按已经弹出过菜单了，松手触发的这次点击不再当成选中/打开
+    // 长按已经弹出过菜单了，松手触发的这次点击不再算一次"点开"
     if (longPressFired.current) { longPressFired.current = false; return }
-    if (selectedCardId === n.id) { setSelectedCardId(null); openNote(n.id); return }
-    setSelectedCardId(n.id)
+    openNote(n.id)
   }
-  // 点空白区域收起当前选中的牌
-  const deselectCard = () => setSelectedCardId(null)
   const openCardMenu = (n) => { setCardMenu({ note: n }); setConfirmCardDelete(false) }
   const closeCardMenu = () => { setCardMenu(null); setConfirmCardDelete(false) }
 
@@ -840,20 +851,19 @@ const InkPage = ({
   const restTimeline   = useMemo(() => buildTimeline(restNotes), [restNotes])
 
   // 时间线卡片：固定"左/右"两栏，不再有任何随内容/宽度现算的坐标。
-  // 选中态（先选中、再确认，交互沿用自星尘墙年代）——点一下先"选中"：
-  // 标题/摘要不再截断；同一张再点一下才真正进入笔记。见上方
-  // selectedCardId/handleCardClick。
-  const renderTimelineNote = (item) => {
+  // 单击直接进入笔记，见上方 handleCardClick。--i 只用来给浮现动画
+  // 算一个依次错开的延迟（见 App.css .ink-tl-row 动画规则），不参与
+  // 布局，map 本身自带的 index 顺手传下来就够，不用额外测量什么
+  const renderTimelineNote = (item, i) => {
     const n = item.note
-    const isSelected = selectedCardId === n.id
-    const rowClass = ['ink-tl-row', `is-${item.side}`, isSelected ? 'is-selected' : ''].filter(Boolean).join(' ')
+    const rowClass = ['ink-tl-row', `is-${item.side}`].join(' ')
     const nodeClass = [
       'ink-tl-node',
       n.firstAuthor === 'shu' ? 'is-shu' : 'is-ke',
       n.pinned_at ? 'is-pinned' : '',
     ].filter(Boolean).join(' ')
     return (
-      <div key={n.id} className={rowClass}>
+      <div key={n.id} className={rowClass} style={{ '--i': i }}>
         {/* 短连接线 + 竖线上的落点，纯 CSS 定位，不需要任何测量出来的像素坐标 */}
         <span className="ink-tl-stub" aria-hidden="true" />
         <span className={nodeClass} aria-hidden="true" />
@@ -870,7 +880,6 @@ const InkPage = ({
           role="button"
           tabIndex={0}
           aria-label={n.title || '未命名手记'}
-          aria-expanded={isSelected}
         >
           {n.pinned_at && <span className="ink-tl-pinned-badge"><PinIcon /></span>}
           {n.hasDraft && <span className="ink-tl-draft-dot" aria-hidden="true" title="尚未完成" />}
@@ -979,10 +988,7 @@ const InkPage = ({
             整段拆掉重建——挂载只做一次，切换视图只是 visibility 的
             开关。时间线布局本身也不再依赖任何测量出来的宽度，隐藏/
             显示之间没有任何坐标要重新算，自然也没有可跳的那一帧。 */}
-        <div
-          className={`ink-page-content${view !== 'list' ? ' is-hidden' : ''}`}
-          onClick={(e) => { if (e.target === e.currentTarget) deselectCard() }}
-        >
+        <div className={`ink-page-content${view !== 'list' ? ' is-hidden' : ''}`}>
             <div className="ink-page-eyebrow">柯与枢的接力手记</div>
 
             {boards.length > 0 && (
