@@ -1255,7 +1255,7 @@ button { font-family: inherit; }
 .core-whisper-text {
   font-family: var(--font-accent);
   font-style: italic;
-  font-size: clamp(26px, 7.2vw, 52px);
+  font-size: clamp(17px, 4.7vw, 34px);   /* 原 clamp(26px, 7.2vw, 52px)，整体按比例调小 ~35% */
   line-height: 1.55;
   color: var(--c-star);
   letter-spacing: 1px;

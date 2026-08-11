@@ -876,7 +876,11 @@ const ChatPage = () => {
   }, [messages, archivedList, nowTick])
 
   // ── CHAT 星核 · 长按 1.5s 触发"星核低语" ─────────────────────
-  const CORE_WHISPER_FALLBACKS = ['光需要时间才能到达', '有些沉默，也是一种在场', '你不在的时候，轨道仍在']
+  // 3 句兜底文案：只有今天没写日记、也没有情绪强烈的记忆时才会用到。
+  // 按要求改成英文；上面 fetchTodayDiaryLine() / 高情绪记忆摘要 这两级
+  // 来源摘的是本人真实写下的日记/记忆内容，本来就是中文，不在这次改动范围内，
+  // 长按大概率还是会摘到中文——这 3 句只兜住"今天什么记录都没有"的空窗期。
+  const CORE_WHISPER_FALLBACKS = ['light takes time to arrive', 'some silence is a kind of presence', 'even when you are gone, the orbit stays']
   const [coreWhisper, setCoreWhisper] = useState(null)
   const extractSentence = (text) => {
     if (!text) return null
