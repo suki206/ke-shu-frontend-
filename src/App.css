@@ -3495,6 +3495,95 @@ button { font-family: inherit; }
 .chronos-add-orbit:hover  { border-color: var(--c-accent); color: var(--c-accent); }
 .chronos-add-orbit:active { transform: scale(.92); }
 
+/* ── 新增轨道：独立全屏页（ChronosAddOrbitPage → .chronos-add-page）
+   之前只写了 JSX、忘了配这套 class 对应的样式，浏览器拿不到任何
+   position/宽高规则，就按普通块级元素接在 .chronos-body-scene 后面
+   正常文档流里渲染，于是变成"主视图 + 表单"上下两截叠着显示，
+   还会被键盘顶得到处跳——这里补上骨架，跟 .backup-page/.beacon-page
+   同一套：fixed 铺满全屏 + header（返回/标题/保存）+ 可滚动 body，
+   z-index 给到 2400，跟 .chronos-sheet-veil 同级，压过 .chronos-page
+   自己的 2300，稳稳盖住下面的星轨主视图。 ── */
+.chronos-add-page {
+  position: fixed; inset: 0;
+  z-index: 2400;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--c-bg-solid);
+  padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
+  padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+  animation: chronosSlideIn .32s var(--ease) both;
+}
+.chronos-add-header {
+  position: relative;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px 10px;
+}
+.chronos-add-iconbtn {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  color: var(--c-text-muted);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: color .25s var(--ease), transform .2s ease;
+}
+.chronos-add-iconbtn:hover  { color: var(--c-text); }
+.chronos-add-iconbtn:active { transform: scale(0.88); }
+.chronos-add-title {
+  font-family: var(--font-display);
+  font-size: 13px; letter-spacing: 3px;
+  color: var(--c-text);
+}
+/* 保存：跟返回键左右对称的文字按钮，占位宽度对齐 iconbtn，
+   头部才能保持"返回 - 标题居中 - 保存"三段平衡 */
+.chronos-add-save {
+  min-width: 32px; flex-shrink: 0;
+  padding: 6px 2px;
+  background: transparent; border: none;
+  font-family: var(--font-accent); letter-spacing: 1.5px;
+  font-size: 11.5px; text-align: right;
+  color: var(--c-accent);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: opacity .25s ease, transform .2s ease;
+}
+.chronos-add-save:active   { transform: scale(0.94); }
+.chronos-add-save:disabled { color: var(--c-text-faint); opacity: .5; cursor: default; }
+
+.chronos-add-body {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+}
+.chronos-add-content {
+  display: flex; flex-direction: column; gap: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-top: 10px;
+}
+.chronos-add-eyebrow {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10px; letter-spacing: 2.5px; color: var(--c-text-faint);
+  text-align: center;
+}
+.chronos-add-field-label {
+  font-family: var(--font-accent);
+  font-size: 10.5px; letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+  margin-bottom: 7px;
+}
+.chronos-add-submit {
+  width: 100%;
+  margin-top: 6px;
+  padding: 14px 0;
+  border-radius: 14px;
+  font-size: 12px; letter-spacing: 3px;
+}
+.chronos-add-submit:disabled {
+  opacity: .4; cursor: not-allowed; filter: none; transform: none;
+}
+
 /* ── 潮汐：月相圆盘 ──────────────────────────────────────────
    用 SVG 路径精确画出朔望弧线（外弧固定半圆，内弧椭圆横向半径
    随相位变化），比早期版本的直线遮罩更接近真实月相剪影。 */
