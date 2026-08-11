@@ -11,6 +11,8 @@
 // 表格感。
 // ============================================================
 
+import { useEffect } from 'react'
+
 const fmt = (n) => (n ?? 0).toLocaleString('en-US')
 
 const WEEKDAY_CN = ['一', '二', '三', '四', '五', '六', '日']
@@ -98,6 +100,12 @@ const TokenDashboardPage = ({ stats, loading, onRefresh, onClose }) => {
     ? Object.entries(stats.byModel).sort((a, b) =>
         (b[1].input + b[1].output) - (a[1].input + a[1].output))
     : []
+
+  // 数据罗盘打开期间收起底部导航，跟信标同一个做法
+  useEffect(() => {
+    document.documentElement.classList.add('token-dash-open')
+    return () => document.documentElement.classList.remove('token-dash-open')
+  }, [])
 
   return (
     <div className="token-dash-page">

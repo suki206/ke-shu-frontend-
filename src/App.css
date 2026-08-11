@@ -2689,6 +2689,18 @@ button { font-family: inherit; }
   transform: translateY(120%);
   pointer-events: none;
 }
+
+/* 信标（BeaconPage）同理，打开期间收起底部导航 */
+.beacon-open .bottom-nav {
+  transform: translateY(120%);
+  pointer-events: none;
+}
+
+/* 数据罗盘（TokenDashboardPage）同理 */
+.token-dash-open .bottom-nav {
+  transform: translateY(120%);
+  pointer-events: none;
+}
 /* 结束帧特意写成 transform:none 而不是 translateY(0)——两者视觉上
    完全一样，但 translateY(0) 仍然是"一个非 none 的 transform 值"，
    animation:...both 会让它在动画结束后一直挂在 .ink-page 身上不

@@ -6,6 +6,8 @@
 // 场景相近，合并后不用再去设置页深处找备忘。
 // ============================================================
 
+import { useEffect } from 'react'
+
 const BackIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 18l-6-6 6-6" />
@@ -33,6 +35,13 @@ const BeaconPage = ({
   config, setConfig, onSaveConfig, onEnablePush, showToast, onClose,
 }) => {
   const saveMemo = () => { onSaveConfig(); showToast?.('已保存') }
+
+  // 信标打开期间收起底部导航——跟合墨/回声/茧星同一个做法，自己
+  // 挂 .beacon-open，不指望父组件（GravityPage）那边记得处理。
+  useEffect(() => {
+    document.documentElement.classList.add('beacon-open')
+    return () => document.documentElement.classList.remove('beacon-open')
+  }, [])
 
   return (
     <div className="beacon-page">
