@@ -3247,6 +3247,51 @@ button { font-family: inherit; }
 .ink-hold-btn.is-danger { opacity: .7; }
 .ink-hold-btn.is-danger:hover { opacity: 1; text-decoration: underline; }
 
+/* 枢自己交出来的那个建议——不做成实心按钮，只把字点亮、前面点一个
+   小点，保持这一排"文字链接"的语言不被打断 */
+.ink-hold-btn.is-suggested { color: var(--c-text); }
+.ink-hold-btn.is-suggested::before { content: '·'; opacity: .55; margin-right: 1px; }
+
+/* ── 给枢的指令（第十五批）──────────────────────────────────
+   跟正文完全分开的一条通道，所以视觉上也不能长得像正文：整块比正文
+   缩进一点、字号小一档、左边一条竖线把它跟文章隔开，读起来是"贴在
+   稿纸边上的一张便签"，不是文章的一部分 */
+.ink-brief {
+  margin: 14px 0 4px;
+  padding: 10px 0 10px 12px;
+  border-left: 1px solid var(--c-line, rgba(255,255,255,.12));
+}
+.ink-brief-input {
+  width: 100%; box-sizing: border-box;
+  background: transparent; border: none; outline: none; resize: none;
+  color: var(--c-text); font-family: inherit;
+  font-size: 13px; line-height: 1.7;
+  padding: 0;
+}
+.ink-brief-input::placeholder { color: var(--c-text-faint); opacity: .8; }
+.ink-brief-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 8px;
+}
+.ink-brief-label {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10px; color: var(--c-text-faint);
+}
+.ink-brief-chip {
+  background: transparent; border: none; padding: 0;
+  color: var(--c-text-faint);
+  font-family: var(--font-accent); font-size: 10.5px; letter-spacing: 1px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: color .2s ease, opacity .2s ease;
+  opacity: .65;
+}
+.ink-brief-chip:hover { color: var(--c-text); opacity: 1; }
+.ink-brief-chip.is-active { color: var(--c-text); opacity: 1; text-decoration: underline; text-underline-offset: 3px; }
+
+/* 头部便签图标：里面填了东西 / 面板开着的时候亮起来，不然一收起来
+   就完全看不出"这次还挂着一条指令" */
+.ink-page-iconbtn.is-on { color: var(--c-text); }
+
 .ink-nudge-hint {
   font-family: var(--font-accent); font-style: italic;
   font-size: 10px; color: var(--c-text-faint);

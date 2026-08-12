@@ -101,6 +101,29 @@ import { daysLabel } from './dustCommon'
 //    时会强制标成 mode:'new'（nextModeRef），带上分隔线，视觉上跟
 //    "枢自己另起一篇"（头部图标，handOffToShuNew）一致，但执笔的是
 //    真人，不是又喊一次枢来写。
+// 15) 第十五批·合墨定位修正 + 三选一失灵：
+//    ① 「另起一篇」以前写出来还是像续写、而且一路抒情，根因在
+//    server.js —— 三种模式共用同一份 baseRules，而那份规则是照着
+//    续写写的（"读懂前文定下的结构、把缺的补齐"），还禁止虚构
+//    （"只写你确实从前文或'你记得的事'里读到的具体细节"）。现在
+//    三种模式的提示词彻底分家，new 改成"同题创作：前文只是对方就
+//    这个题目交的那一篇，是参照物不是上文"。
+//    ② 「让枢先起笔」写出来像日记，是因为每次生成前都把日记正文
+//    整块注进了系统提示词（scope:['diary','chronos']）——等于先给他
+//    看一叠日记范文。现在 new/original 不再注入日记，continue 照旧。
+//    ③ 「每次写完都只剩自存」是真 bug，四层叠加：系统提示词要他写
+//    [DECISION: xxx]、用户提示词却写着"只输出正文本身"（两句打架，
+//    他干脆不写）；措辞上"写到一个完整的收束"+"拿不准就选 finalize"
+//    等于提前判了死刑；正则只认半角方括号且必须在全文最末，
+//    【DECISION：continue】这种全角写法一律匹配失败、还会把那行
+//    原样留在正文里；最后，真人在输入框写的"写完让我续写"根本不是
+//    指令，那个框是文章的尾巴，那句话被当成正文落笔了。
+//    对应的四处都改了，另外这里加两道保险：三个去向的按钮永远都在
+//    （不再由 decision 决定显不显示），以及新增下面 ④ 的指令通道。
+//    ④ 头部多一枚便签图标——「给枢的指令」：这一次想让他怎么写、
+//    写完之后轮到谁，都在这里说。只拼进下一次生成的提示词，不写进
+//    正文、不进 entries、不算字数，用完即清。选了"写完之后轮到谁"
+//    的话，后端会直接拿它盖掉枢自己交出来的决策标记。
 // ============================================================
 
 const BackIcon = () => (
@@ -143,6 +166,15 @@ const BranchIcon = () => (
     <path d="M12 13c0-4.5-2.8-6.7-6.6-7.7" />
     <path d="M12 13c0-4.5 2.8-6.7 6.6-7.7" />
     <circle cx="12" cy="21" r="1.5" fill="currentColor" stroke="none" />
+  </svg>
+)
+// 给枢的指令：一张便签，右上角折了个角——这一次单独交代给他的话，
+// 只对这一次生成生效，不会写进正文
+const BriefIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 3.5H6.4c-.77 0-1.4.63-1.4 1.4v14.2c0 .77.63 1.4 1.4 1.4h11.2c.77 0 1.4-.63 1.4-1.4V8.5z" />
+    <path d="M14 3.5v3.6c0 .77.63 1.4 1.4 1.4H19" />
+    <path d="M8.5 13h7" /><path d="M8.5 16.5h4.5" />
   </svg>
 )
 // 撤销/重做：一枚回旋箭头，方向相反
@@ -215,6 +247,18 @@ const InkPage = ({
   const [justGenerated, setJustGenerated] = useState(false) // 枢刚写完，给"保留/删除这段"的窗口
   const [forceWrite, setForceWrite]       = useState(false) // 枢接完之后，我主动要求再添一笔
   const [leaveConfirm, setLeaveConfirm]   = useState(false) // 返回时尾巴还有字，问"存草稿"还是"保存"
+
+  // ── 给枢的指令（第十五批）────────────────────────────────────
+  // 合墨这个输入框是"文章的尾巴"，不是指令框——以前在里面写"等会写完
+  // 后让我续写"，那句话会被当成你写的一段正文落笔进文章，枢读到的是
+  // "这篇文章的第一句是：等会写完后让我续写"，当然不会照做。
+  // 这里单开一条通道：brief 是这一次单独交代给他的话（后端拼在提示词
+  // 里、优先级最高，但不进正文、不进 entries）；briefNext 是"这一段
+  // 写完之后轮到谁"，选了就直接盖掉枢自己交出来的决策标记。两个都
+  // 只对下一次生成生效，用完即清。
+  const [briefOpen, setBriefOpen] = useState(false)
+  const [brief,     setBrief]     = useState('')
+  const [briefNext, setBriefNext] = useState(null) // null | 'continue' | 'new' | 'finalize'
 
   // ── 编辑自己已经落笔的段落（第八批）：只有 author='ke' 的段落能点开编辑，
   //    枢写的段落没有编辑入口。────────────────────────────────
@@ -525,6 +569,8 @@ const InkPage = ({
     lastSavedRef.current = ''
     committedRef.current = false
     setOpenNoteId(id); setView('note'); setConfirmDelete(false)
+    // 指令只属于"这一次"，换一篇笔记就清干净，不会串到下一篇去
+    setBriefOpen(false); setBrief(''); setBriefNext(null)
     await onOpenNote?.(id)
   }
 
@@ -658,6 +704,14 @@ const InkPage = ({
     showToast?.('已落笔')
   }
 
+  // 这一次要交给枢的附加交代（头部便签图标里填的）：交完就清空，
+  // 只管这一次，不会跟着下一次生成再发一遍
+  const takeBrief = () => {
+    const payload = { instruction: brief.trim(), nextTurn: briefNext }
+    setBrief(''); setBriefNext(null); setBriefOpen(false)
+    return payload
+  }
+
   // 交给枢：有尾巴就先把我这段落下，然后让他写完这一段，中途不问。
   // 枢写完之后不会自己接着往下写——一段写完永远停下来，交给真人在
   // justGenerated 那个面板里看他的决策标记、自己决定下一步
@@ -670,7 +724,7 @@ const InkPage = ({
       clearTailAfterCommit()
     }
     setJustGenerated(false); setForceWrite(false)
-    await onGenerateEntry?.(openNoteId, (hasBody || text) ? 'continue' : 'original')
+    await onGenerateEntry?.(openNoteId, (hasBody || text) ? 'continue' : 'original', takeBrief())
   }
 
   // 另起一篇（头部图标）：尾巴里有字的话先落自己这段（跟交给枢一样，
@@ -685,7 +739,7 @@ const InkPage = ({
       clearTailAfterCommit()
     }
     setJustGenerated(false); setForceWrite(false)
-    await onGenerateEntry?.(openNoteId, 'new')
+    await onGenerateEntry?.(openNoteId, 'new', takeBrief())
   }
 
   const keepLastEntry   = () => setJustGenerated(false)
@@ -1016,6 +1070,14 @@ const InkPage = ({
               <BranchIcon />
             </button>
             <button
+              className={`ink-page-iconbtn${briefOpen || brief.trim() || briefNext ? ' is-on' : ''}`}
+              onClick={() => setBriefOpen(v => !v)}
+              aria-label="给枢的指令"
+              title="给枢的指令（不写进正文）"
+            >
+              <BriefIcon />
+            </button>
+            <button
               className={`ink-page-iconbtn${confirmDelete ? ' is-danger' : ''}`}
               onClick={handleDeleteNote}
               aria-label={confirmDelete ? '再点一次删除' : '删除这篇'}
@@ -1095,6 +1157,46 @@ const InkPage = ({
               {fmtDate(note?.updated_at || note?.created_at)} · {charCount} 字
             </div>
 
+            {/* 给枢的指令：跟正文完全分开的一条通道。写在这里的话只拼进
+                下一次生成的提示词，不落笔、不进 entries、不算任何人的
+                字数；"写完之后"选了什么，后端会直接拿去盖掉枢自己交出
+                来的决策标记（见 server.js 的 nextTurn） */}
+            {briefOpen && (
+              <div className="ink-brief">
+                <textarea
+                  className="ink-brief-input"
+                  value={brief}
+                  onChange={e => {
+                    setBrief(e.target.value)
+                    // 跟着内容长高，不出现内部滚动条——跟正文尾巴同一个手感
+                    e.target.style.height = 'auto'
+                    e.target.style.height = `${e.target.scrollHeight}px`
+                  }}
+                  onFocus={e => {
+                    e.target.style.height = 'auto'
+                    e.target.style.height = `${e.target.scrollHeight}px`
+                  }}
+                  rows={2}
+                  placeholder="这一次想让他怎么写？比如：写成第三人称、别抒情、写一个雨夜的场景…（不写进正文）"
+                />
+                <div className="ink-brief-row">
+                  <span className="ink-brief-label">写完之后</span>
+                  {[
+                    { k: null,       t: '他自己定' },
+                    { k: 'continue', t: '我续写' },
+                    { k: 'new',      t: '我另写一篇' },
+                    { k: 'finalize', t: '就到这儿' },
+                  ].map(o => (
+                    <button
+                      key={String(o.k)}
+                      className={`ink-brief-chip${briefNext === o.k ? ' is-active' : ''}`}
+                      onClick={() => setBriefNext(o.k)}
+                    >{o.t}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {activeNoteLoading && <div className="ink-note-empty">加载中…</div>}
 
             {!activeNoteLoading && (
@@ -1167,23 +1269,31 @@ const InkPage = ({
                     只给一句清楚的状态——他写完了 / 他想让你续写 / 他想让你
                     另起一篇——告诉真人接下来轮到自己做什么，具体怎么做
                     永远是真人自己点出来的 */}
+                {/* 【第十五批】三个去向永远都摆在这里。原来「续写」「另起
+                    一篇」要 decision 恰好等于 'continue'/'new' 才显示，
+                    模型只要没交标记、或者交了个 finalize，这一排就只剩
+                    一个「自存」——看起来就像三选一失灵了。接下来怎么走
+                    本来就该是真人说了算，枢那个标记只配拿来提示一句、
+                    顺便把他建议的那个按钮点亮一下。 */}
                 {justGenerated && !generating && (
                   <div className="ink-keep-row">
                     <span className="ink-nudge-hint">
                       {lastEntry?.truncated ? '枢写到长度上限，先停在这儿了——'
-                        : lastEntry?.decision === 'continue' ? '他写完了，想让你续写。'
-                        : lastEntry?.decision === 'new' ? '他写完了，想让你根据这段另起一篇。'
-                        : '他写完了。'}
+                        : lastEntry?.decision === 'continue' ? '他写完了，想让你接着这一段往下写——'
+                        : lastEntry?.decision === 'new' ? '他写完了，想让你就这个题目另写一篇——'
+                        : '他写完了，接下来由你定——'}
                     </span>
                     {lastEntry?.truncated && (
                       <button className="ink-hold-btn" onClick={handOffToShu}>让他接着写完</button>
                     )}
-                    {!lastEntry?.truncated && lastEntry?.decision === 'continue' && (
-                      <button className="ink-hold-btn" onClick={reopenTail}>续写</button>
-                    )}
-                    {!lastEntry?.truncated && lastEntry?.decision === 'new' && (
-                      <button className="ink-hold-btn" onClick={writeNewBranch}>另起一篇</button>
-                    )}
+                    <button
+                      className={`ink-hold-btn${lastEntry?.decision === 'continue' ? ' is-suggested' : ''}`}
+                      onClick={reopenTail}
+                    >我续写</button>
+                    <button
+                      className={`ink-hold-btn${lastEntry?.decision === 'new' ? ' is-suggested' : ''}`}
+                      onClick={writeNewBranch}
+                    >我另起一篇</button>
                     <button className="ink-hold-btn" onClick={keepLastEntry}>自存</button>
                     <button className="ink-hold-btn is-danger" onClick={deleteLastEntry}>删除这段</button>
                   </div>

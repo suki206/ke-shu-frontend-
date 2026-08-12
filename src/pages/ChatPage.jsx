@@ -1221,7 +1221,10 @@ const ChatPage = () => {
     }
   }
 
-  const generateInkEntry = async (noteId, mode) => {
+  // opts = { instruction, nextTurn }：合墨头部那枚便签图标里填的东西。
+  // instruction 只拼进这一次生成的提示词，不写进正文；nextTurn 是真人
+  // 直接点明的"写完之后轮到谁"，后端会拿它盖掉枢自己交出来的决策标记
+  const generateInkEntry = async (noteId, mode, opts = {}) => {
     setInkGenerating(true)
     setInkStreamText('')
 
@@ -1231,7 +1234,11 @@ const ChatPage = () => {
       const res = await fetch(`${API_BASE}/notes/${noteId}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Access-Key': localStorage.getItem(ACCESS_KEY_STORAGE) || '' },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({
+          mode,
+          instruction: opts.instruction || '',
+          nextTurn: opts.nextTurn || null,
+        }),
         signal: controller.signal,
       })
       if (res.status === 401) { localStorage.removeItem(ACCESS_KEY_STORAGE); window.location.reload(); return }
