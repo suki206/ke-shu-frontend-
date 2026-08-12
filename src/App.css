@@ -3005,7 +3005,11 @@ button { font-family: inherit; }
    第一次真正插入 DOM，本来就会播一遍；已经在场的卡片位置不变，
    不受影响，不会跟着抖一下。只动 opacity/transform，卡片本身没有
    backdrop-filter，多张同时播不会有合成开销叠加的问题 */
-.ink-page-content:not(.is-hidden) .ink-tl-row {
+/* 选择器多加一个 .is-entering（由 InkPage.jsx 在切回列表时挂 900ms）：
+   这样"置顶 / 移动到板块"导致的卡片重新挂载不再触发浮现动画——那种
+   重播发生在弹层刚关掉的瞬间，很容易被算到"弹窗闪烁"头上。首次进入、
+   写完返回列表这两个真正需要浮现的场景照旧。 */
+.ink-page-content.is-entering:not(.is-hidden) .ink-tl-row {
   animation: riseIn .44s var(--ease) both;
   /* 依次错开，不是整屏一起弹出来；超过约九张之后延迟封顶，笔记多
      也不会排成一条要等好几秒才浮完的队 */
@@ -3255,40 +3259,50 @@ button { font-family: inherit; }
    之后一直空着——现在接上了长按笔记卡片弹出的菜单，以及"移动到"
    的板块选择器 ─────────────────────────────────────────────── */
 
-/* 上一轮把 .ink-page 进场动画收尾从 translateY(0) 改成 none，想解决
-   的是"合墨弹窗一出来就一闪一闪、别的页面同款弹窗却不会"——这一步
-   本身没错（消灭了一个多余的包含块/合成层关系，属于该修的问题），
-   但实测下来闪烁没有消失，说明真正的诱因就是 backdrop-filter 本身：
-   合墨这几个弹层是挂在 Portal 到 document.body、自己也是
-   position:fixed 的 .ink-page 下面，这层嵌套（fixed 套 fixed、
-   还叠着 .ink-page 的 overflow:hidden 和 z-index 层叠上下文）让
-   backdrop-filter 现场采样背后内容这件事本身在这个结构里就不稳
-   ——跟别处平铺直叙挂在 body 下的弹窗不是同一种情况，不是靠调
-   transform/动画时机能绕开的。这里退一步：淡入动画（背景色到
-   --c-overlay、卡片 transform 缩放）留着，这两个只动
-   background-color/transform，不背这个锅，且已经确认不是闪烁来源；
-   单独把 backdrop-filter 去掉，卡面背景换回不透明的
-   --c-modal-solid（没有毛玻璃时半透明背景会直接露出后面没被虚化
-   的内容，不能再用 --c-modal）。这样"透明加淡入"的动效保住了，
-   闪烁的源头挪走了 ─────────────────────────────────────────── */
+/* 【弹层闪烁的最终定位 · 本轮】
+   之前这里的诊断其实已经摸到门口了——「合墨这几个弹层挂在 Portal 到
+   document.body、自己也是 position:fixed 的 .ink-page 下面，这层嵌套
+   跟别处平铺直叙挂在 body 下的弹窗不是同一种情况」——但当时的处理是把
+   backdrop-filter 摘掉（治症状），结构本身没动，所以闪烁只是变轻了。
+
+   真正的原因：.ink-page 同时带着 position:fixed + overflow:hidden +
+   z-index 层叠上下文 + transition:bottom + 一个 fill-mode:both 永久生效
+   的 inkPageIn 动画。这几样凑在一起，WebKit 会把它当成一个长期存在的
+   合成层；弹层只要还是它的 DOM 子节点，就只能跟着这一层一起被反复重新
+   光栅化，而弹层自己的 fixed 又是相对视口的，两者节奏对不上就是"闪"。
+
+   所以本轮改的是结构，不是样式：InkPage.jsx 里把三个弹层拆成独立的
+   createPortal，成为 .ink-page 的兄弟节点而不是孩子。这样合墨的弹层
+   跟别的页面的弹窗处在完全相同的环境里——别处不闪，这里也就不会闪。
+
+   结构理顺之后毛玻璃其实可以加回来，但既然现在的不透明卡面视觉上已经
+   定型，这里不再动观感，只把动画换成更省的一档：全局 .modal-veil 用的
+   veilDimIn 是逐帧改 background-color（整屏重绘），那是当年为了避开
+   backdrop-filter 才绕的路；合墨这几个弹层本来就没有毛玻璃，直接用
+   opacity 淡入即可——纯合成层动画，零重绘。 */
 .ink-modal-veil {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  /* 覆盖全局的 veilDimIn（改 background-color = 整屏重绘），
+     换成只动 opacity 的 fadeIn（全程在合成层） */
+  animation: fadeIn .2s ease both;
+  will-change: opacity;
+  /* 弹层现在是 .ink-page 的兄弟而不是孩子，两者各自按 --kb-height 避让
+     键盘。.ink-page 那边的 bottom 是带 .18s 过渡的，这里补上同一条，
+     键盘收放时两层同步移动，中间不会漏出一条底色缝 */
+  transition: bottom .18s var(--ease);
 }
 .modal-card.ink-sheet {
   background: var(--c-modal-solid);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  will-change: transform;
 }
-/* 返回确认弹窗专用：全局 .modal-veil 有条 bottom: var(--kb-height,0px)
-   的规则，是为"打字时键盘弹出，弹窗别被压在键盘底下"设计的——但这个
-   弹窗恰恰是在点"返回"离开写作视图、键盘正在往下收的那一刻才出现，
-   此时 --kb-height 还没归零、且正在变化中，弹窗跟着这个还没走完的
-   数值走，视觉上就成了"从上面一点一点挪到正中间"，跟键盘收起的节奏
-   绑在一起，才会显得一卡一卡。这个弹窗不是在打字时弹出来的，压根不
-   需要给键盘让位，直接钉死在 bottom:0，从第一帧就在正中间。这一条
-   跟毛玻璃降级无关，单独保留。 */
-.modal-veil.ink-leave-veil { bottom: 0; }
+/* 返回确认弹窗单独钉死在 bottom:0：它恰好是在"点返回离开写作视图、键盘
+   正在往下收"的那一刻出现的，此时 --kb-height 还没归零、且正在变化中，
+   跟着这个还没走完的数值走，视觉上就成了"从上面一点一点挪到正中间"。
+   这个弹窗压根不是在打字时弹出来的，不需要给键盘让位。 */
+.modal-veil.ink-leave-veil { bottom: 0; transition: none; }
 
 .ink-sheet { padding: 26px 24px 20px; width: 296px; max-width: 86vw; text-align: center; }
 .ink-sheet-sub {
@@ -4004,21 +4018,50 @@ button { font-family: inherit; }
   font-size: 13px; line-height: 1.8; letter-spacing: .2px;
   color: var(--c-text);
 }
-.dust-noon-bars { display: block; margin: 11px 0 9px; }
+/* 三条度量条的排版。原来的写法有个结构性的坑：.dust-noon-bar 自己的
+   高度写死 1px（它就是那条线），标签 em 用 position:absolute 挂在线
+   下方 4px 处——绝对定位不占高度，所以父元素永远只有 1px 高，标签的
+   实际行高完全没有被算进布局。条与条之间只靠 margin-bottom:13px 撑开，
+   而标签自己（top:4px + 8.5px 字号的默认行高 ≈ 10px）正好占到 14px，
+   下一条线就落在 14px 处，不偏不倚压在"重要度""情绪强度"这些字的下缘
+   上。单纯把 13px 调大只是把一个魔数换成另一个魔数，字号一改又会撞回去。
+
+   这里改成让标签回到正常文档流：那条线交给 ::before 画，em 用 static
+   定位，于是父元素的高度 = 线 + 间隙 + 标签的真实行高，永远不可能再被
+   下一条线压到，也不需要手算任何像素。 */
+.dust-noon-bars { display: block; margin: 13px 0 8px; }
 .dust-noon-bar {
   display: block; position: relative;
-  height: 1px; margin: 0 0 13px;
+  height: auto;                 /* 原来写死 1px，现在由内容自己撑开 */
+  background: none;             /* 线改由 ::before 画，见下 */
+  padding-top: 1px;             /* 给那条 1px 的线留出位置 */
+  margin: 0 0 11px;             /* 条与条之间的呼吸，不再兼职当标签的行高 */
+}
+.dust-noon-bar:last-child { margin-bottom: 0; }
+/* 底槽线：原来是 .dust-noon-bar 自己的 background，挪到伪元素上，
+   位置和粗细跟原来完全一致 */
+.dust-noon-bar::before {
+  content: '';
+  position: absolute; left: 0; right: 0; top: 0;
+  height: 1px;
   background: var(--c-line);
 }
+/* 有色的填充段：仍然是 top:0——绝对定位的包含块是父元素的 padding box，
+   padding-top 不会把它推下去，跟 ::before 严丝合缝地重叠 */
 .dust-noon-bar i {
   position: absolute; left: 0; top: 0; height: 1px;
   display: block; opacity: .8;
 }
 .dust-noon-bar em {
-  position: absolute; left: 0; top: 4px;
+  position: static;             /* ← 关键：回到文档流，高度算进父元素 */
+  display: block;
+  padding-top: 7px;             /* 字跟线之间的距离，从 4px 拉到 7px */
   font-family: var(--font-accent); font-style: normal;
-  font-size: 8.5px; letter-spacing: 1.6px;
+  font-size: 9.5px;             /* 8.5px 实在太小，这一档更好认 */
+  line-height: 1.45;            /* 显式行高，不再吃浏览器的 normal */
+  letter-spacing: 1.5px;
   color: var(--c-text-faint);
+  white-space: nowrap;
 }
 
 /* ── 底部动作条 ─────────────────────────────────────────── */
@@ -4417,4 +4460,151 @@ body   { height: 100%; }
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 0 8px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ============================================================
+   时轨 · 锚点面板（ANCHOR）
+   ------------------------------------------------------------
+   刻意不引入任何新的 @keyframes、不做任何 JS 测量、不加
+   backdrop-filter、不改 .modal-veil 的定位逻辑——进场动画完全沿用
+   这个页面上现在已经在跑的那一套（veil 淡入 + 卡片 popIn），跟今天
+   的表现一模一样，只是卡片内部长得好看了。
+
+   唯一的"减法"是把毛玻璃换成不透明卡面（复用现成的 .modal-card-solid）
+   ——这比现在少一层 backdrop-filter，GPU 开销只降不升，所以不存在
+   "改完反而更容易卡"的可能。日期选择仍然是系统原生控件，没有任何
+   自绘日历，也就没有任何可能卡住的地方。
+   ============================================================ */
+
+/* 星轨场景本身就够花了，弹层背后不再叠一层实时模糊，压暗即可；顺带把
+   整屏重绘的 veilDimIn 换成只动 opacity 的淡入。这一条同时作用于本页
+   另外两个面板（倒计时详情 / 潮汐记录），它们的结构没有任何改动 */
+.chronos-sheet-veil {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: fadeIn .22s ease both;
+}
+
+.chronos-anchor-card {
+  width: 316px; max-width: 88vw;
+  padding: 26px 26px 20px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+/* 卡片顶部一层极淡的暖色光晕：静态渐变，不动、不闪、不吃合成 */
+.chronos-anchor-card::before {
+  content: '';
+  position: absolute; left: 50%; top: -46px;
+  width: 220px; height: 120px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 100%, var(--c-accent-soft), transparent 70%);
+  pointer-events: none;
+}
+
+.chronos-anchor-orn {
+  font-size: 13px; line-height: 1;
+  color: var(--c-accent); opacity: .7;
+  margin-bottom: 10px;
+}
+.chronos-anchor-title {
+  font-family: var(--font-display);
+  font-size: 17px; letter-spacing: 6px;
+  color: var(--c-text);
+  padding-left: 6px;              /* 补掉字距挂在最后一个字母右侧的空 */
+}
+.chronos-anchor-sub {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 11px; letter-spacing: 1.2px;
+  color: var(--c-text-faint);
+  margin-top: 7px;
+}
+.chronos-anchor-rule {
+  height: 1px; margin: 16px auto 4px; width: 76%;
+  background: linear-gradient(90deg, transparent, var(--c-line-strong) 50%, transparent);
+}
+
+/* 读数区给死高度：选日期时数字位数变化（9 → 10 → 100）也不会让下面的
+   输入框和按钮跳一下 */
+.chronos-anchor-readout {
+  min-height: 92px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 6px;
+}
+.chronos-anchor-num {
+  font-family: var(--font-display);
+  font-size: 46px; line-height: 1;
+  letter-spacing: 3px; padding-left: 3px;
+  color: var(--c-accent);
+  text-shadow: 0 0 22px var(--c-accent-soft);
+}
+.chronos-anchor-unit {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 12px; letter-spacing: 1.6px;
+  color: var(--c-text-muted);
+}
+.chronos-anchor-blank {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 12.5px; letter-spacing: 1.4px; line-height: 1.9;
+  color: var(--c-text-faint);
+  padding: 0 6px;
+}
+
+.chronos-anchor-field { display: block; margin-top: 4px; text-align: left; }
+.chronos-anchor-field-label {
+  display: block;
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10px; letter-spacing: 2px;
+  color: var(--c-text-faint);
+  margin-bottom: 7px; padding-left: 2px;
+}
+/* 原生 date 控件：只做外观，不接管交互 */
+.chronos-anchor-input {
+  width: 100%;
+  -webkit-appearance: none; appearance: none;
+  background: var(--c-input-bg);
+  border: var(--hair) solid var(--c-line-strong);
+  border-radius: 14px;
+  padding: 13px 14px;
+  color: var(--c-text);
+  font-family: var(--font-accent);
+  font-size: 15px; letter-spacing: 1.5px;
+  text-align: center;
+  outline: none;
+  transition: border-color .25s ease;
+}
+.chronos-anchor-input:focus { border-color: var(--c-accent); }
+.chronos-anchor-input::-webkit-date-and-time-value { text-align: center; }
+.chronos-anchor-input::-webkit-calendar-picker-indicator {
+  filter: invert(1); opacity: .38; cursor: pointer;
+}
+
+.chronos-anchor-note {
+  font-family: var(--font-accent); font-style: italic;
+  font-size: 10.5px; letter-spacing: .8px; line-height: 1.8;
+  color: var(--c-text-faint);
+  margin-top: 10px;
+}
+
+.chronos-anchor-save {
+  width: 100%; margin-top: 16px;
+  padding: 13px 0; border-radius: 14px;
+  background: var(--c-accent); border: none;
+  color: var(--c-accent-text);
+  font-family: var(--font-accent);
+  font-size: 12px; letter-spacing: 3px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: opacity .2s ease;
+}
+.chronos-anchor-save:disabled { opacity: .34; cursor: default; }
+.chronos-anchor-cancel {
+  display: block; width: 100%;
+  margin-top: 10px; padding: 7px 0;
+  background: transparent; border: none;
+  color: var(--c-text-faint);
+  font-family: var(--font-accent);
+  font-size: 10.5px; letter-spacing: 2px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  opacity: .7;
 }

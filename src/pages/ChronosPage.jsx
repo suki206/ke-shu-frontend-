@@ -129,6 +129,11 @@ const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
 
   // ── 锚点 ──────────────────────────────────────────────────
   const anchorDays = anchorDate ? daysBetween(new Date(anchorDate), new Date()) + 1 : null
+  // 面板里的实时读数：跟着 anchorInput 走，而不是跟着已保存的 anchorDate
+  // ——选日期的时候上面的大数字立刻变，确认的是"第 N 天"这个结果，
+  // 不是一串抽象的 2025-04-06。纯计算，没有异步、没有任何测量；读数区
+  // 在 CSS 里给了固定高度，位数从 9 变到 100 也不会顶动下面的控件
+  const previewDays = anchorInput ? daysBetween(new Date(anchorInput), new Date()) + 1 : null
   const submitAnchor = () => {
     if (!anchorInput) return
     onAnchorChange?.(anchorInput)
@@ -311,17 +316,54 @@ const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
         </div>
       )}
 
-      {/* ── 锚点面板 ── */}
+      {/* ── 锚点面板 ──────────────────────────────────────────
+          外壳（.modal-veil + .modal-card + 它们自带的进场动画）跟原来
+          完全一样，只重写了卡片内部：把"填一个日期"变成"看着天数确认
+          这一天"——选日期时上面的大数字实时跟着变，确认的是「第 N 天」
+          这个结果，而不是一串抽象的 2025-04-06。
+
+          刻意没有引入任何新 @keyframes、没有任何 JS 测量、没有自绘
+          日历（点开仍然是系统原生日期选择器），多出来的全是静态样式。
+          唯一的结构变化是把毛玻璃换成现成的 .modal-card-solid，这比
+          原来少一层 backdrop-filter，GPU 开销只降不升，不存在"改完
+          反而更容易卡"的可能 ───────────────────────────────── */}
       {sheet === 'anchor' && (
         <div className="modal-veil chronos-sheet-veil" onClick={closeSheet}>
-          <div className="modal-card chronos-sheet-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-title" style={{ marginBottom: 14 }}>ANCHOR · 锚点</div>
-            <div className="sensitivity-hint" style={{ marginBottom: 10 }}>{anchorDate ? `当前锚点：${anchorDate}` : '还没有设定锚点，选一个对你们有意义的日子'}</div>
-            <input type="date" className="field-input" value={anchorInput} onChange={e => setAnchorInput(e.target.value)} />
-            <button className="solid-btn" style={{ width: '100%', marginTop: 14, padding: '13px 0', borderRadius: '14px', fontSize: '12px', letterSpacing: '3px' }} onClick={submitAnchor}>
-              {anchorDate ? '重设' : '设定'}
+          <div className="modal-card modal-card-solid chronos-anchor-card" onClick={e => e.stopPropagation()}>
+            <div className="chronos-anchor-orn" aria-hidden="true">✦</div>
+            <div className="chronos-anchor-title">ANCHOR</div>
+            <div className="chronos-anchor-sub">锚点 · 你们开始的那一天</div>
+            <div className="chronos-anchor-rule" aria-hidden="true" />
+
+            <div className="chronos-anchor-readout">
+              {previewDays != null ? (
+                <>
+                  <div className="chronos-anchor-num">{previewDays}</div>
+                  <div className="chronos-anchor-unit">在一起的第 {previewDays} 天</div>
+                </>
+              ) : (
+                <div className="chronos-anchor-blank">还没有锚点<br />选一个对你们有意义的日子</div>
+              )}
+            </div>
+
+            <label className="chronos-anchor-field">
+              <span className="chronos-anchor-field-label">起始日</span>
+              <input
+                type="date"
+                className="chronos-anchor-input"
+                value={anchorInput}
+                onChange={e => setAnchorInput(e.target.value)}
+              />
+            </label>
+
+            {anchorDate && anchorInput && anchorInput !== anchorDate && (
+              <div className="chronos-anchor-note">现在是 {anchorDate}，保存后改成 {anchorInput}</div>
+            )}
+
+            <button className="chronos-anchor-save" onClick={submitAnchor} disabled={!anchorInput}>
+              {anchorDate ? '重新锚定' : '锚定这一天'}
             </button>
-            <button className="line-btn" style={{ width: '100%', marginTop: 10, padding: '11px 0', borderRadius: '999px', fontSize: '11.5px', letterSpacing: '2px', color: 'var(--c-text-muted)' }} onClick={closeSheet}>关闭</button>
+            <button className="chronos-anchor-cancel" onClick={closeSheet}>关闭</button>
           </div>
         </div>
       )}

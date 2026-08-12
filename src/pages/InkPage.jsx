@@ -205,6 +205,9 @@ const InkPage = ({
   showToast, onClose,
 }) => {
   const [view, setView]     = useState('list') // 'list' | 'note'
+  // 列表卡片的浮现动画只在"刚回到列表"那一小段时间里允许播放，见下方
+  // useEffect 与 App.css 里 .ink-page-content.is-entering 那条规则
+  const [listEntering, setListEntering] = useState(true)
   const [openNoteId, setOpenNoteId] = useState(null)
   const [tailText, setTailText]     = useState('')
   const [titleDraft, setTitleDraft] = useState('')
@@ -808,6 +811,21 @@ const InkPage = ({
     return { pinnedNotes: pinned, restNotes: rest }
   }, [notes, activeBoard])
 
+  // 卡片浮现动画的开关。原来 App.css 里那条规则是"只要列表可见就播"，
+  // 于是「置顶 / 移动到板块」这类操作也会连带触发一次全列表重播：
+  // onUpdateNote → 重新拉列表 → 那张卡片在「置顶区」和「普通区」两个
+  // section 之间挪窝 → React 视作卸载再挂载 → 当场从透明淡入一次。
+  // 弹层刚关掉、下面的卡片跟着闪一下，很容易被算到"弹窗闪烁"头上。
+  // 这里把动画窗口收窄成"只有刚回到列表的那 900ms"，之后任何因为数据
+  // 更新导致的重新挂载都不再播动画——首次进入、写完返回列表这两个
+  // 真正需要浮现的场景照旧。
+  useEffect(() => {
+    if (view !== 'list') { setListEntering(false); return }
+    setListEntering(true)
+    const t = setTimeout(() => setListEntering(false), 900)
+    return () => clearTimeout(t)
+  }, [view])
+
   // ── 长按笔记卡片：置顶 / 移动到 / 删除 ──────────────────────
   const startLongPress = (n) => {
     longPressFired.current = false
@@ -988,7 +1006,7 @@ const InkPage = ({
             整段拆掉重建——挂载只做一次，切换视图只是 visibility 的
             开关。时间线布局本身也不再依赖任何测量出来的宽度，隐藏/
             显示之间没有任何坐标要重新算，自然也没有可跳的那一帧。 */}
-        <div className={`ink-page-content${view !== 'list' ? ' is-hidden' : ''}`}>
+        <div className={`ink-page-content${view !== 'list' ? ' is-hidden' : ''}${listEntering ? ' is-entering' : ''}`}>
             <div className="ink-page-eyebrow">柯与枢的接力手记</div>
 
             {boards.length > 0 && (
@@ -1161,6 +1179,27 @@ const InkPage = ({
         )}
       </div>
 
+    </div>
+  )
+
+  // ── 三个弹层：跟 .ink-page 平级，各自单独 Portal 到 body ──────
+  // 它们原本是 .ink-page 的 DOM 子节点，那正是"合墨弹窗一出来就闪、
+  // 别的页面同款弹窗却不闪"的真正根因。之前排查到过门口——「合墨这几个
+  // 弹层挂在 Portal 到 body、自己也是 position:fixed 的 .ink-page 下面，
+  // 跟别处平铺直叙挂在 body 下的弹窗不是同一种情况」——但当时的处理是
+  // 把毛玻璃摘掉（治症状），结构本身没动。
+  //
+  // .ink-page 同时带着 position:fixed + overflow:hidden + z-index 层叠
+  // 上下文 + transition:bottom + 一个 fill-mode:both 永久生效的 inkPageIn
+  // 动画。这几样凑在一起，WebKit 会把它当成一个长期存在的合成层；弹层
+  // 只要还是它的子节点，就只能跟着这一层一起被反复重新光栅化。而弹层
+  // 自己的 position:fixed 又是相对视口的，两者节奏对不上，看起来就是"闪"。
+  //
+  // 搬成兄弟节点之后，合墨的弹层跟别的页面的弹窗处在完全相同的环境里
+  // ——别处不闪，这里也就不会闪。inline 的 zIndex（2500/2510/2520）仍然
+  // 高于 .ink-page 的 2400，两者现在同处 body 的根层叠上下文，照旧生效。
+  const sheets = (
+    <>
       {/* 长按笔记卡片：置顶 / 移动到 / 删除 */}
       {cardMenu && (
         <div className="modal-veil ink-modal-veil" style={{ zIndex: 2500 }} onClick={closeCardMenu}>
@@ -1228,13 +1267,19 @@ const InkPage = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 
   // 挂到 body 上：跳出 .tab-page 的层叠上下文和 transform 包含块，
   // 底部导航条才压不住这一页，滚动手势也不再受 .gravity-page 的
   // touch-action:none 影响
-  return typeof document !== 'undefined' ? createPortal(page, document.body) : page
+  if (typeof document === 'undefined') return <>{page}{sheets}</>
+  return (
+    <>
+      {createPortal(page, document.body)}
+      {createPortal(sheets, document.body)}
+    </>
+  )
 }
 
 export default InkPage
