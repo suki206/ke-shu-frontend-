@@ -636,6 +636,49 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
   voices, selectedVoiceURI, setSelectedVoiceURI,
   onSave, onOpenBackup, onRefreshVoices, showToast }) => {
 
+  // 【2026-08-12 修复】"没点 SAVE，改过的值也留下了"
+  // ------------------------------------------------------------------
+  // 根因：config 是 ChatPage 里的一份全局 state，这两个输入框原来直接
+  // onChange → setConfig，等于"边打字边改全局设置"。SAVE 按钮做的只是
+  // 把这份已经被改过的 config 推到服务器而已。所以不点 SAVE 就切走，
+  // 内存里那份 config 早就是新值了——再切回来当然显示的是改过的数，
+  // 而且这中间凡是别处调了一次带 override 的保存，还会把这个没确认过
+  // 的值顺手写进库里。
+  //
+  // 改法：需要"点保存才算数"的字段，一律先放在这个页面自己的草稿里，
+  // 只有 SAVE 才合并回 config 并落盘；不保存就走人，草稿随组件卸载
+  // 一起丢掉（这一页是 activeTab === 'constant' 时才挂载的，切走就
+  // 卸载），下次进来重新从 config 灌一遍，自然就是原样。
+  //
+  // 顺带把类型从 number 改成字符串草稿：原来 Number('') === 0，想把
+  // 输入框清空重打一个数，中途会被强行改写成 0，光标还会被顶到末尾。
+  // 现在中间态原样保留，只在 SAVE 那一刻做一次转换和兜底。
+  const pickParams = (c) => ({
+    compress_threshold:   String(c?.compress_threshold ?? ''),
+    compress_keep_rounds: String(c?.compress_keep_rounds ?? ''),
+  })
+  const [paramDraft, setParamDraft] = useState(() => pickParams(config))
+  // 只认"已保存的值本身变了"这一件事（比如刚从服务器把设置拉回来）。
+  // 打字期间这两个值不会变，所以不会把正在输入的内容冲掉
+  useEffect(() => { setParamDraft(pickParams(config)) },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config.compress_threshold, config.compress_keep_rounds])
+
+  const saveAll = () => {
+    const toNum = (v, fallback) => {
+      const n = Number(v)
+      return (String(v).trim() === '' || Number.isNaN(n)) ? fallback : n
+    }
+    const next = {
+      ...config,
+      compress_threshold:   toNum(paramDraft.compress_threshold, config.compress_threshold),
+      compress_keep_rounds: toNum(paramDraft.compress_keep_rounds, config.compress_keep_rounds),
+    }
+    setConfig(next)
+    onSave(next)          // 带 override，saveSettings 就不会再自己弹一次 toast
+    showToast?.('已保存')
+  }
+
   return (
     <div className="tab-page">
       <div style={{ padding: '28px 22px 14px', flexShrink: 0, borderBottom: '1px solid var(--c-line)' }}>
@@ -733,11 +776,11 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: 'var(--c-text-faint)', marginBottom: 8, fontFamily: 'var(--font-accent)' }}>压缩阈值 Token</div>
-              <input className="field-input" type="number" value={config.compress_threshold} onChange={e => setConfig(p => ({ ...p, compress_threshold: Number(e.target.value) }))} />
+              <input className="field-input" type="number" value={paramDraft.compress_threshold} onChange={e => setParamDraft(p => ({ ...p, compress_threshold: e.target.value }))} />
             </div>
             <div>
               <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: 'var(--c-text-faint)', marginBottom: 8, fontFamily: 'var(--font-accent)' }}>压缩后保留回合</div>
-              <input className="field-input" type="number" value={config.compress_keep_rounds} onChange={e => setConfig(p => ({ ...p, compress_keep_rounds: Number(e.target.value) }))} />
+              <input className="field-input" type="number" value={paramDraft.compress_keep_rounds} onChange={e => setParamDraft(p => ({ ...p, compress_keep_rounds: e.target.value }))} />
             </div>
           </div>
         </div>
@@ -751,7 +794,7 @@ const ConstantPage = ({ config, setConfig, theme, setTheme, fontScale, setFontSc
         </div>
 
         {/* 保存 */}
-        <button onClick={() => onSave()} className="solid-btn" style={{ width: '100%', padding: '14px 0', borderRadius: '14px', fontSize: '12px', letterSpacing: '3px', marginTop: 8 }}>
+        <button onClick={saveAll} className="solid-btn" style={{ width: '100%', padding: '14px 0', borderRadius: '14px', fontSize: '12px', letterSpacing: '3px', marginTop: 8 }}>
           SAVE
         </button>
 

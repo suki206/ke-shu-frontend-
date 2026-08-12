@@ -129,6 +129,30 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
   // 读取最新值），失焦时再兜底纠正成合法范围内的数字。
   const [tempDraft, setTempDraft] = useState(() => String(config?.temperature ?? 0.7))
 
+  // 【2026-08-12 修复】"没点 SAVE，改过的值也留下了"
+  // ------------------------------------------------------------------
+  // 人格原来是 onChange → setConfig 直接写进 ChatPage 那份全局 config，
+  // 温度则是点弹窗「确定」时写进去。两者都不等 SAVE，于是"改了、没保存、
+  // 退出去、再进来"看到的还是改过的内容——因为压根没有一份"原样"留着。
+  // 现在人格也放进本页自己的草稿，跟 tempDraft 一样，只有底部 SAVE 才
+  // 一起合并回 config 并落盘；不保存就返回，草稿随组件卸载丢掉
+  // （回声页是 openBody === 'giant' 时才挂载的，点返回就卸载）。
+  //
+  // 注意这跟下面那些走 persist() 的操作（切换模型、增删模型/提供商）
+  // 是两回事：那些是"点一下即刻生效"的动作，本来就该立刻落盘，不受
+  // 这份草稿影响；反过来，persist() 保存的也是 config 里那份**已确认
+  // 的**人格/温度，不会把这里编辑到一半的内容捎带着写进库。
+  const [personaDraft, setPersonaDraft] = useState(() => config?.system_prompt || '')
+
+  // 只在"已保存的值本身变了"时重新灌草稿（比如刚从服务器把设置拉回来）。
+  // 打字期间 config.system_prompt 不动，所以不会把正在输入的内容冲掉
+  useEffect(() => { setPersonaDraft(config?.system_prompt || '') },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config?.system_prompt])
+  useEffect(() => { setTempDraft(String(config?.temperature ?? 0.7)) },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config?.temperature])
+
   // ── Temperature 弹窗：点下面显示当前值的那一行才打开，编辑态放在
   //    这个独立的模态草稿 tempModalDraft 里，跟 tempDraft/config.temperature
   //    完全隔离——只有点"确定"才把草稿钳制到 [0, 1.5] 后写回两边，点
@@ -156,8 +180,10 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
     const safe = (tempModalDraft === '' || tempModalDraft === '.' || Number.isNaN(n))
       ? (config?.temperature ?? 0.7)
       : Math.min(1.5, Math.max(0, n))
+    // 只落进本页草稿，不再直接写 config——温度跟人格一样，要等底部
+    // SAVE 才算数。原来这里 setConfig 之后，哪怕从没点过 SAVE，退出
+    // 再进来看到的也是改过的值
     setTempDraft(String(safe))
-    setConfig(p => ({ ...p, temperature: safe }))
     setShowTempModal(false)
   }
 
@@ -299,7 +325,18 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
     setDiscoverResult(null)
   }
 
-  const saveAll = () => { onSaveConfig(); showToast?.('已保存') }
+  // SAVE：把这一页两份草稿（人格 / 温度）一起合并回 config 再落盘。
+  // 温度在这里再兜一次底——草稿里可能还留着 "0." 这种编辑中间态
+  const saveAll = () => {
+    const n = Number(tempDraft)
+    const temp = (String(tempDraft).trim() === '' || tempDraft === '.' || Number.isNaN(n))
+      ? (config?.temperature ?? 0.7)
+      : Math.min(1.5, Math.max(0, n))
+    const next = { ...config, system_prompt: personaDraft, temperature: temp }
+    setConfig(next)
+    onSaveConfig(next)    // 带 override，saveSettings 就不会再自己弹一次 toast
+    showToast?.('已保存')
+  }
 
   return (
     <div className="echo-page">
@@ -320,8 +357,8 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
             <div className="echo-page-card-label">PERSONA · 人格</div>
             <textarea
               className="field-input"
-              value={config?.system_prompt || ''}
-              onChange={e => setConfig(p => ({ ...p, system_prompt: e.target.value }))}
+              value={personaDraft}
+              onChange={e => setPersonaDraft(e.target.value)}
               rows={5}
               style={{ marginTop: 12, resize: 'vertical', lineHeight: 1.7, fontSize: '13px' }}
             />

@@ -295,6 +295,35 @@ const InkPage = ({
   useEffect(() => { tailTextRef.current = tailText }, [tailText])
   useEffect(() => { noteIdRef.current = openNoteId }, [openNoteId])
 
+  // 【bug 修复 2026-08-12】「让枢写一篇，保存后列表里根本没有这一篇」
+  // ------------------------------------------------------------------
+  // committedRef 原来只有两处会被置 true：
+  //   ① 下面那个"打开一篇笔记"的 effect，用当时的 content/entries 定初值；
+  //   ② clearTailAfterCommit()，也就是**我自己**落笔成功之后。
+  // 枢起笔那条路两处都不经过——先建一篇空壳笔记，此时 ① 算出来是
+  // false（正文本来就是空的），然后枢写第一段，正文是从 SSE 的 done
+  // 事件并回 activeNote 的，不走 ②；而 ① 那个 effect 开头就
+  // `if (loadedNoteRef.current === note.id) return`，同一篇笔记只认第一次，
+  // 之后再怎么变都不会重算。于是 committedRef 一直躺在 false。
+  // 等到返回列表，goBackToList 里那句
+  //   if (!committedRef.current && !pending.trim()) onDeleteNote(...)
+  // 就把这篇"枢刚写满了正文"的笔记当白纸删了——接口确实调成功过，
+  // 数据也真进过库，只是紧接着又被前端自己删掉，所以看起来像"点了
+  // 保存却什么都没生成"。自己先写就没事，因为那条路会走 ②。
+  //
+  // 修法不是去动 goBackToList 的判断（那句判断本身是对的：真白纸就该
+  // 删），而是让 committedRef 一直跟真实正文保持同步。这个 effect 是
+  // 单向的——只在"确实有正文/有段落"时置 true，永远不会把 true 抹回
+  // false，所以不会跟 ② 打架；换笔记时 openNote() 会先清零，再由这里
+  // 和 ① 各自重新定值。note.id !== openNoteId 时直接跳过，避免上一篇
+  // 的 props 还没换下来那一瞬间误判。
+  useEffect(() => {
+    if (!note || note.id !== openNoteId) return
+    if (entries.length > 0 || (note.content && note.content.trim())) {
+      committedRef.current = true
+    }
+  }, [note, entries, openNoteId])
+
   // ── 尾巴输入框自动撑高：跟着内容长，不出现内部滚动条，这样它
   //    才能跟前面的正文严丝合缝接成一整页 ────────────────────
   useEffect(() => {

@@ -219,8 +219,17 @@ const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
     return (minR + i * step) * 2
   }
 
+  // 面板开着的时候给整页打一个标记：星轨场景里那些无限循环的动画
+  // （行星公转 chronosOrbitSpin、恒星光晕 chronosFlarePulse）会在
+  // 弹层背后一帧不落地跑下去，合成器每一帧都要重画一遍整个舞台。
+  // 弹层自己已经不带毛玻璃了，这些动画在它背后既看不见、又白白占着
+  // 每一帧的绘制预算——中低端手机上"弹窗一出来就发抖"很大一部分是
+  // 这么来的。CSS 里用 animation-play-state: paused 把它们按住，
+  // 关掉面板自动恢复，不涉及任何测量、也不改结构
+  const sheetOpen = !!sheet
+
   return (
-    <div className="chronos-page">
+    <div className={`chronos-page${sheetOpen ? ' is-sheet-open' : ''}`}>
       <div className="chronos-header">
         <button className="chronos-back" onClick={onClose} aria-label="关闭">‹</button>
         <div className="chronos-title">CHRONOS · 时轨</div>
@@ -356,9 +365,16 @@ const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
               />
             </label>
 
-            {anchorDate && anchorInput && anchorInput !== anchorDate && (
-              <div className="chronos-anchor-note">现在是 {anchorDate}，保存后改成 {anchorInput}</div>
-            )}
+            {/* 这一行原来是条件渲染：选了个跟当前不一样的日子，它才凭空
+                多出来一行——卡片在垂直居中的容器里，一变高就同时往上下
+                两头长，肉眼看就是"刚点完日期，弹窗自己跳了一下"。改成
+                位置永远占着、只切换可见性，卡片高度从头到尾是个常量，
+                无论怎么改日期都不会有一个像素的位移 */}
+            <div className={`chronos-anchor-note${(anchorDate && anchorInput && anchorInput !== anchorDate) ? ' is-on' : ''}`}>
+              {anchorDate && anchorInput && anchorInput !== anchorDate
+                ? `现在是 ${anchorDate}，保存后改成 ${anchorInput}`
+                : '\u00A0'}
+            </div>
 
             <button className="chronos-anchor-save" onClick={submitAnchor} disabled={!anchorInput}>
               {anchorDate ? '重新锚定' : '锚定这一天'}

@@ -4608,3 +4608,96 @@ body   { height: 100%; }
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   opacity: .7;
 }
+/* ============================================================
+   时轨 · 弹层零闪烁（2026-08-12）
+   ------------------------------------------------------------
+   把这一整段【原样追加到 App.css 的最末尾】。放在最后是必要的：
+   它要覆盖前面 .modal-veil / .modal-card 里的几条声明，靠的是
+   同优先级下"后写的赢"这条规则，插在中间可能覆盖不掉。
+
+   这一段只做减法：不新增任何 @keyframes，不加任何 JS 测量，不引入
+   backdrop-filter，不改任何元素的尺寸或颜色。观感跟现在完全一致，
+   只是把三条"每一帧都可能动一下"的路径全部掐断。
+   ============================================================ */
+
+/* ── ① 主因：弹层不再跟着键盘/日期选择器的高度反复重新定位 ──────
+   全局有一条 `.modal-veil { bottom: var(--kb-height, 0px); }`，本意是
+   键盘顶上来时别把输入卡片压在键盘底下。代价是：veil 的高度从此绑在
+   一个**每一帧都会被重写**的变量上（ChatPage 的 measure() 挂在
+   visualViewport 的 resize/scroll 和 VirtualKeyboard 的 geometrychange
+   上，用 rAF 节流，也就是键盘动画期间每帧写一次）。veil 是个
+   align-items:center 的 flex 容器——它一变矮，里面的卡片就得重新算
+   一次垂直居中位置。于是点一下 <input type="date">，系统日期选择器
+   从底部升起的那 200~300 毫秒里，卡片被这个不断变化的容器高度拽着
+   上下追，看起来就是"弹窗在闪 / 在抖"。
+
+   这个坑本身不是新发现——.echo-modal-veil 和 .ink-leave-veil 早就
+   各自写了 `bottom: 0` 把自己摘出去了（见 App.css 里那两处注释），
+   只有时轨这三个面板漏掉了。这里补上，写法跟前面两处完全一致。
+
+   为什么时轨可以放心摘出去：这三个面板里没有任何文本输入框，只有
+   <input type="date">，走的是系统原生选择器，不需要"给键盘让位置"
+   这套逻辑。摘掉之后 veil 永远是满屏，卡片位置从挂载到卸载是个常量。 */
+.modal-veil.chronos-sheet-veil {
+  bottom: 0;
+  transition: none;
+}
+
+/* ── ② 次因：进场动画补上 backwards 填充，掐掉第一帧的"回弹闪" ──
+   .chronos-anchor-card 自己没写 animation，用的是 .modal-card 那条
+   `animation: popIn .28s var(--ease)`——注意它没有填充模式。没有
+   backwards 填充意味着：从元素插入 DOM 到动画真正跑第一帧之间，
+   浏览器按元素的**基础样式**画一次，也就是 transform 未被覆盖的
+   scale(1) 原大；下一帧动画接管，才跳回 scale(0.96) 再长回 1。
+   设备快的时候这一帧被合进同一次绘制里看不出来，设备一慢就是肉眼
+   可见的"大一下、缩一下、再长出来"——这正是"弹窗一出来闪一下"。
+
+   同页的 .chronos-sheet-card 用的 gravityZoomIn 是带 both 的，所以
+   它不闪；锚点卡片因为直接吃 .modal-card 的默认值才漏了。这里只给
+   时轨这几张卡片补，不动全局 .modal-card，避免波及别的页面。 */
+.chronos-anchor-card,
+.modal-veil.chronos-sheet-veil .modal-card {
+  animation: popIn .28s var(--ease) both;
+}
+
+/* ── ③ 第三因：面板开着的时候，把背后那些无限循环的动画按住 ──────
+   星轨舞台上常年跑着四组 infinite 动画：每个倒计时一个公转
+   （chronosOrbitSpin）、恒星内芯（sundialCoreWarm）、恒星光晕
+   （chronosFlarePulse）、月相呼吸（chronosMoonBreathe）。弹层挡在
+   它们前面时，这些动画既看不见，又照样让合成器每一帧重画整个舞台，
+   等于拿走了弹层自己进场那 0.28 秒里本来就不宽裕的帧预算。倒计时
+   越多越明显——每多一条就多一个无限旋转的图层。
+
+   animation-play-state: paused 是纯声明式的暂停，关掉面板自动从
+   原来的相位继续，不重播、不跳帧，也不需要任何 JS 配合。 */
+.chronos-page.is-sheet-open .chronos-orbit-pivot,
+.chronos-page.is-sheet-open .chronos-star-core,
+.chronos-page.is-sheet-open .chronos-star-flare,
+.chronos-page.is-sheet-open .chronos-moon-wrap {
+  animation-play-state: paused;
+}
+
+/* ── ④ 卡片高度恒定：那行"保存后改成 X"不再把卡片撑高 ──────────
+   配合 ChronosPage.jsx 里改成常驻的那个节点。原来它是条件渲染，
+   一选新日期就凭空多出一行，卡片在垂直居中的容器里一变高就同时
+   往上下两头长——表现是"刚点完日期，弹窗自己往上跳了一下"。
+   现在位置永远占着，只切 opacity，高度是常量。
+   nowrap + ellipsis 是保险：万一日期串在特别窄的屏上排不下，也是
+   末尾省略，绝不会折成两行把高度顶开。 */
+.chronos-anchor-note {
+  min-height: 19px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.chronos-anchor-note.is-on { opacity: 1; }
+
+/* ── ⑤ 可选：如果 iOS 上系统日期滚轮从底部升起后挡住了「锚定这一天」
+   按钮，把下面这两行的注释去掉——面板改成靠上固定，滚轮永远够不着
+   它。默认不启用，因为居中是原来的设计，而且 ① 之后位置已经完全
+   不动了，只有真被挡住才需要动它。 */
+/*
+.modal-veil.chronos-anchor-veil { align-items: flex-start; padding-top: calc(env(safe-area-inset-top, 0px) + 56px); }
+*/
