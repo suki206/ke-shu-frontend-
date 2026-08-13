@@ -66,8 +66,17 @@ const BackupPage = ({
   const confirmExport = async () => {
     if (selectedIds.size === 0) { showToast?.('先选至少一个对话'); return }
     setExporting(true)
-    try { await onExportSessions?.([...selectedIds], format); setPickerOpen(false) }
-    finally { setExporting(false) }
+    // 【2026-08-12 修复】原来只有 try/finally，没有 catch：导出过程中
+    // 只要抛了错（网络断、某个会话拉不到消息），异常会一路冒到
+    // onClick 的 Promise 里变成 unhandled rejection——界面上的表现是
+    // "点了导出，转了一下，弹窗还开着，什么也没发生，也不说为什么"。
+    // 现在明确接住并告诉人一声。
+    try {
+      await onExportSessions?.([...selectedIds], format)
+      setPickerOpen(false)
+    } catch (err) {
+      showToast?.('导出失败：' + (err?.message || '未知原因'))
+    } finally { setExporting(false) }
   }
 
   return (

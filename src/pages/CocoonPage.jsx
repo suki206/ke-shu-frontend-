@@ -52,6 +52,13 @@ const CocoonPage = ({ keEntries = [], shuEntries = [], shuLimit, loading, onAddK
   // 内芯上限：本地草稿，点"保存"才真正生效——跟回声人格/温度那块
   // 同一套逻辑，避免改了数字没点保存却已经在别处显示成新值
   const [limitDraft, setLimitDraft] = useState(String(shuLimit ?? 20))
+  // 【2026-08-12 bug 修复】上面这个初始值只在组件**第一次挂载**时取一次。
+  // 而茧星的数据是异步拉回来的（onFetchCocoon），页面往往先挂载、
+  // shuLimit 才到；也可能在别的地方被改过。结果是输入框一直显示兜底的
+  // 20，跟右上角真实的"12 / 35"对不上，更糟的是这时候点一下保存，
+  // 会拿这个假的 20 把真实上限覆盖掉。这里跟着已保存的值同步一次——
+  // 只依赖 shuLimit，打字期间它不会变，所以不会把正在输入的数字冲掉。
+  useEffect(() => { setLimitDraft(String(shuLimit ?? 20)) }, [shuLimit])
   const saveLimit = () => {
     const n = Math.max(1, Math.floor(Number(limitDraft) || 0))
     setLimitDraft(String(n))
@@ -61,6 +68,21 @@ const CocoonPage = ({ keEntries = [], shuEntries = [], shuLimit, loading, onAddK
 
   const shuCount = shuEntries.length
   const shuFull = shuLimit != null && shuCount >= shuLimit
+
+  // ── 这段守则每轮要占多少 token ────────────────────────────────
+  // 柯问过"茧星是每轮都灌进去多花 token，还是像人格设定那样"。答案是
+  // 两者其实是**同一件事**：模型没有跨请求的记忆，人格设定同样每一轮
+  // 都要原样重发一遍，茧星和它花的是同一种钱。所以与其藏着，不如把
+  // 数字直接摆出来——删几条、加几条，这里立刻跟着变，贵不贵一眼看得见。
+  // 估法跟后端 estimateToken 一致：汉字按 0.7、其余按 4 字符 1 token。
+  // 注：这段落在提示词最前面的静态区，命中前缀缓存后实际只按约一折
+  // 计费，所以真实成本比这个数还低不少。
+  const estTokens = (() => {
+    const text = [...keEntries, ...shuEntries].map(i => i.content || '').join('')
+    const cjk = (text.match(/[\u3400-\u9FFF]/g) || []).length
+    // 120 是那段固定说明文字（怎么写入、这是守则不是资料）的大致开销
+    return Math.ceil(cjk * 0.7 + (text.length - cjk) / 4) + 120
+  })()
 
   return (
     <div className="cocoon-page">
@@ -86,7 +108,13 @@ const CocoonPage = ({ keEntries = [], shuEntries = [], shuLimit, loading, onAddK
           </div>
         ) : (
           <div className="cocoon-page-content">
-            <div className="cocoon-page-eyebrow">枢对自己的记忆，外层是你写的丝，内芯是他自己吐的丝</div>
+            <div className="cocoon-page-eyebrow">枢对自己的守则，外层是你写的丝，内芯是他自己吐的丝</div>
+
+            {/* 每轮固定开销：见上面 estTokens 那段注释 */}
+            <div className="cocoon-budget">
+              <span className="cocoon-budget-label">这些守则每轮对话都会带给他</span>
+              <span className="cocoon-budget-num">≈ {estTokens} token</span>
+            </div>
 
             {/* 外层丝 · 柯写的 */}
             <div className="cocoon-section">

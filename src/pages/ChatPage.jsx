@@ -550,9 +550,15 @@ const ChroniclePage = () => {
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '15px', letterSpacing: '4px', color: 'var(--c-text)' }}>CHRONICLE</div>
           <div style={{ fontSize: '11px', letterSpacing: '1px', color: 'var(--c-text-faint)', marginTop: 6, fontFamily: 'var(--font-accent)', fontStyle: 'italic' }}>枢的日记本</div>
         </div>
-        <button onClick={generateToday} disabled={generating} className="line-btn" style={{ padding: '9px 16px', borderRadius: '999px', fontSize: '10.5px', letterSpacing: '1.5px', whiteSpace: 'nowrap' }}>
-          {generating ? '生长中…' : '✦ 写今日'}
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <button onClick={generateToday} disabled={generating} className="line-btn" style={{ padding: '9px 16px', borderRadius: '999px', fontSize: '10.5px', letterSpacing: '1.5px', whiteSpace: 'nowrap' }}>
+            {generating ? '生长中…' : '✦ 写今日'}
+          </button>
+          {/* 柯的要求：凡是会花 token 的动作，按钮上就得说清楚。
+              写日记是一次完整的模型调用（"要不要写"的判断和正文
+              是同一次调用里出来的，不是两次） */}
+          <span className="token-cost-hint">点一下 = 一次生成，会消耗 token</span>
+        </div>
       </div>
 
       {genError && <div style={{ padding: '10px 20px 0', fontSize: '11px', color: 'var(--c-accent-2)', letterSpacing: '.3px' }}>{genError}</div>}
@@ -612,6 +618,13 @@ const ChroniclePage = () => {
               {open
                 ? <div className="diary-item-body">{d.content}</div>
                 : <div className="diary-item-preview">{d.content}</div>}
+              {/* 这一篇当时花掉的 token。老日记没有这两列（是在 2026-08-12
+                  那次改动之后才开始记的），没有就不显示，不占位置 */}
+              {open && (d.tokens_input != null || d.tokens_output != null) && (
+                <span className="token-cost-mark diary-item-cost">
+                  这一篇 ↑{d.tokens_input || 0} ↓{d.tokens_output || 0} token
+                </span>
+              )}
             </div>
           )
         })}
@@ -1245,7 +1258,17 @@ const ChatPage = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await readInkSSEStream(res, noteId, mode)
     } catch (err) {
-      if (err.name !== 'AbortError') showToast('生成失败：' + err.message)
+      if (err.name !== 'AbortError') { showToast('生成失败：' + err.message) }
+      else {
+        // 【2026-08-12 bug 修复】点"停止"之后那一段会凭空消失。
+        // 根因：abort 掐断的是**连接**，后端那边其实照常把已经生成
+        // 的半段写进了 entries 并追加进正文（这是有意为之，写了一半
+        // 也不该白写）——但 done 事件永远送不到前端了，所以本地
+        // activeNote 完全不知道多了这一段，屏幕上什么都没留下，得退出
+        // 笔记再进来才看得到。现在中止后主动回查一次这篇笔记，让
+        // 屏幕上的内容跟数据库对齐。
+        try { await fetchInkEntries(noteId) } catch {}
+      }
     }
     inkAbortRef.current = null
     setInkStreamText('')

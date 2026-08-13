@@ -111,12 +111,53 @@ const StarCanvas = forwardRef(({ theme = 'noir', interactive = false, wallpaper 
     if (!c) return
     const ctx = c.getContext('2d', { alpha: false })
 
-    const resize = () => {
-      c.width  = innerWidth
-      c.height = innerHeight
+    // ── 尺寸 ──────────────────────────────────────────────────
+    // 【2026-08-12 修复 · 键盘一弹背景就闪一下】
+    // 原来是 resize 事件一来就 c.width = innerWidth / c.height = innerHeight。
+    // 给 canvas 的 width/height 赋值会**重新分配整块位图并清空**，下一帧
+    // 才重画——所以每次这两个值变动，背景都会闪一下空白。
+    // 而在安卓 Chrome（小米自带浏览器/WebView 同样）上，软键盘弹出会
+    // 直接把 window.innerHeight 压小几百像素，收起再弹回去——于是每打
+    // 一次字、每点一次输入框，整片星空就跟着闪两下。
+    // 现在：宽度变了才真的重建；高度只增不减（记住见过的最大高度），
+    // 键盘弹出时画布保持原来那么高，被键盘挡住的部分本来也看不见，
+    // 完全不需要重建。横竖屏切换宽度会变，那时才重新分配。
+    let baseH = 0
+    const resize = (force = false) => {
+      const w = innerWidth
+      const h = Math.max(innerHeight, force ? 0 : baseH)
+      if (!force && c.width === w && c.height === h) return
+      baseH = h
+      c.width = w
+      c.height = h
     }
-    resize()
-    addEventListener('resize', resize)
+    // 转屏：宽度变了，高度基准要跟着重来一遍
+    let lastW = innerWidth
+    const onResize = () => {
+      const widthChanged = innerWidth !== lastW
+      lastW = innerWidth
+      if (widthChanged) baseH = 0
+      resize(widthChanged)
+    }
+    resize(true)
+    addEventListener('resize', onResize)
+
+    // ── 帧率与休眠 ────────────────────────────────────────────
+    // 这块画布是全站常驻背景（聊天页、引力页……都盖在它上面），原来
+    // 不管有没有人看、手机锁没锁屏，都以 60fps 无限画下去：150 个粒子
+    // 的位置更新 + 最多 115×115 的连线距离判定 + 每颗亮星一个径向渐变。
+    // 这是这个应用最持续的一笔耗电，也是"手机发烫"最主要的来源。
+    // 两个措施，都不改画面本身：
+    //   ① 页面切到后台 / 锁屏（document.hidden）就把循环整个停掉，
+    //      回来再接着跑。看不见的时候一帧都不画。
+    //   ② 非交互状态限到 30fps。星点本来就是极慢地飘，30 帧和 60 帧
+    //      肉眼看不出区别，但计算量直接减半。真正在拖拽/缩放星图
+    //      （interactive）时恢复满帧，手感不受影响。
+    //   ③ 系统开了"减弱动态效果"就只画一帧静止的星空，不再循环。
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const IDLE_FRAME_MS = 1000 / 30
+    let lastDrawAt = 0
+    let paused = false
 
     const p = PAL[theme] ?? PAL.noir
 
@@ -131,10 +172,18 @@ const StarCanvas = forwardRef(({ theme = 'noir', interactive = false, wallpaper 
       ctx.drawImage(img, dx, dy, dw, dh)
     }
 
-    const draw = () => {
+    const draw = (now = 0) => {
+      // 非交互时限帧：没到间隔就直接排下一帧，什么都不画
+      if (!inter.current && !reduceMotion && now - lastDrawAt < IDLE_FRAME_MS) {
+        raf.current = requestAnimationFrame(draw)
+        return
+      }
+      lastDrawAt = now
       frame.current++
       const { width: W, height: H } = c
-      const { x: camX, y: camY, z } = cam.current
+      // 只取 z：下面用的是 cam.current.x/y 的**当前**值（惯性会在这一帧
+      // 里被改写），提前解构出来的 camX/camY 是过期快照，一直没被用到
+      const { z } = cam.current
       const { x: mx, y: my } = mouse.current
       const zoom = Math.max(.2, Math.min(3, z))
 
@@ -264,12 +313,31 @@ const StarCanvas = forwardRef(({ theme = 'noir', interactive = false, wallpaper 
         ctx.stroke()
       }
 
-      raf.current = requestAnimationFrame(draw)
+      // 减弱动态效果：画一帧就停，不再排下一帧
+      if (!reduceMotion) raf.current = requestAnimationFrame(draw)
     }
 
-    draw()
+    const start = () => {
+      if (paused) return
+      cancelAnimationFrame(raf.current)
+      raf.current = requestAnimationFrame(draw)
+    }
+    const onVisibility = () => {
+      if (document.hidden) {
+        paused = true
+        cancelAnimationFrame(raf.current)
+      } else {
+        paused = false
+        lastDrawAt = 0
+        start()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    start()
+
     return () => {
-      removeEventListener('resize', resize)
+      removeEventListener('resize', onResize)
+      document.removeEventListener('visibilitychange', onVisibility)
       cancelAnimationFrame(raf.current)
     }
   }, [theme])

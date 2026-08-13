@@ -39,8 +39,37 @@ function moonPhaseD(frac, r) {
   return `M ${cx} ${cy - r} A ${r} ${r} 0 0 ${sweepOuter} ${cx} ${cy + r} A ${rx} ${r} 0 0 ${sweepInner} ${cx} ${cy - r} Z`
 }
 
-const daysBetween = (a, b) => Math.round((b.getTime() - a.getTime()) / 86400000)
-const dstr = (d) => d.toISOString().slice(0, 10)
+// ============================================================
+// 【2026-08-12 修复】时轨这一页的日期算法有两处一直是错的
+// ============================================================
+// ① 「在一起的第 N 天」每天傍晚会提前跳一天。
+//    根因：daysBetween 原来是 (b - a) / 86400000 直接四舍五入，而
+//    锚点是 '2024-05-20' 这种纯日期字符串——JS 把它解析成 **UTC 零点**，
+//    b 却是"此刻"。北京时间下午 8 点之后，两者差值就过了 X.5 天，
+//    四舍五入直接进位。于是白天看是对的，一到晚上八点数字就变成了
+//    明天的，第二天早上再看又"恰好"是对的，很难发现。倒计时的
+//    「还有 N 天」是同一个函数，同一个毛病。
+//    现在改成：两边都先归到**本地日历日的零点**再相减，算的是"隔了
+//    几个日历日"，跟人掰手指数日子的方式一致，任何时辰问都是同一个数。
+// ② 潮汐光带整条错位一天，而且"预计下次"的标记永远落不到正确格子上。
+//    根因：dstr 用的是 toISOString()，那是 **UTC** 日期；而格子是按
+//    本地零点生成的。UTC+8 下本地零点等于前一天 16:00 UTC，于是每个
+//    格子的日期标签都往前串了一天；经期区间又是拿 new Date('YYYY-MM-DD')
+//    （UTC 零点）来比的，两套基准撞在一起，亮起来的那段整体后移一天。
+//    现在统一：日期字符串一律按**本地日历日**解析（parseDay），日期
+//    转字符串也一律用本地（dstr），全页只有这一套基准。
+const pad2 = (n) => String(n).padStart(2, '0')
+const dstr = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+// 'YYYY-MM-DD' / 'YYYY-MM-DDTHH:mm' 都能吃：前者按本地零点，后者保留时刻
+const parseDay = (v) => {
+  if (v instanceof Date) return v
+  const str = String(v || '')
+  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return new Date(str)
+}
+const startOfDay = (v) => { const d = parseDay(v); const o = new Date(d.getTime()); o.setHours(0, 0, 0, 0); return o }
+const daysBetween = (a, b) => Math.round((startOfDay(b).getTime() - startOfDay(a).getTime()) / 86400000)
 
 const BackIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -128,12 +157,12 @@ const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
   }, [])
 
   // ── 锚点 ──────────────────────────────────────────────────
-  const anchorDays = anchorDate ? daysBetween(new Date(anchorDate), new Date()) + 1 : null
+  const anchorDays = anchorDate ? daysBetween(anchorDate, new Date()) + 1 : null
   // 面板里的实时读数：跟着 anchorInput 走，而不是跟着已保存的 anchorDate
   // ——选日期的时候上面的大数字立刻变，确认的是"第 N 天"这个结果，
   // 不是一串抽象的 2025-04-06。纯计算，没有异步、没有任何测量；读数区
   // 在 CSS 里给了固定高度，位数从 9 变到 100 也不会顶动下面的控件
-  const previewDays = anchorInput ? daysBetween(new Date(anchorInput), new Date()) + 1 : null
+  const previewDays = anchorInput ? daysBetween(anchorInput, new Date()) + 1 : null
   const submitAnchor = () => {
     if (!anchorInput) return
     onAnchorChange?.(anchorInput)
@@ -165,11 +194,11 @@ const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
 
   // ── 潮汐 · 经期 ───────────────────────────────────────────
   const sortedAsc = useMemo(() => [...periodLogs].sort((a, b) => a.start_date.localeCompare(b.start_date)), [periodLogs])
-  const gaps = sortedAsc.slice(1).map((p, i) => daysBetween(new Date(sortedAsc[i].start_date), new Date(p.start_date)))
+  const gaps = sortedAsc.slice(1).map((p, i) => daysBetween(sortedAsc[i].start_date, p.start_date))
   const recentGaps = gaps.slice(-6)
   const avgCycle = recentGaps.length ? Math.round(recentGaps.reduce((a, b) => a + b, 0) / recentGaps.length) : null
   const lastStart = sortedAsc[sortedAsc.length - 1]?.start_date
-  const predictedNext = (lastStart && avgCycle) ? new Date(new Date(lastStart).getTime() + avgCycle * 86400000) : null
+  const predictedNext = (lastStart && avgCycle) ? new Date(startOfDay(lastStart).getTime() + avgCycle * 86400000) : null
   const moon = moonPhaseInfo()
 
   const addPeriodLog = async () => {
@@ -192,8 +221,8 @@ const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
   const lightband = useMemo(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const ranges = periodLogs.map(p => {
-      const s = new Date(p.start_date)
-      const e = p.end_date ? new Date(p.end_date) : s
+      const s = startOfDay(p.start_date)
+      const e = p.end_date ? startOfDay(p.end_date) : s
       return [s.getTime(), e.getTime()]
     })
     const predictedStr = predictedNext ? dstr(predictedNext) : null
@@ -250,7 +279,7 @@ const ChronosPage = ({ onClose, showToast, anchorDate, onAnchorChange }) => {
               const rPct = dia / 2
               const tagX = 50 + rPct * Math.cos(rad)
               const tagY = 50 + rPct * Math.sin(rad)
-              const d = daysBetween(new Date(), new Date(c.target_at))
+              const d = daysBetween(new Date(), c.target_at)
               return (
                 <div key={c.id}>
                   <div className="chronos-orbit-ring" style={{ width: `${dia}%`, height: `${dia}%` }}>

@@ -76,6 +76,7 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
   // 展开动画留出结束的时间，太早滚的话，键盘还没到位，算出来的目标
   // 位置也是错的。
   useEffect(() => {
+    let focusTimer = null
     const onFocusIn = (e) => {
       const t = e.target
       if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return
@@ -86,10 +87,22 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
       // 已经稳定居中的 fixed 元素基本是空操作，但也可能意外滚动到某个
       // 无关的祖先容器上，索性跳过
       if (t.closest('.modal-veil')) return
-      setTimeout(() => t.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)
+      // 【2026-08-12】这个定时器原来是"放出去就不管了"。点了输入框之后
+      // 300ms 内如果人已经点返回退出了这一页，回调仍会在一个已经卸载的
+      // 节点上执行 scrollIntoView——在部分安卓 WebView 上这会把**下面
+      // 那一层**（引力页）滚动一下，表现是"从回声退回引力页，页面莫名
+      // 抖了一下"。存下来，卸载时清掉。
+      clearTimeout(focusTimer)
+      focusTimer = setTimeout(() => {
+        if (!t.isConnected) return
+        t.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 300)
     }
     document.addEventListener('focusin', onFocusIn)
-    return () => document.removeEventListener('focusin', onFocusIn)
+    return () => {
+      clearTimeout(focusTimer)
+      document.removeEventListener('focusin', onFocusIn)
+    }
   }, [])
 
   const modelList     = config?.models || []
@@ -231,8 +244,13 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
     // 密钥都把 Anthropic 提供商悄悄冲回默认的 openai 协议，下次聊天
     // 请求就会拼错格式
     const protocol = existing?.protocol || 'openai'
-    const others = customProviders.filter(p => p.id !== providerId)
-    return [...others, { id: providerId, label, baseUrl, apiKey, protocol }]
+    const entry = { id: providerId, label, baseUrl, apiKey, protocol }
+    // 【2026-08-12 修复】原来是"先滤掉这一条、再追加到末尾"，于是每保存
+    // 一次密钥，那个提供商就会跳到列表最下面——改一次地址、列表顺序就
+    // 变一次，找起来很莫名其妙。已存在的就原地替换，只有新的才追加。
+    return customProviders.some(p => p.id === providerId)
+      ? customProviders.map(p => (p.id === providerId ? entry : p))
+      : [...customProviders, entry]
   }
 
   // 只保存提供商的地址/密钥，不改动已选模型——换密钥场景走这个，
@@ -295,7 +313,10 @@ const EchoPage = ({ config, setConfig, onSaveConfig, showToast, onClose, onDisco
     const keepOthers = modelList.filter(m => m.providerId !== providerId)
     const fromThisProvider = [...picked].map(mid => {
       const existing = modelList.find(m => m.providerId === providerId && m.requestModel === mid)
-      return { id: existing?.id || `${providerId}:${mid}`, label: mid, requestModel: mid, providerId, baseUrl, apiKey, protocol }
+      // label 沿用已存在那条的（可能是手动改过的显示名），只有新勾中的
+      // 才拿模型名当默认显示名——原来无条件写成 mid，等于每次重新勾一遍
+      // 模型列表都把改过的名字冲掉
+      return { id: existing?.id || `${providerId}:${mid}`, label: existing?.label || mid, requestModel: mid, providerId, baseUrl, apiKey, protocol }
     })
     const nextModels = [...keepOthers, ...fromThisProvider]
     const nextActive = nextModels.find(m => m.id === activeModelId) ? activeModelId : (nextModels[0]?.id || '')

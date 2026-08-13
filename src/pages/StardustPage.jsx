@@ -17,7 +17,7 @@
  * 详情从居中弹窗改成了底部浮层：点开一条记忆时，深空里的相机正在
  * 缓慢推近那颗粒子，居中弹窗会把这个过程整个盖住。
  */
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import MemoryDeepSpace from './MemoryDeepSpace'
 import ConstellationMap from './ConstellationMap'
 import { TracesView, BreathView, NoonView } from './StardustViews'
@@ -41,11 +41,16 @@ const READY_KEYS = STARDUST_TABS.filter(t => t.ready).map(t => t.key)
 const MemorySheet = ({ mem, onClose }) => {
   const color = domainColor(mem.domain)
 
+  // onClose 是父组件每次渲染现给的新函数，直接放进依赖数组等于"每渲染
+  // 一次就解绑再重绑一次"。用 ref 存最新的回调，监听只在挂载/卸载各做
+  // 一次——行为完全一样，少掉一堆无谓的绑定/解绑
+  const closeRef = useRef(onClose)
+  useEffect(() => { closeRef.current = onClose }, [onClose])
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e) => { if (e.key === 'Escape') closeRef.current?.() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [])
 
   return (
     <div className="dust-sheet-veil" onClick={onClose}>
@@ -164,7 +169,14 @@ const StardustPage = ({
       {/* ── 底部动作条 ── */}
       <div className="dust-actions hairline-top">
         <button onClick={onFetch} className="line-btn dust-action">↻ 刷新</button>
-        <button onClick={onDream} className="line-btn dust-action is-wide">✦ 让记忆沉淀</button>
+        {/* 「让记忆沉淀」会调用记忆服务端的 dream——那一步在 Ombre 那边
+            是要跑模型的，跟合墨生成、写日记一样属于"点一下就花钱"的
+            动作，所以照柯定的规矩，按钮上得说明白，不能让人以为它跟
+            旁边的「刷新」一样只是拉一次数据 */}
+        <button onClick={onDream} className="line-btn dust-action is-wide" title="会调用记忆服务整理记忆，消耗 token">
+          ✦ 让记忆沉淀
+          <span className="dust-action-cost">消耗 token</span>
+        </button>
       </div>
 
       {selectedMemory && (

@@ -14,9 +14,13 @@ export const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
 
 // ── 字符串 → 稳定伪随机（同一 bucketId / domain 每次结果一致）────
 export function hashSeed(str) {
+  // 原来循环里每次都 String(str) 转一遍（条件判断一次、取字符一次），
+  // 一条 20 字的 id 就多做 40 次字符串转换。这个函数是星图/深空每次
+  // 渲染给每颗粒子都要调的，转换一次存下来就够了
+  const s = String(str)
   let h = 2166136261
-  for (let i = 0; i < String(str).length; i++) {
-    h ^= String(str).charCodeAt(i)
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
     h = Math.imul(h, 16777619)
   }
   return h >>> 0
@@ -164,7 +168,12 @@ export function daysForPlot(mem) {
   return d === null ? DEFAULT_DAYS : d
 }
 export function daysLabel(days) {
-  if (days === null) return '时间未知'
+  // 【2026-08-12 修复】原来只挡了 null。daysOf() 确实只会返回 null 或
+  // 数字，但这个函数是导出的公共工具，调用点很多（星图 tooltip、时间线
+  // 分组头、深空详情、NOON 卡片…），只要哪天有人传进来一个 undefined
+  // 或 NaN，下面所有比较都是 false，会一路掉到最后一行，屏幕上就出现
+  // 一句"NaN 年前"。改成统一按"不是有限数字就是时间未知"来挡
+  if (!Number.isFinite(days)) return '时间未知'
   if (days < 1) return '今天'
   if (days < 2) return '昨天'
   if (days < 7) return `${Math.round(days)} 天前`

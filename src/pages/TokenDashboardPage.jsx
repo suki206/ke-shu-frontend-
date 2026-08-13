@@ -16,11 +16,26 @@ import { useEffect } from 'react'
 const fmt = (n) => (n ?? 0).toLocaleString('en-US')
 
 const WEEKDAY_CN = ['一', '二', '三', '四', '五', '六', '日']
-// trend7d 里的 date 是后端按北京日历日给的 'YYYY-MM-DD'，直接按
-// UTC+8 解析，避免因浏览器本地时区不同而错位到前一天/后一天。
+// 【2026-08-12 bug 修复】趋势图下面那排星期整体错了一天。
+// 原来的写法是 new Date(`${dateStr}T00:00:00+08:00`).getUTCDay()：
+// 前半句确实按北京零点解析对了，但 getUTCDay() 取的是**这个时刻在
+// UTC 下**是星期几——北京 8 月 12 日零点 = UTC 8 月 11 日 16:00，
+// 于是周三被标成了周二，七个标签一个不落全错。
+// 正确做法是把这个 'YYYY-MM-DD' 当成一个纯日期看待：按 UTC 零点解析、
+// 再用 UTC 取星期，两边基准一致，跟浏览器本地时区也彻底无关。
 const dayLabel = (dateStr) => {
-  const d = new Date(`${dateStr}T00:00:00+08:00`)
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return ''
   return WEEKDAY_CN[(d.getUTCDay() + 6) % 7]
+}
+
+// 花费格式化：几分钱的时候多给两位小数，不然一整天都显示 ¥0.00，
+// 看着像没花钱。estimated 为真表示这个模型不在单价表里，按均价估的，
+// 前面加个"≈"，不冒充精确账单。
+const money = (v, estimated) => {
+  const n = Number(v) || 0
+  const num = n === 0 ? '0.00' : n < 0.01 ? n.toFixed(4) : n < 1 ? n.toFixed(3) : n.toFixed(2)
+  return `${estimated ? '≈' : ''}¥${num}`
 }
 
 const BackIcon = () => (
@@ -38,7 +53,7 @@ const RefreshIcon = () => (
 )
 
 // ── 次级读数卡：本周 / 历史 / 当前会话 ──────────────────────────
-const StatCard = ({ label, data, emptyHint }) => {
+const StatCard = ({ label, data, emptyHint, cost, estimated }) => {
   const has = !!data
   const total = has ? (data.input || 0) + (data.output || 0) : 0
   return (
@@ -48,6 +63,7 @@ const StatCard = ({ label, data, emptyHint }) => {
         <>
           <div className="token-dash-stat-total">{fmt(total)}</div>
           <div className="token-dash-stat-sub">↑{fmt(data.input)} ↓{fmt(data.output)}</div>
+          {cost != null && <div className="token-dash-stat-cost">{money(cost, estimated)}</div>}
         </>
       ) : (
         <div className="token-dash-stat-empty">{emptyHint || '—'}</div>
@@ -157,13 +173,21 @@ const TokenDashboardPage = ({ stats, loading, onRefresh, onClose }) => {
                   <span className="token-dash-hero-tag">输出 · OUT</span>
                 </div>
               </div>
+              {/* 今天花了多少钱：柯要的"更直观一点"。数字本身没有单位
+                  概念，折成钱才知道贵不贵 */}
+              {stats.cost && (
+                <div className="token-dash-cost">
+                  <span className="token-dash-cost-num">{money(stats.cost.today, stats.cost.estimated)}</span>
+                  <span className="token-dash-cost-tag">今日花费 · COST</span>
+                </div>
+              )}
             </div>
 
             {/* 本周 / 历史 / 当前会话 */}
             <div className="token-dash-grid">
-              <StatCard label="本周 · WEEK" data={stats.week} />
-              <StatCard label="历史 · ALL TIME" data={stats.all} />
-              <StatCard label="本次会话" data={stats.session} emptyHint="未在会话中" />
+              <StatCard label="本周 · WEEK" data={stats.week} cost={stats.cost?.week} estimated={stats.cost?.estimated} />
+              <StatCard label="历史 · ALL TIME" data={stats.all} cost={stats.cost?.all} estimated={stats.cost?.estimated} />
+              <StatCard label="本次会话" data={stats.session} emptyHint="未在会话中" cost={stats.cost?.session} estimated={stats.cost?.estimated} />
             </div>
 
             {/* 7 日趋势 */}
@@ -184,6 +208,7 @@ const TokenDashboardPage = ({ stats, loading, onRefresh, onClose }) => {
                   {modelEntries.map(([m, v]) => {
                     const total = (v.input || 0) + (v.output || 0)
                     const share = grandTotal ? total / grandTotal : 0
+                    const modelCost = stats.cost?.byModel?.[m]
                     return (
                       <div key={m} className="token-dash-model-row">
                         <div className="token-dash-model-top">
@@ -193,10 +218,24 @@ const TokenDashboardPage = ({ stats, loading, onRefresh, onClose }) => {
                         <div className="token-dash-model-bar">
                           <span style={{ width: `${Math.max(share * 100, share > 0 ? 2 : 0)}%` }} />
                         </div>
+                        {modelCost && (
+                          <span className="token-dash-model-cost">
+                            {money(modelCost.cost, modelCost.estimated)}
+                            <span style={{ opacity: .6 }}>　· 输入 ¥{modelCost.in}/百万　输出 ¥{modelCost.out}/百万</span>
+                          </span>
+                        )}
                       </div>
                     )
                   })}
                 </div>
+              </div>
+            )}
+
+            {stats.cost && (
+              <div className="token-dash-note">
+                花费按各模型单价折算，含合墨与日记这两处的调用。
+                {stats.cost.estimated ? '带「≈」的是没在单价表里的模型，按均价估的。' : ''}
+                实际账单通常比这里更低——命中缓存的输入 token 各家只按一折左右计费。
               </div>
             )}
 

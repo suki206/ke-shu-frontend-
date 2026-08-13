@@ -66,6 +66,17 @@ const BeaconPage = ({
 
   return (
     <div className="beacon-page">
+      {/* 【2026-08-12】信标是六个全屏子页里唯一没有星云底的一页——
+          回声/数据罗盘/茧星/备份/合墨都有，只有它是一块纯黑板，
+          从引力页跃迁进来时质感明显断了一档。以前不加多半是怕多一层
+          带 blur(64px) 的图层拖慢，现在星云已经整组改成静态渐变、
+          一次栅格化之后不再重画，成本可以忽略，就补齐了。 */}
+      <div className="gravity-nebula" aria-hidden="true">
+        <span className="gravity-nebula-layer l1" />
+        <span className="gravity-nebula-layer l2" />
+        <span className="gravity-nebula-layer l3" />
+      </div>
+
       <div className="beacon-page-header">
         <button className="beacon-page-iconbtn" onClick={onClose} aria-label="返回">
           <BackIcon />

@@ -1004,6 +1004,10 @@ const InkPage = ({
   // 正文分段：按 entries 顺序拼，柯/枢各自的字色与徽标；
   // 老数据（有 content 但没有 entries）整段按柯的字迹显示，
   // 不至于点开一片空白
+  // tokens：枢写的每一段都记着这次生成实际花掉的 input/output。
+  // 柯的要求是"凡是消耗 token 的地方都要有标记"——所以这里带出来，
+  // 在他那段的末尾挂一枚极小的消耗标（见下方 .ink-doc-cost）。
+  // 柯自己写的段落不花任何 token，自然没有这个标记。
   const segments = useMemo(() => {
     if (entries.length) {
       return entries.map((e, i) => ({
@@ -1012,9 +1016,12 @@ const InkPage = ({
         text: e.content || '',
         author: e.author,
         divider: e.mode === 'new' && i > 0,
+        tokens: (e.tokens_input != null || e.tokens_output != null)
+          ? { input: e.tokens_input || 0, output: e.tokens_output || 0 }
+          : null,
       }))
     }
-    if (note?.content) return [{ key: 'legacy', id: null, text: note.content, author: 'ke', divider: false }]
+    if (note?.content) return [{ key: 'legacy', id: null, text: note.content, author: 'ke', divider: false, tokens: null }]
     return []
   }, [entries, note?.content])
 
@@ -1055,8 +1062,8 @@ const InkPage = ({
               className="ink-page-iconbtn"
               onClick={handOffToShu}
               disabled={generating || !myTurn}
-              aria-label={isTrulyEmpty ? '让枢先起笔' : '交给枢写完'}
-              title={isTrulyEmpty ? '让枢先起笔' : '交给枢写完'}
+              aria-label={isTrulyEmpty ? '让枢先起笔（消耗 token）' : '交给枢写完（消耗 token）'}
+              title={isTrulyEmpty ? '让枢先起笔 · 会消耗 token' : '交给枢写完 · 会消耗 token'}
             >
               <HandOffIcon />
             </button>
@@ -1064,8 +1071,8 @@ const InkPage = ({
               className="ink-page-iconbtn"
               onClick={handOffToShuNew}
               disabled={generating || isTrulyEmpty || !myTurn}
-              aria-label="另起一篇"
-              title="另起一篇"
+              aria-label="另起一篇（消耗 token）"
+              title="另起一篇 · 会消耗 token"
             >
               <BranchIcon />
             </button>
@@ -1236,6 +1243,11 @@ const InkPage = ({
                             onClick={() => { if (seg.author === 'ke' && seg.id) startEditEntry(seg.id, seg.text) }}
                           >
                             {seg.text}
+                            {seg.author === 'shu' && seg.tokens && (
+                              <span className="token-cost-mark ink-doc-cost">
+                                这一段 ↑{seg.tokens.input} ↓{seg.tokens.output} token
+                              </span>
+                            )}
                           </span>
                         )}
                       </Fragment>
